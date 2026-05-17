@@ -301,119 +301,121 @@ def _qbtn_grid(options: list, state_key: str, n_cols: int = 4) -> str:
     return current
 
 
+def _taistock_dispatch(qt, code, codes, start_date, end_date, query_date, count):
+    """分派台股市場查詢。"""
+    if qt == "漲幅排行":      return qw.query_ranking("up", count)
+    if qt == "跌幅排行":      return qw.query_ranking("down", count)
+    if qt == "成交量排行":    return qw.query_ranking("volume", count)
+    if qt == "成交金額排行":  return qw.query_ranking("amount", count)
+    if qt == "個股即時快照":
+        if not codes:
+            return {"error": "⚠️ 個股快照需輸入股票代號"}
+        return qw.query_snapshot(codes)
+    if qt == "個股日K":
+        if not code:
+            return {"error": "⚠️ 個股日K需輸入股票代號"}
+        return qw.query_daily_kbar(code, start_date, end_date)
+    if qt == "逐筆成交":
+        if not code:
+            return {"error": "⚠️ 逐筆成交需輸入股票代號"}
+        return qw.query_ticks(code, query_date)
+    return {"error": f"未知項目：{qt}"}
+
+
 def render_taistock_market():
-    """台股市場查詢"""
+    """台股市場查詢 —— 複選批次模式"""
     main_logger.info("渲染台股市場 Tab")
 
-    # 資料來源優先規則說明
-    with st.expander("📋 資料來源優先規則", expanded=False):
-        st.markdown("""
-        | 優先 | 來源 | 說明 |
-        |------|------|------|
-        | 🥇 第一 | **Shioaji API** | 即時報價、排行、快照、日K |
-        | 🥈 第二 | **TWSE 公開資訊站** | 當日全市場行情、三大法人、本益比 |
-        | 🥉 最後 | **FinMind** | 歷史籌碼/基本面（有 2-3 週落後） |
-        """)
+    NO_DATE_ITEMS = ["漲幅排行", "跌幅排行", "成交量排行", "成交金額排行", "個股即時快照"]
+    DATE_ITEMS    = ["個股日K", "逐筆成交"]
 
-    query_type = _qbtn_grid(
-        ["漲幅排行", "跌幅排行", "成交量排行", "成交金額排行",
-         "個股即時快照", "個股日K", "逐筆成交"],
-        "taistock_q", n_cols=4
-    )
+    # ── 上半：複選區（左=不需日期，右=需要日期） ─────────────
+    with st.container(border=True):
+        col_left, col_right = st.columns(2)
 
-    if query_type == "漲幅排行":
-        st.subheader("📈 漲幅排行")
-        col1, col2 = st.columns(2)
-        with col1:
-            count = st.slider("筆數", 5, 50, 10)
-        with col2:
-            st.info(f"取前 {count} 檔")
-        if st.button("查詢", key="ranking_up"):
-            with st.spinner("查詢中..."):
-                result = qw.query_ranking("up", count)
-                st.session_state.current_result = result
-                display_result(result, "漲幅排行")
+        with col_left:
+            hc1, hc2 = st.columns([4, 1])
+            with hc1:
+                st.caption("📊 不需日期（排行／快照）")
+            with hc2:
+                if st.button("全選", key="ts_all_nd", use_container_width=True):
+                    for i in range(len(NO_DATE_ITEMS)):
+                        st.session_state[f"ts_cb_nd_{i}"] = True
+            for i, opt in enumerate(NO_DATE_ITEMS):
+                st.checkbox(opt, key=f"ts_cb_nd_{i}")
 
-    elif query_type == "跌幅排行":
-        st.subheader("📉 跌幅排行")
-        col1, col2 = st.columns(2)
-        with col1:
-            count = st.slider("筆數", 5, 50, 10)
-        with col2:
-            st.info(f"取後 {count} 檔")
-        if st.button("查詢", key="ranking_down"):
-            with st.spinner("查詢中..."):
-                result = qw.query_ranking("down", count)
-                st.session_state.current_result = result
-                display_result(result, "跌幅排行")
+        with col_right:
+            hc1, hc2 = st.columns([4, 1])
+            with hc1:
+                st.caption("📅 需要日期（K線／逐筆）")
+            with hc2:
+                if st.button("全選", key="ts_all_d", use_container_width=True):
+                    for i in range(len(DATE_ITEMS)):
+                        st.session_state[f"ts_cb_d_{i}"] = True
+            for i, opt in enumerate(DATE_ITEMS):
+                st.checkbox(opt, key=f"ts_cb_d_{i}")
 
-    elif query_type == "成交量排行":
-        st.subheader("📊 成交量排行")
-        count = st.slider("筆數", 5, 50, 10)
-        if st.button("查詢", key="ranking_volume"):
-            with st.spinner("查詢中..."):
-                result = qw.query_ranking("volume", count)
-                st.session_state.current_result = result
-                display_result(result, "成交量排行")
+    # ── 判斷勾選內容，動態顯示對應參數 ─────────────────────
+    selected_nd = [opt for i, opt in enumerate(NO_DATE_ITEMS) if st.session_state.get(f"ts_cb_nd_{i}", False)]
+    selected_d  = [opt for i, opt in enumerate(DATE_ITEMS)    if st.session_state.get(f"ts_cb_d_{i}",  False)]
+    selected    = selected_nd + selected_d
 
-    elif query_type == "成交金額排行":
-        st.subheader("💰 成交金額排行")
-        count = st.slider("筆數", 5, 50, 10)
-        if st.button("查詢", key="ranking_amount"):
-            with st.spinner("查詢中..."):
-                result = qw.query_ranking("amount", count)
-                st.session_state.current_result = result
-                display_result(result, "成交金額排行")
+    has_ranking  = any(x in selected for x in ["漲幅排行", "跌幅排行", "成交量排行", "成交金額排行"])
+    has_snapshot = "個股即時快照" in selected
+    has_kbar     = "個股日K" in selected
+    has_ticks    = "逐筆成交" in selected
+    needs_code   = has_snapshot or has_kbar or has_ticks
 
-    elif query_type == "個股即時快照":
-        st.subheader("📊 個股即時快照")
-        codes = code_input_section("輸入股票代號", single=False)
-        
-        col1, col2 = st.columns([1, 4])
-        with col1:
-            auto_refresh = st.toggle("自動刷新", value=False, key="snapshot_auto_refresh")
-        with col2:
-            if auto_refresh:
-                st.caption("⏱️ 每 30 秒自動更新數據")
+    count = 10
+    if has_ranking:
+        count = st.slider("排行筆數", 5, 50, 10, key="ts_count")
 
-        if not auto_refresh:
-            if st.button("查詢", key="snapshot"):
-                if codes:
-                    with st.spinner("查詢中..."):
-                        result = qw.query_snapshot(codes)
-                        st.session_state.current_result = result
-                        display_result(result, "個股即時快照")
-                else:
-                    st.warning("請輸入至少一個股票代號")
+    code, codes = "", []
+    if needs_code:
+        if has_snapshot:
+            codes = code_input_section("輸入股票代號（快照可多碼，逗號分隔）", single=False)
+            code = codes[0] if codes else ""
         else:
-            # 使用 Fragment 進行自動刷新
-            render_snapshot_fragment(codes)
+            code = code_input_section("輸入股票代號")
+            codes = [code] if code else []
 
-    elif query_type == "個股日K":
-        st.subheader("📈 個股日K")
-        code = code_input_section("輸入股票代號")
+    start_date = end_date = date.today()
+    if has_kbar:
         start_date, end_date = date_input_section()
-        if st.button("查詢", key="kbar"):
-            if code:
-                with st.spinner("查詢中..."):
-                    result = qw.query_daily_kbar(code, start_date, end_date)
-                    st.session_state.current_result = result
-                    display_result(result, f"{code} 日K")
-            else:
-                st.warning("請輸入股票代號")
 
-    elif query_type == "逐筆成交":
-        st.subheader("📝 逐筆成交")
-        code = code_input_section("輸入股票代號")
-        query_date = st.date_input("選擇日期", date.today())
-        if st.button("查詢", key="ticks"):
-            if code:
-                with st.spinner("查詢中..."):
-                    result = qw.query_ticks(code, query_date)
-                    st.session_state.current_result = result
-                    display_result(result, f"{code} 逐筆成交")
-            else:
-                st.warning("請輸入股票代號")
+    query_date = date.today()
+    if has_ticks:
+        query_date = st.date_input("逐筆日期", date.today(), key="ts_tick_date")
+
+    if selected:
+        st.caption(f"已勾選 {len(selected)} 項：{' · '.join(selected)}")
+
+    run_batch = st.button("🔍 確認查詢", type="primary", use_container_width=True,
+                          key="ts_run_batch")
+
+    st.divider()
+
+    # ── 下半：批次執行 + 結果統一顯示 ───────────────────────
+    if run_batch:
+        if not selected:
+            st.warning("請至少勾選一個項目")
+        else:
+            results = []
+            bar = st.progress(0, text="查詢中...")
+            for idx, item in enumerate(selected):
+                bar.progress((idx + 1) / len(selected), text=f"查詢：{item}")
+                try:
+                    result = _taistock_dispatch(
+                        item, code, codes, start_date, end_date, query_date, count)
+                except Exception as e:
+                    result = {"error": str(e)}
+                results.append((item, result))
+            bar.empty()
+            st.session_state["ts_batch_results"] = results
+
+    for item, result in st.session_state.get("ts_batch_results", []):
+        with st.expander(f"📋 {item}", expanded=True):
+            display_result(result, item)
 
 
 
@@ -644,51 +646,96 @@ def render_finmind():
             with st.expander(f"📋 {stored_code} — {item}", expanded=True):
                 display_result(result, f"{stored_code} {item}")
 
+def _futures_forex_dispatch(qt, futures_code, currency, start_date, end_date):
+    """分派期貨/匯率查詢。"""
+    if qt == "期貨日行情":    return qw.query_futures_daily(futures_code, start_date, end_date)
+    if qt == "期貨三大法人":  return qw.query_futures_institutional(futures_code, start_date, end_date)
+    if qt == "台銀匯率查詢":  return qw.query_exchange_rate(currency, start_date, end_date)
+    return {"error": f"未知項目：{qt}"}
+
+
 def render_futures_forex():
-    """期貨/匯率 (Phase 7 實作完成)"""
+    """期貨/匯率 —— 複選批次模式"""
     main_logger.info("渲染期貨/匯率 Tab")
 
-    query_type = _qbtn_grid(
-        ["期貨日行情", "期貨三大法人", "台銀匯率查詢"],
-        "futures_q", n_cols=3
-    )
+    FUTURES_ITEMS = ["期貨日行情", "期貨三大法人"]
+    FOREX_ITEMS   = ["台銀匯率查詢"]
 
-    if query_type == "期貨日行情":
-        st.subheader("📉 期貨日行情")
-        code = st.selectbox("選擇品種", ["TX", "MTX"], help="TX: 大台, MTX: 小台")
-        start_date, end_date = date_input_section(default_days=30)
-        
-        if st.button("查詢期貨行情", key="futures_daily"):
-            with st.spinner("查詢中..."):
-                result = qw.query_futures_daily(code, start_date, end_date)
-                st.session_state.current_result = result
-                display_result(result, f"{code} 期貨日行情")
+    # ── 上半：複選區（左=期貨，右=匯率） ────────────────────
+    with st.container(border=True):
+        col_left, col_right = st.columns(2)
 
-    elif query_type == "期貨三大法人":
-        st.subheader("🏦 期貨三大法人買賣超")
-        code = st.selectbox("選擇品種", ["TX", "MTX"])
-        start_date, end_date = date_input_section(default_days=30)
-        
-        if st.button("查詢法人部位", key="futures_inst"):
-            with st.spinner("查詢中..."):
-                result = qw.query_futures_institutional(code, start_date, end_date)
-                st.session_state.current_result = result
-                display_result(result, f"{code} 三大法人部位")
+        with col_left:
+            hc1, hc2 = st.columns([4, 1])
+            with hc1:
+                st.caption("📉 期貨（需品種＋日期）")
+            with hc2:
+                if st.button("全選", key="ff_all_f", use_container_width=True):
+                    for i in range(len(FUTURES_ITEMS)):
+                        st.session_state[f"ff_cb_f_{i}"] = True
+            for i, opt in enumerate(FUTURES_ITEMS):
+                st.checkbox(opt, key=f"ff_cb_f_{i}")
 
-    elif query_type == "台銀匯率查詢":
-        st.subheader("💱 台銀匯率查詢")
+        with col_right:
+            hc1, hc2 = st.columns([4, 1])
+            with hc1:
+                st.caption("💱 匯率（需幣別＋日期）")
+            with hc2:
+                if st.button("全選", key="ff_all_x", use_container_width=True):
+                    for i in range(len(FOREX_ITEMS)):
+                        st.session_state[f"ff_cb_x_{i}"] = True
+            for i, opt in enumerate(FOREX_ITEMS):
+                st.checkbox(opt, key=f"ff_cb_x_{i}")
+
+    selected_f = [opt for i, opt in enumerate(FUTURES_ITEMS) if st.session_state.get(f"ff_cb_f_{i}", False)]
+    selected_x = [opt for i, opt in enumerate(FOREX_ITEMS)   if st.session_state.get(f"ff_cb_x_{i}", False)]
+    selected   = selected_f + selected_x
+
+    # ── 共用參數（期貨品種 / 匯率幣別各自選，日期共用） ──────
+    param_col1, param_col2 = st.columns(2)
+    with param_col1:
+        futures_code = st.selectbox("期貨品種", ["TX", "MTX"],
+                                    help="TX: 大台, MTX: 小台",
+                                    disabled=(not selected_f),
+                                    key="ff_futures_code")
+    with param_col2:
         currency = st.selectbox(
-            "選擇幣別", 
+            "匯率幣別",
             ["USD", "JPY", "EUR", "CNY", "HKD", "GBP", "AUD", "CAD", "SGD", "ZAR"],
-            index=0
-        )
-        start_date, end_date = date_input_section(default_days=30)
-        
-        if st.button("查詢匯率", key="exchange_rate"):
-            with st.spinner("查詢中..."):
-                result = qw.query_exchange_rate(currency, start_date, end_date)
-                st.session_state.current_result = result
-                display_result(result, f"{currency}/TWD 歷史匯率")
+            disabled=(not selected_x),
+            key="ff_currency")
+
+    start_date, end_date = date_input_section(default_days=30)
+
+    if selected:
+        st.caption(f"已勾選 {len(selected)} 項：{' · '.join(selected)}")
+
+    run_batch = st.button("🔍 確認查詢", type="primary", use_container_width=True,
+                          key="ff_run_batch")
+
+    st.divider()
+
+    # ── 下半：批次執行 + 結果統一顯示 ───────────────────────
+    if run_batch:
+        if not selected:
+            st.warning("請至少勾選一個項目")
+        else:
+            results = []
+            bar = st.progress(0, text="查詢中...")
+            for idx, item in enumerate(selected):
+                bar.progress((idx + 1) / len(selected), text=f"查詢：{item}")
+                try:
+                    result = _futures_forex_dispatch(
+                        item, futures_code, currency, start_date, end_date)
+                except Exception as e:
+                    result = {"error": str(e)}
+                results.append((item, result))
+            bar.empty()
+            st.session_state["ff_batch_results"] = results
+
+    for item, result in st.session_state.get("ff_batch_results", []):
+        with st.expander(f"📋 {item}", expanded=True):
+            display_result(result, item)
 
 def render_hk_us_stocks():
     """港美股查詢 (Futu OpenAPI)"""
