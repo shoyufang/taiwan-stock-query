@@ -421,42 +421,67 @@ def render_twse_section():
     """TWSE 證交所查詢（OpenAPI 全端點）"""
     main_logger.info("渲染 TWSE Tab")
 
-    # ── 分組定義 ────────────────────────────────────────────
+    # 緊湊 radio 樣式
+    st.markdown("""
+    <style>
+    div[data-testid="stRadio"] > div[role="radiogroup"] {
+        flex-wrap: wrap !important;
+        gap: 0.25rem 1rem !important;
+    }
+    div[data-testid="stRadio"] label {
+        font-size: 0.82rem !important;
+        padding: 0 !important;
+    }
+    div[data-testid="stRadio"] > div:first-child {
+        display: none !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # ── 分組定義（移除 ncols，改用 radio） ────────────────────
     GROUPS = [
-        ("📊 行情資訊",   "twse_g_price",
-         ["當日全市場行情", "月均價", "月成交資訊", "年成交資訊", "大盤指數"], 5),
-        ("🏦 法人/籌碼",  "twse_g_inst",
-         ["當日三大法人", "融資融券彙總", "外資持股(產業)", "外資持股前20"], 4),
-        ("📈 估值",       "twse_g_val",
-         ["本益比/殖利率"], 4),
-        ("🏢 公司資訊",   "twse_g_co",
-         ["公司基本資料", "最近上市", "下市公司", "申請上市(國內)", "申請上市(外國)"], 5),
-        ("⚠️ 注意/處置", "twse_g_warn",
-         ["處置股清單", "注意股清單"], 4),
-        ("📰 新聞公告",   "twse_g_news",
-         ["官方新聞", "活動公告"], 4),
-        ("💰 財報/股利",  "twse_g_fin",
+        ("📊 行情資訊",   "twse_r_price",
+         ["當日全市場行情", "月均價", "月成交資訊", "年成交資訊", "大盤指數"]),
+        ("🏦 法人/籌碼",  "twse_r_inst",
+         ["當日三大法人", "融資融券彙總", "外資持股(產業)", "外資持股前20"]),
+        ("📈 估值",       "twse_r_val",
+         ["本益比/殖利率"]),
+        ("🏢 公司資訊",   "twse_r_co",
+         ["公司基本資料", "最近上市", "下市公司", "申請上市(國內)", "申請上市(外國)"]),
+        ("⚠️ 注意/處置", "twse_r_warn",
+         ["處置股清單", "注意股清單"]),
+        ("📰 新聞公告",   "twse_r_news",
+         ["官方新聞", "活動公告"]),
+        ("💰 財報/股利",  "twse_r_fin",
          ["月營收彙總", "股利分派", "基金基本資訊",
           "綜合損益表(一般業)", "綜合損益表(金融業)", "綜合損益表(證券期貨)",
           "綜合損益表(金控保險)", "綜合損益表(KY外國)", "綜合損益表(保險業)",
-          "資產負債表(一般業)", "資產負債表(KY外國)"], 4),
-        ("📊 ETF",        "twse_g_etf",
-         ["ETF定期定額排行"], 4),
-        ("🌱 ESG揭露",    "twse_g_esg",
+          "資產負債表(一般業)", "資產負債表(KY外國)"]),
+        ("📊 ETF",        "twse_r_etf",
+         ["ETF定期定額排行"]),
+        ("🌱 ESG揭露",    "twse_r_esg",
          ["溫室氣體排放", "能源管理", "用水管理", "廢棄物管理",
           "人力資源發展", "董事會", "投資人溝通", "氣候相關議題管理",
           "功能性委員會", "燃料管理", "產品生命週期管理", "食品安全",
           "供應鏈管理", "產品品質與安全", "社區關係", "資訊安全",
-          "普惠金融", "股權與控制", "風險管理政策", "反競爭行為法律爭議", "職業安全衛生"], 5),
+          "普惠金融", "股權與控制", "風險管理政策", "反競爭行為法律爭議", "職業安全衛生"]),
     ]
 
-    for caption, key, options, ncols in GROUPS:
-        st.caption(caption)
-        _qbtn_grid(options, key, n_cols=ncols)
+    # ── 上半：緊湊 radio 選項區 ─────────────────────────────
+    with st.container(border=True):
+        col_left, col_right = st.columns(2)
+        half = (len(GROUPS) + 1) // 2
+        for i, (caption, key, options) in enumerate(GROUPS):
+            with col_left if i < half else col_right:
+                st.caption(caption)
+                st.radio("", options, horizontal=True, key=key,
+                         label_visibility="collapsed")
 
-    # ── 偵測最後點擊的分組 ──────────────────────────────────
+    st.divider()
+
+    # ── 偵測最後變更的分組 ──────────────────────────────────
     active_sel = None
-    for _, key, options, _ in GROUPS:
+    for _, key, options in GROUPS:
         cur  = st.session_state.get(key, options[0])
         prev = st.session_state.get(f"_prev_{key}", options[0])
         if cur != prev:
@@ -467,7 +492,7 @@ def render_twse_section():
 
     if active_sel is None:
         active_key = st.session_state.get("twse_active_key", GROUPS[0][1])
-        for _, key, options, _ in GROUPS:
+        for _, key, options in GROUPS:
             if key == active_key:
                 active_sel = st.session_state.get(key, options[0])
                 break
