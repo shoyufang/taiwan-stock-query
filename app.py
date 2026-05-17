@@ -1605,12 +1605,17 @@ def _screener_result_block(df: pd.DataFrame, label: str):
         return
     st.success(f"找到 **{len(df)}** 檔符合「{label}」")
     st.dataframe(df, use_container_width=True, hide_index=True)
-    from utils import export_to_excel
-    excel = export_to_excel({"選股結果": df})
-    if excel:
-        st.download_button("⬇ 下載 Excel", data=excel,
+    try:
+        import io
+        import openpyxl
+        buf = io.BytesIO()
+        with pd.ExcelWriter(buf, engine="openpyxl") as writer:
+            df.to_excel(writer, sheet_name="選股結果", index=False)
+        st.download_button("⬇ 下載 Excel", data=buf.getvalue(),
                            file_name=f"選股_{label}.xlsx",
                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    except Exception:
+        pass
 
 
 def _universe_sidebar(prefix: str):
