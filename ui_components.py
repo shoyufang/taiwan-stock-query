@@ -292,26 +292,27 @@ def render_settings_panel(config: Dict[str, Any], in_sidebar: bool = True) -> Di
                         st.warning("請先輸入 Key")
 
             # 準備選單內容
+            current_model = config.get("gemini_model", "")
             models_list = st.session_state.available_gemini_models
             if not models_list:
                 models_list = ["(點擊上方按鈕獲取)"]
                 model_index = 0
             else:
-                current_model = config.get("gemini_model", "")
                 if current_model in models_list:
                     model_index = models_list.index(current_model)
                 else:
                     model_index = 0
-                
+
             gemini_model = st.selectbox("Gemini 模型選擇", models_list, index=model_index, key="gemini_model_select")
-            
-            # 新增：手動輸入模型（用於未來版本或列表未偵測到的模型）
-            use_custom_model = st.checkbox("手動輸入模型名稱", value=False, key="use_custom_gemini")
+
+            # 已有模型時預設開啟手動輸入（避免下拉清單空白時清掉設定）
+            has_existing_model = bool(current_model and current_model != "(點擊上方按鈕獲取)")
+            use_custom_model = st.checkbox("手動輸入模型名稱", value=has_existing_model, key="use_custom_gemini")
             if use_custom_model:
-                custom_model_name = st.text_input("輸入自訂模型代號", value=config.get("gemini_model", ""), placeholder="例：gemini-3.1-pro")
+                custom_model_name = st.text_input("輸入自訂模型代號", value=current_model, placeholder="例：gemini-2.5-flash-preview-05-20")
                 final_model = custom_model_name
             else:
-                final_model = gemini_model
+                final_model = gemini_model if gemini_model != "(點擊上方按鈕獲取)" else current_model
 
             col1, col2 = st.columns(2)
             with col1:
