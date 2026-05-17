@@ -417,339 +417,141 @@ def render_taistock_market():
 
 
 
+# ── TWSE dispatch helper（模組層級，供批次查詢用） ──────────────
+_TWSE_ESG_MAP = {
+    1: "溫室氣體排放", 2: "能源管理", 3: "用水管理", 4: "廢棄物管理",
+    5: "人力資源發展", 6: "董事會", 7: "投資人溝通", 8: "氣候相關議題管理",
+    9: "功能性委員會", 10: "燃料管理", 11: "產品生命週期管理", 12: "食品安全",
+    13: "供應鏈管理", 14: "產品品質與安全", 15: "社區關係", 16: "資訊安全",
+    17: "普惠金融", 18: "股權與控制", 19: "風險管理政策",
+    20: "反競爭行為法律爭議", 21: "職業安全衛生",
+}
+_TWSE_ESG_REV = {v: k for k, v in _TWSE_ESG_MAP.items()}
+_TWSE_IND_MAP = {
+    "綜合損益表(一般業)": "ci",  "綜合損益表(金融業)": "basi",
+    "綜合損益表(證券期貨)": "bd", "綜合損益表(金控保險)": "fh",
+    "綜合損益表(KY外國)": "mim", "綜合損益表(保險業)": "ins",
+}
+_TWSE_BS_MAP = {"資產負債表(一般業)": "ci", "資產負債表(KY外國)": "mim"}
+
+
+def _twse_dispatch(qt: str, code: str = "") -> tuple:
+    """根據項目名稱執行對應 TWSE 查詢，回傳 (result, needs_code)。"""
+    c = code.strip() or None
+    if qt == "當日全市場行情":    return qw.query_twse_daily_all(c), False
+    if qt == "月均價":            return qw.query_twse_stock_day_avg(c), False
+    if qt == "月成交資訊":        return qw.query_twse_monthly(c), False
+    if qt == "年成交資訊":        return qw.query_twse_annual(c), False
+    if qt == "大盤指數":          return qw.query_twse_mi_index(), False
+    if qt == "當日三大法人":      return qw.query_twse_institutional(c), False
+    if qt == "融資融券彙總":      return qw.query_twse_margin(), False
+    if qt == "外資持股(產業)":    return qw.query_twse_qfiis_cat(), False
+    if qt == "外資持股前20":      return qw.query_twse_qfiis_top20(), False
+    if qt == "本益比/殖利率":     return qw.query_twse_valuation(c), False
+    if qt == "公司基本資料":
+        if not c:
+            return {"error": "⚠️ 公司基本資料需輸入股票代號"}, True
+        return qw.query_twse_company(c), True
+    if qt == "最近上市":          return qw.query_twse_newlisting(), False
+    if qt == "下市公司":          return qw.query_twse_suspend_listing(), False
+    if qt == "申請上市(國內)":    return qw.query_twse_apply_listing_local(), False
+    if qt == "申請上市(外國)":    return qw.query_twse_apply_listing_foreign(), False
+    if qt == "處置股清單":        return qw.query_twse_disposition(), False
+    if qt == "注意股清單":        return qw.query_twse_notice(), False
+    if qt == "官方新聞":          return qw.query_twse_news_list(), False
+    if qt == "活動公告":          return qw.query_twse_event_list(), False
+    if qt == "月營收彙總":        return qw.query_twse_monthly_revenue(), False
+    if qt == "股利分派":          return qw.query_twse_dividend_policy(), False
+    if qt == "基金基本資訊":      return qw.query_twse_fund_basic(), False
+    if qt in _TWSE_IND_MAP:       return qw.query_twse_income_statement(_TWSE_IND_MAP[qt]), False
+    if qt in _TWSE_BS_MAP:        return qw.query_twse_balance_sheet_openapi(_TWSE_BS_MAP[qt]), False
+    if qt == "ETF定期定額排行":   return qw.query_twse_etf_rank(), False
+    if qt in _TWSE_ESG_REV:       return qw.query_twse_esg(_TWSE_ESG_REV[qt]), False
+    return {"error": f"未知項目：{qt}"}, False
+
+
 def render_twse_section():
-    """TWSE 證交所查詢（OpenAPI 全端點）"""
+    """TWSE 證交所查詢（OpenAPI 全端點）—— 複選批次模式"""
     main_logger.info("渲染 TWSE Tab")
 
-    # 緊湊 radio 樣式
-    st.markdown("""
-    <style>
-    div[data-testid="stRadio"] > div[role="radiogroup"] {
-        flex-wrap: wrap !important;
-        gap: 0.25rem 1rem !important;
-    }
-    div[data-testid="stRadio"] label {
-        font-size: 0.82rem !important;
-        padding: 0 !important;
-    }
-    div[data-testid="stRadio"] > div:first-child {
-        display: none !important;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-    # ── 分組定義（移除 ncols，改用 radio） ────────────────────
     GROUPS = [
-        ("📊 行情資訊",   "twse_r_price",
-         ["當日全市場行情", "月均價", "月成交資訊", "年成交資訊", "大盤指數"]),
-        ("🏦 法人/籌碼",  "twse_r_inst",
-         ["當日三大法人", "融資融券彙總", "外資持股(產業)", "外資持股前20"]),
-        ("📈 估值",       "twse_r_val",
-         ["本益比/殖利率"]),
-        ("🏢 公司資訊",   "twse_r_co",
-         ["公司基本資料", "最近上市", "下市公司", "申請上市(國內)", "申請上市(外國)"]),
-        ("⚠️ 注意/處置", "twse_r_warn",
-         ["處置股清單", "注意股清單"]),
-        ("📰 新聞公告",   "twse_r_news",
-         ["官方新聞", "活動公告"]),
-        ("💰 財報/股利",  "twse_r_fin",
-         ["月營收彙總", "股利分派", "基金基本資訊",
-          "綜合損益表(一般業)", "綜合損益表(金融業)", "綜合損益表(證券期貨)",
-          "綜合損益表(金控保險)", "綜合損益表(KY外國)", "綜合損益表(保險業)",
-          "資產負債表(一般業)", "資產負債表(KY外國)"]),
-        ("📊 ETF",        "twse_r_etf",
-         ["ETF定期定額排行"]),
-        ("🌱 ESG揭露",    "twse_r_esg",
-         ["溫室氣體排放", "能源管理", "用水管理", "廢棄物管理",
-          "人力資源發展", "董事會", "投資人溝通", "氣候相關議題管理",
-          "功能性委員會", "燃料管理", "產品生命週期管理", "食品安全",
-          "供應鏈管理", "產品品質與安全", "社區關係", "資訊安全",
-          "普惠金融", "股權與控制", "風險管理政策", "反競爭行為法律爭議", "職業安全衛生"]),
+        ("📊 行情資訊",   ["當日全市場行情", "月均價", "月成交資訊", "年成交資訊", "大盤指數"]),
+        ("🏦 法人/籌碼",  ["當日三大法人", "融資融券彙總", "外資持股(產業)", "外資持股前20"]),
+        ("📈 估值",       ["本益比/殖利率"]),
+        ("🏢 公司資訊",   ["公司基本資料", "最近上市", "下市公司", "申請上市(國內)", "申請上市(外國)"]),
+        ("⚠️ 注意/處置", ["處置股清單", "注意股清單"]),
+        ("📰 新聞公告",   ["官方新聞", "活動公告"]),
+        ("💰 財報/股利",  ["月營收彙總", "股利分派", "基金基本資訊",
+                           "綜合損益表(一般業)", "綜合損益表(金融業)", "綜合損益表(證券期貨)",
+                           "綜合損益表(金控保險)", "綜合損益表(KY外國)", "綜合損益表(保險業)",
+                           "資產負債表(一般業)", "資產負債表(KY外國)"]),
+        ("📊 ETF",        ["ETF定期定額排行"]),
+        ("🌱 ESG揭露",    ["溫室氣體排放", "能源管理", "用水管理", "廢棄物管理",
+                           "人力資源發展", "董事會", "投資人溝通", "氣候相關議題管理",
+                           "功能性委員會", "燃料管理", "產品生命週期管理", "食品安全",
+                           "供應鏈管理", "產品品質與安全", "社區關係", "資訊安全",
+                           "普惠金融", "股權與控制", "風險管理政策", "反競爭行為法律爭議", "職業安全衛生"]),
     ]
 
-    # ── 上半：緊湊 radio 選項區 ─────────────────────────────
+    # ── 上半：複選 Checkbox（左右 2 欄） ─────────────────────
     with st.container(border=True):
         col_left, col_right = st.columns(2)
         half = (len(GROUPS) + 1) // 2
-        for i, (caption, key, options) in enumerate(GROUPS):
-            with col_left if i < half else col_right:
-                st.caption(caption)
-                st.radio("", options, horizontal=True, key=key,
-                         label_visibility="collapsed")
+        for gi, (caption, options) in enumerate(GROUPS):
+            with col_left if gi < half else col_right:
+                hc1, hc2 = st.columns([4, 1])
+                with hc1:
+                    st.caption(caption)
+                with hc2:
+                    if st.button("全選", key=f"twse_selall_{gi}",
+                                 use_container_width=True):
+                        for oi in range(len(options)):
+                            st.session_state[f"twse_cb_{gi}_{oi}"] = True
+                for oi, opt in enumerate(options):
+                    st.checkbox(opt, key=f"twse_cb_{gi}_{oi}")
+
+    # ── 篩選代號輸入 + 確認按鈕 ─────────────────────────────
+    param_col, btn_col = st.columns([3, 1])
+    with param_col:
+        code_filter = st.text_input(
+            "篩選代號", placeholder="例：2330（留空查全市場）",
+            key="twse_batch_code", label_visibility="collapsed",
+        )
+    with btn_col:
+        run_batch = st.button("🔍 確認查詢", type="primary", use_container_width=True)
+
+    # 勾選摘要
+    selected = [
+        opt
+        for gi, (_, options) in enumerate(GROUPS)
+        for oi, opt in enumerate(options)
+        if st.session_state.get(f"twse_cb_{gi}_{oi}", False)
+    ]
+    if selected:
+        st.caption(f"已勾選 {len(selected)} 項：{' · '.join(selected[:8])}{'…' if len(selected) > 8 else ''}")
 
     st.divider()
 
-    # ── 偵測最後變更的分組 ──────────────────────────────────
-    active_sel = None
-    for _, key, options in GROUPS:
-        cur  = st.session_state.get(key, options[0])
-        prev = st.session_state.get(f"_prev_{key}", options[0])
-        if cur != prev:
-            st.session_state[f"_prev_{key}"] = cur
-            st.session_state["twse_active_key"] = key
-            active_sel = cur
-            break
+    # ── 下半：批次執行 + 結果統一顯示 ──────────────────────
+    if run_batch:
+        if not selected:
+            st.warning("請至少勾選一個項目")
+        else:
+            results = []
+            bar = st.progress(0, text="查詢中...")
+            for idx, item in enumerate(selected):
+                bar.progress((idx + 1) / len(selected), text=f"查詢：{item}")
+                try:
+                    result, _ = _twse_dispatch(item, code_filter)
+                except Exception as e:
+                    result = {"error": str(e)}
+                results.append((item, result))
+            bar.empty()
+            st.session_state["twse_batch_results"] = results
 
-    if active_sel is None:
-        active_key = st.session_state.get("twse_active_key", GROUPS[0][1])
-        for _, key, options in GROUPS:
-            if key == active_key:
-                active_sel = st.session_state.get(key, options[0])
-                break
-        if active_sel is None:
-            active_sel = GROUPS[0][2][0]
-
-    # ── 根據選擇渲染查詢表單 ────────────────────────────────
-    qt = active_sel   # 簡稱
-
-    # --- 行情資訊 ---
-    if qt == "當日全市場行情":
-        st.subheader("📊 當日全市場行情")
-        code_filter = st.text_input("篩選代號（留空查全市場）", placeholder="例：2330", key="twse_f1")
-        if st.button("查詢", key="twse_daily_all"):
-            with st.spinner("查詢中..."):
-                result = qw.query_twse_daily_all(code_filter or None)
-                st.session_state.current_result = result
-                display_result(result, "TWSE 當日全市場行情")
-
-    elif qt == "月均價":
-        st.subheader("📉 個股月均價")
-        code_filter = st.text_input("篩選代號（留空查全市場）", placeholder="例：2330", key="twse_f2")
-        if st.button("查詢", key="twse_avg"):
-            with st.spinner("查詢中..."):
-                result = qw.query_twse_stock_day_avg(code_filter or None)
-                st.session_state.current_result = result
-                display_result(result, "個股日收盤/月均價")
-
-    elif qt == "月成交資訊":
-        st.subheader("📋 個股月成交資訊")
-        code_filter = st.text_input("篩選代號（留空查全市場）", placeholder="例：2330", key="twse_f3")
-        if st.button("查詢", key="twse_monthly"):
-            with st.spinner("查詢中..."):
-                result = qw.query_twse_monthly(code_filter or None)
-                st.session_state.current_result = result
-                display_result(result, "個股月成交資訊")
-
-    elif qt == "年成交資訊":
-        st.subheader("📋 個股年成交資訊")
-        code_filter = st.text_input("篩選代號（留空查全市場）", placeholder="例：2330", key="twse_f4")
-        if st.button("查詢", key="twse_annual"):
-            with st.spinner("查詢中..."):
-                result = qw.query_twse_annual(code_filter or None)
-                st.session_state.current_result = result
-                display_result(result, "個股年成交資訊")
-
-    elif qt == "大盤指數":
-        st.subheader("📊 大盤今日收盤指數")
-        if st.button("查詢", key="twse_mi_index"):
-            with st.spinner("查詢中..."):
-                result = qw.query_twse_mi_index()
-                st.session_state.current_result = result
-                display_result(result, "大盤今日指數")
-
-    # --- 法人/籌碼 ---
-    elif qt == "當日三大法人":
-        st.subheader("🏦 當日三大法人買賣超")
-        code_filter = st.text_input("篩選代號（留空查全市場）", placeholder="例：2330", key="twse_f5")
-        if st.button("查詢", key="twse_institutional"):
-            with st.spinner("查詢中..."):
-                result = qw.query_twse_institutional(code_filter or None)
-                st.session_state.current_result = result
-                display_result(result, "TWSE 當日三大法人")
-
-    elif qt == "融資融券彙總":
-        st.subheader("💳 融資融券彙總")
-        if st.button("查詢", key="twse_margin"):
-            with st.spinner("查詢中..."):
-                result = qw.query_twse_margin()
-                st.session_state.current_result = result
-                display_result(result, "TWSE 融資融券彙總")
-
-    elif qt == "外資持股(產業)":
-        st.subheader("🌏 外資持股比例（依產業別）")
-        if st.button("查詢", key="twse_qfiis_cat"):
-            with st.spinner("查詢中..."):
-                result = qw.query_twse_qfiis_cat()
-                st.session_state.current_result = result
-                display_result(result, "外資持股（產業別）")
-
-    elif qt == "外資持股前20":
-        st.subheader("🌏 外資持股前 20 名")
-        if st.button("查詢", key="twse_qfiis_top20"):
-            with st.spinner("查詢中..."):
-                result = qw.query_twse_qfiis_top20()
-                st.session_state.current_result = result
-                display_result(result, "外資持股前 20 名")
-
-    # --- 估值 ---
-    elif qt == "本益比/殖利率":
-        st.subheader("📈 本益比/殖利率/股淨比")
-        code_filter = st.text_input("篩選代號（留空查全市場）", placeholder="例：2330", key="twse_f6")
-        if st.button("查詢", key="twse_bwibbu"):
-            with st.spinner("查詢中..."):
-                result = qw.query_twse_valuation(code_filter or None)
-                st.session_state.current_result = result
-                display_result(result, "TWSE 本益比/殖利率")
-
-    # --- 公司資訊 ---
-    elif qt == "公司基本資料":
-        st.subheader("🏢 公司基本資料")
-        code = code_input_section("輸入股票代號")
-        if st.button("查詢", key="twse_company"):
-            if code:
-                with st.spinner("查詢中..."):
-                    result = qw.query_twse_company(code)
-                    st.session_state.current_result = result
-                    display_result(result, f"{code} 公司基本資料")
-            else:
-                st.warning("請輸入股票代號")
-
-    elif qt == "最近上市":
-        st.subheader("🆕 最近上市公司")
-        if st.button("查詢", key="twse_newlisting"):
-            with st.spinner("查詢中..."):
-                result = qw.query_twse_newlisting()
-                st.session_state.current_result = result
-                display_result(result, "最近上市公司")
-
-    elif qt == "下市公司":
-        st.subheader("❌ 下市公司清單")
-        if st.button("查詢", key="twse_suspend"):
-            with st.spinner("查詢中..."):
-                result = qw.query_twse_suspend_listing()
-                st.session_state.current_result = result
-                display_result(result, "下市公司清單")
-
-    elif qt == "申請上市(國內)":
-        st.subheader("📝 申請上市（國內公司）")
-        if st.button("查詢", key="twse_apply_local"):
-            with st.spinner("查詢中..."):
-                result = qw.query_twse_apply_listing_local()
-                st.session_state.current_result = result
-                display_result(result, "申請上市（國內）")
-
-    elif qt == "申請上市(外國)":
-        st.subheader("📝 申請上市（外國公司）")
-        if st.button("查詢", key="twse_apply_foreign"):
-            with st.spinner("查詢中..."):
-                result = qw.query_twse_apply_listing_foreign()
-                st.session_state.current_result = result
-                display_result(result, "申請上市（外國）")
-
-    # --- 注意/處置 ---
-    elif qt == "處置股清單":
-        st.subheader("⚠️ 處置有價證券")
-        if st.button("查詢", key="twse_disposition"):
-            with st.spinner("查詢中..."):
-                result = qw.query_twse_disposition()
-                st.session_state.current_result = result
-                display_result(result, "TWSE 處置股清單")
-
-    elif qt == "注意股清單":
-        st.subheader("🔔 注意有價證券")
-        if st.button("查詢", key="twse_notice"):
-            with st.spinner("查詢中..."):
-                result = qw.query_twse_notice()
-                st.session_state.current_result = result
-                display_result(result, "TWSE 注意股清單")
-
-    # --- 新聞公告 ---
-    elif qt == "官方新聞":
-        st.subheader("📰 證交所官方新聞")
-        if st.button("查詢", key="twse_news"):
-            with st.spinner("查詢中..."):
-                result = qw.query_twse_news_list()
-                st.session_state.current_result = result
-                display_result(result, "證交所官方新聞")
-
-    elif qt == "活動公告":
-        st.subheader("📢 證交所活動公告")
-        if st.button("查詢", key="twse_events"):
-            with st.spinner("查詢中..."):
-                result = qw.query_twse_event_list()
-                st.session_state.current_result = result
-                display_result(result, "證交所活動公告")
-
-    # --- 財報/股利 ---
-    elif qt == "月營收彙總":
-        st.subheader("💹 上市公司月營收彙總")
-        if st.button("查詢", key="twse_monthly_rev"):
-            with st.spinner("查詢中..."):
-                result = qw.query_twse_monthly_revenue()
-                st.session_state.current_result = result
-                display_result(result, "上市公司月營收彙總")
-
-    elif qt == "股利分派":
-        st.subheader("💰 上市公司股利分派")
-        if st.button("查詢", key="twse_div_policy"):
-            with st.spinner("查詢中..."):
-                result = qw.query_twse_dividend_policy()
-                st.session_state.current_result = result
-                display_result(result, "上市公司股利分派")
-
-    elif qt == "基金基本資訊":
-        st.subheader("📦 基金基本資訊")
-        if st.button("查詢", key="twse_fund_basic"):
-            with st.spinner("查詢中..."):
-                result = qw.query_twse_fund_basic()
-                st.session_state.current_result = result
-                display_result(result, "基金基本資訊")
-
-    elif qt in ("綜合損益表(一般業)", "綜合損益表(金融業)", "綜合損益表(證券期貨)",
-                "綜合損益表(金控保險)", "綜合損益表(KY外國)", "綜合損益表(保險業)"):
-        _IND_MAP = {
-            "綜合損益表(一般業)": "ci", "綜合損益表(金融業)": "basi",
-            "綜合損益表(證券期貨)": "bd", "綜合損益表(金控保險)": "fh",
-            "綜合損益表(KY外國)": "mim", "綜合損益表(保險業)": "ins",
-        }
-        ind = _IND_MAP[qt]
-        st.subheader(f"📋 {qt}")
-        if st.button("查詢", key=f"twse_is_{ind}"):
-            with st.spinner("查詢中..."):
-                result = qw.query_twse_income_statement(ind)
-                st.session_state.current_result = result
-                display_result(result, qt)
-
-    elif qt in ("資產負債表(一般業)", "資產負債表(KY外國)"):
-        _BS_MAP = {"資產負債表(一般業)": "ci", "資產負債表(KY外國)": "mim"}
-        ind = _BS_MAP[qt]
-        st.subheader(f"📋 {qt}")
-        if st.button("查詢", key=f"twse_bs_{ind}"):
-            with st.spinner("查詢中..."):
-                result = qw.query_twse_balance_sheet_openapi(ind)
-                st.session_state.current_result = result
-                display_result(result, qt)
-
-    # --- ETF ---
-    elif qt == "ETF定期定額排行":
-        st.subheader("📊 ETF 定期定額月排行")
-        if st.button("查詢", key="twse_etf_rank"):
-            with st.spinner("查詢中..."):
-                result = qw.query_twse_etf_rank()
-                st.session_state.current_result = result
-                display_result(result, "ETF 定期定額排行")
-
-    # --- ESG ---
-    elif qt in ("溫室氣體排放", "能源管理", "用水管理", "廢棄物管理",
-                "人力資源發展", "董事會", "投資人溝通", "氣候相關議題管理",
-                "功能性委員會", "燃料管理", "產品生命週期管理", "食品安全",
-                "供應鏈管理", "產品品質與安全", "社區關係", "資訊安全",
-                "普惠金融", "股權與控制", "風險管理政策", "反競爭行為法律爭議", "職業安全衛生"):
-        _ESG_REV = {v: k for k, v in {
-            1: "溫室氣體排放", 2: "能源管理", 3: "用水管理", 4: "廢棄物管理",
-            5: "人力資源發展", 6: "董事會", 7: "投資人溝通", 8: "氣候相關議題管理",
-            9: "功能性委員會", 10: "燃料管理", 11: "產品生命週期管理", 12: "食品安全",
-            13: "供應鏈管理", 14: "產品品質與安全", 15: "社區關係", 16: "資訊安全",
-            17: "普惠金融", 18: "股權與控制", 19: "風險管理政策",
-            20: "反競爭行為法律爭議", 21: "職業安全衛生",
-        }.items()}
-        topic_id = _ESG_REV[qt]
-        st.subheader(f"🌱 ESG 揭露 — {qt}")
-        if st.button("查詢", key=f"twse_esg_{topic_id}"):
-            with st.spinner("查詢中..."):
-                result = qw.query_twse_esg(topic_id)
-                st.session_state.current_result = result
-                display_result(result, f"ESG 揭露：{qt}")
+    for item, result in st.session_state.get("twse_batch_results", []):
+        with st.expander(f"📋 {item}", expanded=True):
+            display_result(result, item)
 
 
 def render_finmind():
