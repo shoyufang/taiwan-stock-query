@@ -10,8 +10,27 @@ from datetime import datetime, date, timedelta
 from typing import Dict, Any, Optional, Callable
 from utils import ResultType, detect_result_type, format_number, truncate_dataframe
 
-def display_result(df: pd.DataFrame, query_type: str = "", enable_export: bool = True):
-    """智能呈現結果 — 根據類型自動選擇表格 / 圖表"""
+def display_result(df, query_type: str = "", enable_export: bool = True):
+    """智能呈現結果 — 根據類型自動選擇表格 / 圖表。
+
+    df 通常是 pd.DataFrame；若 dispatch 失敗，會收到 dict {"error": "..."}，
+    本函式優先處理錯誤 dict 與 None，再做型別判斷。
+    """
+    # 錯誤 dict（dispatch helper 失敗時回傳）
+    if isinstance(df, dict):
+        if "error" in df:
+            st.error(df["error"])
+            return
+        st.json(df)
+        return
+
+    if df is None:
+        st.warning("沒有查詢結果")
+        return
+
+    if not isinstance(df, pd.DataFrame):
+        st.write(df)
+        return
 
     if df.empty:
         st.warning("沒有查詢結果")

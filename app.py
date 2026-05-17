@@ -442,6 +442,91 @@ def _qbtn_grid(options: list, state_key: str, n_cols: int = 4) -> str:
     return current
 
 
+def _render_batch_results(state_key: str, label_fn=None):
+    """批次查詢結果統一渲染 helper。
+
+    - 工具列：全部展開／全部收合／清除結果／全部匯出 Excel
+    - 第一項預設展開，其餘收合（避免頁面過長）
+    - label_fn(item) -> str 可自訂 expander 標題
+    """
+    stored = st.session_state.get(state_key)
+    if not stored:
+        return
+
+    # 統一格式：list[(item, result)]
+    extra = None
+    if isinstance(stored, tuple) and len(stored) == 2 and isinstance(stored[0], list):
+        results, extra = stored
+    else:
+        results = stored
+    if not results:
+        return
+
+    expand_key = f"_expand_state_{state_key}"
+
+    # ── 工具列 ──────────────────────────────────────────
+    c1, c2, c3, c4 = st.columns([1, 1, 1, 2])
+    with c1:
+        if st.button("⬇️ 展開全部", key=f"_btn_expand_{state_key}", use_container_width=True):
+            st.session_state[expand_key] = True
+            st.rerun()
+    with c2:
+        if st.button("⬆️ 收合全部", key=f"_btn_collapse_{state_key}", use_container_width=True):
+            st.session_state[expand_key] = False
+            st.rerun()
+    with c3:
+        if st.button("🗑️ 清除結果", key=f"_btn_clear_{state_key}", use_container_width=True):
+            del st.session_state[state_key]
+            st.session_state.pop(expand_key, None)
+            st.rerun()
+    with c4:
+        # 全部導出 Excel（多 sheet）
+        valid = [(it, r) for it, r in results
+                 if isinstance(r, pd.DataFrame) and not r.empty]
+        if valid:
+            from io import BytesIO
+            try:
+                buf = BytesIO()
+                with pd.ExcelWriter(buf, engine="openpyxl") as writer:
+                    used = set()
+                    for name, dfx in valid:
+                        sheet = (name[:28] or "Sheet")
+                        # 確保 sheet 名唯一
+                        base = sheet; i = 1
+                        while sheet in used:
+                            sheet = f"{base[:25]}_{i}"; i += 1
+                        used.add(sheet)
+                        dfx.to_excel(writer, sheet_name=sheet, index=False)
+                ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+                st.download_button(
+                    "📥 全部匯出 Excel",
+                    data=buf.getvalue(),
+                    file_name=f"batch_{state_key}_{ts}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    key=f"_export_all_{state_key}",
+                    use_container_width=True,
+                )
+            except Exception as e:
+                st.warning(f"匯出失敗：{e}")
+        else:
+            st.button("📥 全部匯出 Excel", disabled=True, use_container_width=True,
+                      key=f"_export_all_{state_key}",
+                      help="目前沒有可匯出的表格結果")
+
+    # ── 結果列表 ────────────────────────────────────────
+    expand_state = st.session_state.get(expand_key)
+    for idx, (item, result) in enumerate(results):
+        if expand_state is True:
+            expanded = True
+        elif expand_state is False:
+            expanded = False
+        else:
+            expanded = (idx == 0)  # 預設只展開首項
+        label = label_fn(item, extra) if label_fn else f"📋 {item}"
+        with st.expander(label, expanded=expanded):
+            display_result(result, item, enable_export=False)
+
+
 def _taistock_dispatch(qt, code, codes, start_date, end_date, query_date, count):
     """分派台股市場查詢。"""
     if qt == "漲幅排行":      return qw.query_ranking("up", count)
@@ -554,9 +639,7 @@ def render_taistock_market():
             bar.empty()
             st.session_state["ts_batch_results"] = results
 
-    for item, result in st.session_state.get("ts_batch_results", []):
-        with st.expander(f"📋 {item}", expanded=True):
-            display_result(result, item)
+    _render_batch_results("ts_batch_results")
 
 
 
@@ -692,9 +775,7 @@ def render_twse_section():
             bar.empty()
             st.session_state["twse_batch_results"] = results
 
-    for item, result in st.session_state.get("twse_batch_results", []):
-        with st.expander(f"📋 {item}", expanded=True):
-            display_result(result, item)
+    _render_batch_results("twse_batch_results")
 
 
 def _finmind_dispatch(qt: str, code: str, start_date, end_date):
@@ -780,12 +861,10 @@ def render_finmind():
             bar.empty()
             st.session_state["fm_batch_results"] = (results, code)
 
-    stored = st.session_state.get("fm_batch_results")
-    if stored:
-        results, stored_code = stored
-        for item, result in results:
-            with st.expander(f"📋 {stored_code} — {item}", expanded=True):
-                display_result(result, f"{stored_code} {item}")
+    _render_batch_results(
+        "fm_batch_results",
+        label_fn=lambda item, extra: f"📋 {extra} — {item}" if extra else f"📋 {item}",
+    )
 
 def _futures_forex_dispatch(qt, futures_code, currency, start_date, end_date):
     """分派期貨/匯率查詢。"""
@@ -874,213 +953,132 @@ def render_futures_forex():
             bar.empty()
             st.session_state["ff_batch_results"] = results
 
-    for item, result in st.session_state.get("ff_batch_results", []):
-        with st.expander(f"📋 {item}", expanded=True):
-            display_result(result, item)
+    _render_batch_results("ff_batch_results")
+
+def _hkus_dispatch(qt, market, codes, plate_code, start_date, end_date):
+    """分派港美股查詢。"""
+    first_code = codes[0] if codes else ""
+    if qt == "市場開收盤狀態":   return qw.query_futu_market_state()
+    if qt == "港/美股日K":
+        if not first_code:
+            return {"error": "⚠️ 港/美股日K 需輸入股票代號"}
+        return qw.query_futu_kbar(first_code, start_date, end_date)
+    if qt == "股票基本資訊":
+        if not codes:
+            return {"error": "⚠️ 股票基本資訊需輸入股票代號"}
+        return qw.query_futu_basicinfo(market, codes)
+    if qt == "資金分布":
+        if not first_code:
+            return {"error": "⚠️ 資金分布需輸入股票代號"}
+        return qw.query_futu_capital_distribution(first_code)
+    if qt == "資金流向":
+        if not first_code:
+            return {"error": "⚠️ 資金流向需輸入股票代號"}
+        return qw.query_futu_capital_flow(first_code)
+    if qt == "板塊列表":         return qw.query_futu_plate_list(market)
+    if qt == "板塊成分股":
+        if not plate_code:
+            return {"error": "⚠️ 板塊成分股需輸入板塊代號"}
+        return qw.query_futu_plate_stocks(plate_code)
+    if qt == "股票所屬板塊":
+        if not codes:
+            return {"error": "⚠️ 股票所屬板塊需輸入股票代號"}
+        return qw.query_futu_owner_plate(codes)
+    return {"error": f"未知項目：{qt}"}
+
 
 def render_hk_us_stocks():
-    """港美股查詢 (Futu OpenAPI)"""
+    """港美股查詢 (Futu OpenAPI) —— 複選批次模式"""
     main_logger.info("渲染港美股 Tab")
     st.info("港美股查詢需要本機運行 FutuOpenD (https://openapi.futunn.com)")
 
-    query_type = _qbtn_grid(
-        ["市場開收盤狀態", "港/美股日K", "股票基本資訊",
-         "資金分布", "資金流向", "板塊列表", "板塊成分股", "股票所屬板塊"],
-        "hkus_q", n_cols=4
-    )
+    MARKET_ITEMS = ["市場開收盤狀態", "板塊列表", "板塊成分股"]
+    STOCK_ITEMS  = ["港/美股日K", "股票基本資訊", "資金分布", "資金流向", "股票所屬板塊"]
 
-    if query_type == "市場開收盤狀態":
-        st.subheader("🌍 全球市場開收盤狀態")
-        if st.button("查詢市場狀態", key="futu_market_state"):
-            with st.spinner("查詢中..."):
-                try:
-                    result = qw.query_futu_market_state()
-                    st.session_state.current_result = result
-                    if result is not None:
-                        display_result(result, "全球市場開收盤狀態")
-                        add_history({
-                            "tab": "港美股",
-                            "title": "市場開收盤狀態",
-                            "params": {"type": "futu_market_state"}
-                        })
-                    else:
-                        st.info("無市場狀態資料")
-                except Exception as e:
-                    st.error(f"查詢失敗: {str(e)}")
+    # ── 上半：複選區（左=市場/板塊，右=個股查詢） ─────────────
+    with st.container(border=True):
+        col_l, col_r = st.columns(2)
+        with col_l:
+            hc1, hc2 = st.columns([4, 1])
+            with hc1:
+                st.caption("🌍 市場 / 板塊")
+            with hc2:
+                if st.button("全選", key="hk_all_m", use_container_width=True):
+                    for i in range(len(MARKET_ITEMS)):
+                        st.session_state[f"hk_cb_m_{i}"] = True
+            for i, opt in enumerate(MARKET_ITEMS):
+                st.checkbox(opt, key=f"hk_cb_m_{i}")
+        with col_r:
+            hc1, hc2 = st.columns([4, 1])
+            with hc1:
+                st.caption("📈 個股查詢")
+            with hc2:
+                if st.button("全選", key="hk_all_s", use_container_width=True):
+                    for i in range(len(STOCK_ITEMS)):
+                        st.session_state[f"hk_cb_s_{i}"] = True
+            for i, opt in enumerate(STOCK_ITEMS):
+                st.checkbox(opt, key=f"hk_cb_s_{i}")
 
-    elif query_type == "港/美股日K":
-        st.subheader("📊 港/美股日K")
-        col1, col2 = st.columns([1, 2])
-        with col1:
-            market = st.selectbox("選擇市場", ["HK", "US"], key="futu_market")
-        with col2:
-            code = st.text_input("輸入股票代號", placeholder="例：HK.00700（騰訊）或 US.AAPL", key="futu_kbar_code")
+    selected_m = [opt for i, opt in enumerate(MARKET_ITEMS) if st.session_state.get(f"hk_cb_m_{i}", False)]
+    selected_s = [opt for i, opt in enumerate(STOCK_ITEMS)  if st.session_state.get(f"hk_cb_s_{i}", False)]
+    selected   = selected_m + selected_s
 
+    # ── 條件參數區 ────────────────────────────────────────
+    needs_market = any(x in selected for x in ["股票基本資訊", "板塊列表"])
+    needs_codes  = any(x in selected for x in ["港/美股日K", "股票基本資訊", "資金分布", "資金流向", "股票所屬板塊"])
+    needs_plate  = "板塊成分股" in selected
+    needs_date   = "港/美股日K" in selected
+
+    market = "HK"
+    if needs_market:
+        market = st.selectbox("市場", ["HK", "US"], key="hk_market")
+
+    codes = []
+    if needs_codes:
+        codes_str = st.text_input(
+            "股票代號（逗號分隔可多碼）",
+            placeholder="例：HK.00700, US.AAPL",
+            key="hk_codes",
+        )
+        codes = [c.strip() for c in codes_str.split(",") if c.strip()]
+
+    plate_code = ""
+    if needs_plate:
+        plate_code = st.text_input(
+            "板塊代號", placeholder="例：HK.BK1000（藍籌股）", key="hk_plate_code"
+        )
+
+    start_date = end_date = date.today()
+    if needs_date:
         start_date, end_date = date_input_section(default_days=365)
 
-        if st.button("查詢K線", key="futu_kbar_btn"):
-            if code:
-                with st.spinner("查詢中..."):
-                    try:
-                        result = qw.query_futu_kbar(code, start_date, end_date)
-                        st.session_state.current_result = result
-                        if not result.empty:
-                            display_result(result, f"{code} 日K ({start_date} ~ {end_date})")
-                            add_history({
-                                "tab": "港美股",
-                                "title": f"{code} 日K",
-                                "params": {"type": "futu_kbar", "code": code, "start": str(start_date), "end": str(end_date)}
-                            })
-                        else:
-                            st.info("無K線資料")
-                    except Exception as e:
-                        st.error(f"查詢失敗: {str(e)}")
-            else:
-                st.warning("請輸入股票代號")
+    if selected:
+        st.caption(f"已勾選 {len(selected)} 項：{' · '.join(selected)}")
 
-    elif query_type == "股票基本資訊":
-        st.subheader("ℹ️ 股票基本資訊")
-        market = st.selectbox("選擇市場", ["HK", "US"], key="futu_basicinfo_market")
-        codes_str = st.text_input("輸入股票代號（逗號分隔）", placeholder="例：HK.00700,HK.09988", key="futu_basicinfo_codes")
+    run_batch = st.button("🔍 確認查詢", type="primary", use_container_width=True,
+                          key="hk_run_batch")
 
-        if st.button("查詢基本資訊", key="futu_basicinfo_btn"):
-            codes = [c.strip() for c in codes_str.split(",") if c.strip()]
-            if codes:
-                with st.spinner("查詢中..."):
-                    try:
-                        result = qw.query_futu_basicinfo(market, codes)
-                        st.session_state.current_result = result
-                        if result is not None:
-                            display_result(result, f"股票基本資訊 ({market})")
-                            add_history({
-                                "tab": "港美股",
-                                "title": "股票基本資訊",
-                                "params": {"type": "futu_basicinfo", "market": market, "codes": codes}
-                            })
-                        else:
-                            st.info("無基本資訊")
-                    except Exception as e:
-                        st.error(f"查詢失敗: {str(e)}")
-            else:
-                st.warning("請輸入至少一個股票代號")
+    st.divider()
 
-    elif query_type == "資金分布":
-        st.subheader("💰 資金分布 (大/中/小戶)")
-        code = st.text_input("輸入股票代號", placeholder="例：HK.00700", key="futu_capital_dist_code")
-
-        if st.button("查詢資金分布", key="futu_capital_dist_btn"):
-            if code:
-                with st.spinner("查詢中..."):
-                    try:
-                        result = qw.query_futu_capital_distribution(code)
-                        st.session_state.current_result = result
-                        if result is not None:
-                            display_result(result, f"{code} 資金分布")
-                            add_history({
-                                "tab": "港美股",
-                                "title": "資金分布",
-                                "params": {"type": "futu_capital_dist", "code": code}
-                            })
-                        else:
-                            st.info("無資金分布資料")
-                    except Exception as e:
-                        st.error(f"查詢失敗: {str(e)}")
-            else:
-                st.warning("請輸入股票代號")
-
-    elif query_type == "資金流向":
-        st.subheader("📈 資金流向（分鐘級）")
-        code = st.text_input("輸入股票代號", placeholder="例：HK.00700", key="futu_capital_flow_code")
-
-        if st.button("查詢資金流向", key="futu_capital_flow_btn"):
-            if code:
-                with st.spinner("查詢中..."):
-                    try:
-                        result = qw.query_futu_capital_flow(code)
-                        st.session_state.current_result = result
-                        if result is not None:
-                            display_result(result, f"{code} 資金流向")
-                            add_history({
-                                "tab": "港美股",
-                                "title": "資金流向",
-                                "params": {"type": "futu_capital_flow", "code": code}
-                            })
-                        else:
-                            st.info("無資金流向資料")
-                    except Exception as e:
-                        st.error(f"查詢失敗: {str(e)}")
-            else:
-                st.warning("請輸入股票代號")
-
-    elif query_type == "板塊列表":
-        st.subheader("📋 板塊列表")
-        market = st.selectbox("選擇市場", ["HK", "US"], key="futu_plate_market")
-
-        if st.button("查詢板塊列表", key="futu_plate_list_btn"):
-            with st.spinner("查詢中..."):
+    # ── 下半：批次執行 + 結果統一顯示 ───────────────────────
+    if run_batch:
+        if not selected:
+            st.warning("請至少勾選一個項目")
+        else:
+            results = []
+            bar = st.progress(0, text="查詢中...")
+            for idx, item in enumerate(selected):
+                bar.progress((idx + 1) / len(selected), text=f"查詢：{item}")
                 try:
-                    result = qw.query_futu_plate_list(market)
-                    st.session_state.current_result = result
-                    if result is not None:
-                        display_result(result, f"板塊列表 ({market})")
-                        add_history({
-                            "tab": "港美股",
-                            "title": "板塊列表",
-                            "params": {"type": "futu_plate_list", "market": market}
-                        })
-                    else:
-                        st.info("無板塊列表")
+                    result = _hkus_dispatch(item, market, codes, plate_code,
+                                            start_date, end_date)
                 except Exception as e:
-                    st.error(f"查詢失敗: {str(e)}")
+                    result = {"error": str(e)}
+                results.append((item, result))
+            bar.empty()
+            st.session_state["hk_batch_results"] = results
 
-    elif query_type == "板塊成分股":
-        st.subheader("📊 板塊成分股")
-        plate_code = st.text_input("輸入板塊代號", placeholder="例：HK.BK1000（藍籌股）", key="futu_plate_stocks_code")
-
-        if st.button("查詢成分股", key="futu_plate_stocks_btn"):
-            if plate_code:
-                with st.spinner("查詢中..."):
-                    try:
-                        result = qw.query_futu_plate_stocks(plate_code)
-                        st.session_state.current_result = result
-                        if result is not None:
-                            display_result(result, f"板塊成分股 ({plate_code})")
-                            add_history({
-                                "tab": "港美股",
-                                "title": "板塊成分股",
-                                "params": {"type": "futu_plate_stocks", "plate_code": plate_code}
-                            })
-                        else:
-                            st.info("無成分股資料")
-                    except Exception as e:
-                        st.error(f"查詢失敗: {str(e)}")
-            else:
-                st.warning("請輸入板塊代號")
-
-    elif query_type == "股票所屬板塊":
-        st.subheader("🏷️ 股票所屬板塊")
-        codes_str = st.text_input("輸入股票代號（逗號分隔）", placeholder="例：HK.00700,HK.09988", key="futu_owner_plate_codes")
-
-        if st.button("查詢所屬板塊", key="futu_owner_plate_btn"):
-            codes = [c.strip() for c in codes_str.split(",") if c.strip()]
-            if codes:
-                with st.spinner("查詢中..."):
-                    try:
-                        result = qw.query_futu_owner_plate(codes)
-                        st.session_state.current_result = result
-                        if result is not None:
-                            display_result(result, "股票所屬板塊")
-                            add_history({
-                                "tab": "港美股",
-                                "title": "股票所屬板塊",
-                                "params": {"type": "futu_owner_plate", "codes": codes}
-                            })
-                        else:
-                            st.info("無板塊資料")
-                    except Exception as e:
-                        st.error(f"查詢失敗: {str(e)}")
-            else:
-                st.warning("請輸入至少一個股票代號")
+    _render_batch_results("hk_batch_results")
 
 def _render_news_cards(df: pd.DataFrame):
     """把新聞 DataFrame 渲染成卡片列表"""
