@@ -132,7 +132,16 @@ def display_kbar(df: pd.DataFrame):
         return
 
     # 使用 Plotly 繪製 K線圖
-    df['Date'] = pd.to_datetime(df[date_col]) if date_col else range(len(df))
+    if date_col:
+        try:
+            df['Date'] = pd.to_datetime(df[date_col], utc=True).dt.tz_localize(None)
+        except Exception:
+            try:
+                df['Date'] = pd.to_datetime(df[date_col])
+            except Exception:
+                df['Date'] = range(len(df))
+    else:
+        df['Date'] = range(len(df))
 
     fig = go.Figure(data=[go.Candlestick(
         x=df['Date'],
