@@ -14,39 +14,53 @@ BOOKMARKS_FILE = CONFIG_DIR / "bookmarks.json"
 HISTORY_FILE = CONFIG_DIR / "history.json"
 WATCHLIST_FILE = CONFIG_DIR / "watchlist.json"
 
-# 默認配置
+# 默認配置（不含任何金鑰）
 DEFAULT_CONFIG = {
-    "api_key": "<YOUR_SHIOAJI_API_KEY>",
-    "secret_key": "<YOUR_SHIOAJI_SECRET_KEY>",
-    "finmind_token": "<YOUR_FINMIND_TOKEN>",
+    "finmind_token": "",
     "notion_token": "",
     "notion_database_id": "",
     "gemini_api_key": "",
     "gemini_model": "",
     "export_format": "csv",
-    "simulation_mode": True,
 }
 
 def _ensure_config_dir():
     """確保配置目錄存在"""
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
 
+def _load_streamlit_secrets() -> Dict[str, Any]:
+    """從 Streamlit Secrets 讀取金鑰（雲端部署用，本機無效果）"""
+    try:
+        import streamlit as st
+        mapping = {
+            "FINMIND_TOKEN": "finmind_token",
+            "GEMINI_API_KEY": "gemini_api_key",
+            "GEMINI_MODEL":   "gemini_model",
+        }
+        return {cfg_key: st.secrets[secret_key]
+                for secret_key, cfg_key in mapping.items()
+                if secret_key in st.secrets}
+    except Exception:
+        return {}
+
 def load_config() -> Dict[str, Any]:
-    """讀取配置，若不存在或損壞則建立默認配置"""
+    """讀取配置。優先順序：Streamlit Secrets > 本地 config.json > 預設值"""
     _ensure_config_dir()
+    config = DEFAULT_CONFIG.copy()
+
+    # 本地設定檔
     if CONFIG_FILE.exists():
         try:
             with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-                config = json.load(f)
-                # 確保合併默認值（防止缺少新欄位）
-                merged = DEFAULT_CONFIG.copy()
-                merged.update(config)
-                return merged
+                config.update(json.load(f))
         except Exception:
-            return DEFAULT_CONFIG.copy()
+            pass
     else:
-        save_config(DEFAULT_CONFIG)
-        return DEFAULT_CONFIG.copy()
+        save_config(config)
+
+    # Streamlit Secrets 最高優先（雲端部署時覆蓋本地值）
+    config.update(_load_streamlit_secrets())
+    return config
 
 def save_config(config: Dict[str, Any]):
     """保存配置"""

@@ -15,8 +15,18 @@ import yfinance as yf
 from FinMind.data import DataLoader
 from datetime import date, timedelta, timezone
 
-# FinMind Token（從環境變數讀取，fallback 為空）
-FINMIND_TOKEN = os.environ.get("FINMIND_TOKEN", "")
+def _get_finmind_token() -> str:
+    """FinMind Token 讀取順序：環境變數 → config.json → Streamlit Secrets"""
+    token = os.environ.get("FINMIND_TOKEN", "")
+    if not token:
+        try:
+            from config import load_config
+            token = load_config().get("finmind_token", "")
+        except Exception:
+            pass
+    return token
+
+FINMIND_TOKEN = _get_finmind_token()
 
 # ── 共通連線 Session（用於 REST API 優化） ───────────────
 import requests as _requests
