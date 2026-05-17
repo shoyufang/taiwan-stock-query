@@ -352,30 +352,30 @@ def render_dashboard_fragment():
     st.subheader("🌍 全球市場狀態")
     import streamlit.components.v1 as components
     components.html("""
-    <div class="tradingview-widget-container" style="height:450px;width:100%">
+    <div class="tradingview-widget-container" style="height:500px;width:100%">
       <div class="tradingview-widget-container__widget" style="height:calc(100% - 32px);width:100%"></div>
       <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-market-overview.js" async>
       {
         "colorTheme": "dark",
-        "dateRange": "1D",
-        "showChart": true,
+        "dateRange": "12M",
+        "showChart": false,
         "locale": "zh_TW",
-        "largeChartUrl": "",
         "isTransparent": false,
         "showSymbolLogo": true,
         "showFloatingTooltip": false,
         "width": "100%",
-        "height": "450",
+        "height": "500",
         "tabs": [
           {
             "title": "指數",
             "symbols": [
-              {"s": "TWSE:TAIEX", "d": "台灣加權"},
-              {"s": "INDEX:SPX",  "d": "S&P 500"},
-              {"s": "INDEX:NDX",  "d": "Nasdaq 100"},
-              {"s": "INDEX:HSI",  "d": "恆生指數"},
-              {"s": "INDEX:NI225","d": "日經 225"},
-              {"s": "INDEX:DAX",  "d": "DAX"}
+              {"s": "TVC:TWII",       "d": "台灣加權"},
+              {"s": "FOREXCOM:SPXUSD","d": "S&P 500"},
+              {"s": "FOREXCOM:NSXUSD","d": "Nasdaq 100"},
+              {"s": "DJ:DJI",         "d": "道瓊工業"},
+              {"s": "NASDAQ:SOX",     "d": "費城半導體"},
+              {"s": "TVC:HSI",        "d": "恆生指數"},
+              {"s": "FOREXCOM:JPN225","d": "日經 225"}
             ],
             "originalTitle": "指數"
           },
@@ -387,18 +387,17 @@ def render_dashboard_fragment():
               {"s": "NASDAQ:NVDA","d": "Nvidia"},
               {"s": "NASDAQ:AAPL","d": "Apple"},
               {"s": "NASDAQ:MSFT","d": "Microsoft"},
-              {"s": "HKEX:00700", "d": "騰訊"}
+              {"s": "NASDAQ:TSM", "d": "TSM ADR"}
             ],
             "originalTitle": "股票"
           },
           {
             "title": "外匯/商品",
             "symbols": [
-              {"s": "FX:USDTWD",  "d": "美元/台幣"},
-              {"s": "FX:USDJPY",  "d": "美元/日圓"},
-              {"s": "FX:EURUSD",  "d": "歐元/美元"},
-              {"s": "TVC:GOLD",   "d": "黃金"},
-              {"s": "TVC:USOIL",  "d": "WTI 原油"},
+              {"s": "FX:USDJPY",      "d": "美元/日圓"},
+              {"s": "FX:EURUSD",      "d": "歐元/美元"},
+              {"s": "TVC:GOLD",       "d": "黃金"},
+              {"s": "TVC:USOIL",      "d": "WTI 原油"},
               {"s": "BITSTAMP:BTCUSD","d": "比特幣"}
             ],
             "originalTitle": "外匯/商品"
@@ -407,7 +406,7 @@ def render_dashboard_fragment():
       }
       </script>
     </div>
-    """, height=460)
+    """, height=510)
 
     st.divider()
     
@@ -436,14 +435,11 @@ def render_dashboard():
     
     # 底部快速導航
     st.divider()
-    col1, col2, col3 = st.columns(3)
+    col1, col2 = st.columns(2)
     with col1:
         if st.button("📈 查台股排行", use_container_width=True):
             st.info("請點選左側『台股市場』標籤")
     with col2:
-        if st.button("🚀 查港美股K線", use_container_width=True):
-            st.info("請點選左側『港美股』標籤")
-    with col3:
         if st.button("📂 查看查詢歷史", use_container_width=True):
             st.info("請查看左側側邊欄『最近查詢』")
 
@@ -1603,7 +1599,7 @@ def render_gemini_chat():
 # 三組導航按鈕（永豐金 / TWSE / 其他）
 SINOPAC_TABS = ["儀表板", "台股市場"]
 TWSE_TABS    = ["TWSE"]
-OTHER_TABS   = ["Gemini AI", "FinMind", "期貨/匯率", "港美股", "新聞", "工具"]
+OTHER_TABS   = ["Gemini AI", "FinMind", "期貨/匯率", "新聞", "工具"]
 
 def _nav_btn(label: str, icon: str = ""):
     """渲染一個導航按鈕，當前選中顯示 primary 樣式"""
@@ -1737,8 +1733,6 @@ else:
         render_finmind()
     elif selected_tab == "期貨/匯率":
         render_futures_forex()
-    elif selected_tab == "港美股":
-        render_hk_us_stocks()
     elif selected_tab == "新聞":
         render_news()
     elif selected_tab == "工具":
