@@ -33,34 +33,175 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-/* ── Sidebar ── */
-[data-testid="stSidebar"] { width: 260px; }
+/* ═══════════════════════════════════════════════
+   台股查詢工具 — 全域設計系統
+   主色調：#e63946（紅）  輔色：rgba(255,255,255,0.08)
+   ═══════════════════════════════════════════════ */
+
+/* ── 字型 & 基礎 ── */
+html, body, [class*="css"] { font-family: 'Inter','Segoe UI',-apple-system,sans-serif; }
+.block-container { padding-top: 1.4rem !important; }
+h1 { font-size: 1.45rem !important; margin-bottom: 0 !important; font-weight: 700 !important; letter-spacing: -0.01em; }
+h2 { font-size: 1.1rem !important; font-weight: 600 !important; }
+h3 { font-size: 0.95rem !important; font-weight: 600 !important; }
+
+/* ════════════════════ SIDEBAR ════════════════════ */
+[data-testid="stSidebar"] {
+    width: 250px !important;
+    border-right: 1px solid rgba(255,255,255,0.06) !important;
+}
 [data-testid="stSidebar"] .stButton button {
-    border-radius: 8px;
-    font-size: 0.9rem;
-    padding: 6px 10px;
-    transition: all 0.15s;
+    width: 100%;
+    border-radius: 8px !important;
+    font-size: 0.86rem !important;
+    padding: 6px 12px !important;
+    text-align: left !important;
+    transition: all 0.15s ease !important;
+    border: 1px solid transparent !important;
+}
+[data-testid="stSidebar"] .stButton button[kind="secondary"]:hover {
+    background: rgba(255,255,255,0.06) !important;
+    border-color: rgba(255,255,255,0.1) !important;
 }
 
-/* ── Chat input bar ── */
-[data-testid="stChatInput"] {
-    border-radius: 12px;
-}
-[data-testid="stChatInput"] textarea {
-    font-size: 1rem;
-}
-
-/* ── Chat messages ── */
-[data-testid="stChatMessage"] {
-    border-radius: 12px;
-    padding: 4px 0;
+/* ════════ BORDERED CONTAINER（複選框區） ════════ */
+[data-testid="stVerticalBlockBorderWrapper"] {
+    border-radius: 12px !important;
+    border: 1px solid rgba(255,255,255,0.09) !important;
+    background: rgba(255,255,255,0.015) !important;
 }
 
-/* ── Main title area ── */
-h1 { font-size: 1.6rem !important; margin-bottom: 0 !important; }
+/* ════════════════ CAPTION（分組標題） ════════════ */
+[data-testid="stCaptionContainer"] p {
+    font-size: 0.68rem !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.09em !important;
+    text-transform: uppercase !important;
+    color: #6b7280 !important;
+    margin-bottom: 2px !important;
+}
 
-/* ── Remove Streamlit default top padding on main ── */
-.block-container { padding-top: 1.5rem !important; }
+/* ══════════════════ CHECKBOX ══════════════════ */
+[data-testid="stCheckbox"] { margin: 1px 0 !important; }
+[data-testid="stCheckbox"] label {
+    font-size: 0.84rem !important;
+    padding: 3px 8px 3px 4px !important;
+    border-radius: 6px !important;
+    transition: background 0.12s !important;
+}
+[data-testid="stCheckbox"] label:hover { background: rgba(255,255,255,0.05) !important; }
+
+/* ════════════════════ BUTTONS ════════════════ */
+/* 主要按鈕（確認查詢） */
+button[kind="primary"] {
+    background: linear-gradient(135deg,#e63946 0%,#c1121f 100%) !important;
+    border: none !important;
+    border-radius: 9px !important;
+    font-weight: 600 !important;
+    font-size: 0.9rem !important;
+    letter-spacing: 0.025em !important;
+    box-shadow: 0 2px 14px rgba(230,57,70,0.32) !important;
+    transition: all 0.15s ease !important;
+}
+button[kind="primary"]:hover {
+    box-shadow: 0 4px 20px rgba(230,57,70,0.50) !important;
+    transform: translateY(-1px) !important;
+}
+button[kind="primary"]:active { transform: translateY(0) !important; }
+
+/* 次要按鈕（全選等小按鈕） */
+button[kind="secondary"] {
+    border-radius: 6px !important;
+    font-size: 0.73rem !important;
+    padding: 2px 10px !important;
+    border: 1px solid rgba(255,255,255,0.14) !important;
+    color: rgba(255,255,255,0.6) !important;
+    transition: all 0.12s ease !important;
+}
+button[kind="secondary"]:hover {
+    border-color: rgba(255,255,255,0.32) !important;
+    color: rgba(255,255,255,0.9) !important;
+    background: rgba(255,255,255,0.07) !important;
+}
+
+/* ════════════ TEXT INPUT / DATE INPUT ═══════════ */
+[data-testid="stTextInput"] input,
+[data-testid="stDateInput"] input {
+    border-radius: 8px !important;
+    border: 1px solid rgba(255,255,255,0.12) !important;
+    font-size: 0.87rem !important;
+    transition: border-color 0.15s,box-shadow 0.15s !important;
+}
+[data-testid="stTextInput"] input:focus,
+[data-testid="stDateInput"] input:focus {
+    border-color: #e63946 !important;
+    box-shadow: 0 0 0 2px rgba(230,57,70,0.18) !important;
+}
+
+/* ══════════════════ SELECTBOX ═══════════════ */
+[data-testid="stSelectbox"] [data-baseweb="select"] > div {
+    border-radius: 8px !important;
+    border-color: rgba(255,255,255,0.12) !important;
+    font-size: 0.87rem !important;
+}
+
+/* ══════════════════ SLIDER ═════════════════ */
+[data-testid="stSlider"] [role="slider"] {
+    background: #e63946 !important;
+    border-color: #e63946 !important;
+}
+[data-testid="stSlider"] [data-baseweb="slider"] [data-testid="stThumbValue"] {
+    background: #e63946 !important;
+}
+
+/* ═════════════════ PROGRESS BAR ════════════ */
+[data-testid="stProgressBar"] > div > div > div > div {
+    background: linear-gradient(90deg,#e63946,#ff6b6b) !important;
+}
+
+/* ═══════════════════ EXPANDER ══════════════ */
+[data-testid="stExpander"] {
+    border-radius: 10px !important;
+    border: 1px solid rgba(255,255,255,0.09) !important;
+    background: rgba(255,255,255,0.02) !important;
+    margin-bottom: 8px !important;
+    overflow: hidden !important;
+}
+[data-testid="stExpander"] summary {
+    font-size: 0.87rem !important;
+    font-weight: 600 !important;
+    padding: 10px 14px !important;
+    border-radius: 10px !important;
+    transition: background 0.12s !important;
+}
+[data-testid="stExpander"] summary:hover { background: rgba(255,255,255,0.04) !important; }
+
+/* ══════════════════ DIVIDER ════════════════ */
+hr { border:none !important; border-top:1px solid rgba(255,255,255,0.08) !important; margin:1rem 0 !important; }
+
+/* ═══════════════ METRIC CARDS ══════════════ */
+[data-testid="stMetric"] {
+    background: rgba(255,255,255,0.03) !important;
+    border: 1px solid rgba(255,255,255,0.08) !important;
+    border-radius: 10px !important;
+    padding: 12px 16px !important;
+}
+[data-testid="stMetricLabel"] p { font-size: 0.73rem !important; color: #6b7280 !important; font-weight: 500 !important; }
+[data-testid="stMetricValue"] div { font-size: 1.4rem !important; font-weight: 700 !important; }
+
+/* ════════════════ DATAFRAME ═════════════════ */
+[data-testid="stDataFrame"] { border-radius: 8px !important; overflow: hidden !important; }
+
+/* ══════════════ ALERT BOXES ═════════════════ */
+[data-testid="stInfo"]    { border-radius: 8px !important; border-left: 3px solid #3b82f6 !important; }
+[data-testid="stWarning"] { border-radius: 8px !important; border-left: 3px solid #f59e0b !important; }
+[data-testid="stError"]   { border-radius: 8px !important; border-left: 3px solid #ef4444 !important; }
+[data-testid="stSuccess"] { border-radius: 8px !important; border-left: 3px solid #10b981 !important; }
+
+/* ══════════════════ CHAT ════════════════════ */
+[data-testid="stChatInput"] { border-radius: 12px !important; }
+[data-testid="stChatInput"] textarea { font-size: 0.95rem !important; }
+[data-testid="stChatMessage"] { border-radius: 12px !important; padding: 4px 0 !important; }
 </style>
 """, unsafe_allow_html=True)
 
