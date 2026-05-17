@@ -50,7 +50,7 @@ def filter_universe(
     df: pd.DataFrame,
     min_price: float = 10.0,
     max_price: float = 9999.0,
-    min_vol: int = 300,
+    min_vol: int = 1000,
     exclude_etf: bool = True,
     exclude_preferred: bool = True,
 ) -> pd.DataFrame:

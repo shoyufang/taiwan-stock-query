@@ -1619,7 +1619,7 @@ def _universe_sidebar(prefix: str):
         col1, col2 = st.columns(2)
         min_p = col1.number_input("最低股價", value=10.0, min_value=0.0, key=f"{prefix}_minp")
         max_p = col2.number_input("最高股價", value=9999.0, min_value=0.0, key=f"{prefix}_maxp")
-        min_v = st.number_input("最低成交量（張）", value=300, min_value=0, key=f"{prefix}_minv")
+        min_v = st.number_input("最低成交量（張）", value=1000, min_value=0, key=f"{prefix}_minv")
         c1, c2 = st.columns(2)
         excl_etf  = c1.checkbox("排除 ETF", value=True, key=f"{prefix}_etf")
         excl_pref = c2.checkbox("排除特別股", value=True, key=f"{prefix}_pref")
