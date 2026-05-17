@@ -348,34 +348,66 @@ def execute_from_history(history_item: Dict[str, Any]):
 @st.fragment(run_every=30)
 def render_dashboard_fragment():
     """儀表板自動刷新部分 (Task 7.3/7.4)"""
-    
+
     st.subheader("🌍 全球市場狀態")
-    try:
-        market_state = qw.query_futu_market_state()
-        if not market_state.empty:
-            # 簡單顯示關鍵市場
-            hk = market_state[market_state["市場"] == "market_hk"]["狀態"].values[0]
-            us = market_state[market_state["市場"] == "market_us"]["狀態"].values[0]
-            sz = market_state[market_state["市場"] == "market_sz"]["狀態"].values[0]
-            
-            mcol1, mcol2, mcol3, mcol4 = st.columns(4)
-            mcol1.metric("香港市場", hk, delta=None)
-            mcol2.metric("美國市場", us, delta=None)
-            mcol3.metric("深圳市場", sz, delta=None)
-            
-            # 嘗試增加台股大盤 (2330 作為指標)
-            try:
-                tw_snap = qw.query_snapshot(["2330"])
-                if not tw_snap.empty:
-                    price = tw_snap["收盤"].values[0]
-                    change = tw_snap["漲跌"].values[0]
-                    mcol4.metric("台股指標 (2330)", f"{price}", delta=f"{change}")
-            except:
-                pass
-        else:
-            st.info("無法獲取市場狀態")
-    except Exception as e:
-        st.caption(f"Futu 連線中... ({str(e)})")
+    import streamlit.components.v1 as components
+    components.html("""
+    <div class="tradingview-widget-container" style="height:450px;width:100%">
+      <div class="tradingview-widget-container__widget" style="height:calc(100% - 32px);width:100%"></div>
+      <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-market-overview.js" async>
+      {
+        "colorTheme": "dark",
+        "dateRange": "1D",
+        "showChart": true,
+        "locale": "zh_TW",
+        "largeChartUrl": "",
+        "isTransparent": false,
+        "showSymbolLogo": true,
+        "showFloatingTooltip": false,
+        "width": "100%",
+        "height": "450",
+        "tabs": [
+          {
+            "title": "指數",
+            "symbols": [
+              {"s": "TWSE:TAIEX", "d": "台灣加權"},
+              {"s": "INDEX:SPX",  "d": "S&P 500"},
+              {"s": "INDEX:NDX",  "d": "Nasdaq 100"},
+              {"s": "INDEX:HSI",  "d": "恆生指數"},
+              {"s": "INDEX:NI225","d": "日經 225"},
+              {"s": "INDEX:DAX",  "d": "DAX"}
+            ],
+            "originalTitle": "指數"
+          },
+          {
+            "title": "股票",
+            "symbols": [
+              {"s": "TWSE:2330",  "d": "台積電"},
+              {"s": "TWSE:2317",  "d": "鴻海"},
+              {"s": "NASDAQ:NVDA","d": "Nvidia"},
+              {"s": "NASDAQ:AAPL","d": "Apple"},
+              {"s": "NASDAQ:MSFT","d": "Microsoft"},
+              {"s": "HKEX:00700", "d": "騰訊"}
+            ],
+            "originalTitle": "股票"
+          },
+          {
+            "title": "外匯/商品",
+            "symbols": [
+              {"s": "FX:USDTWD",  "d": "美元/台幣"},
+              {"s": "FX:USDJPY",  "d": "美元/日圓"},
+              {"s": "FX:EURUSD",  "d": "歐元/美元"},
+              {"s": "TVC:GOLD",   "d": "黃金"},
+              {"s": "TVC:USOIL",  "d": "WTI 原油"},
+              {"s": "BITSTAMP:BTCUSD","d": "比特幣"}
+            ],
+            "originalTitle": "外匯/商品"
+          }
+        ]
+      }
+      </script>
+    </div>
+    """, height=460)
 
     st.divider()
     
