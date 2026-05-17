@@ -54,14 +54,28 @@ h3 { font-size: 0.95rem !important; font-weight: 600 !important; }
     width: 100%;
     border-radius: 8px !important;
     font-size: 0.86rem !important;
-    padding: 6px 12px !important;
+    padding: 7px 14px !important;
     text-align: left !important;
     transition: all 0.15s ease !important;
-    border: 1px solid transparent !important;
+    border: 1px solid rgba(255,255,255,0.10) !important;
+    background: rgba(255,255,255,0.04) !important;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.07) !important;
+    margin-bottom: 3px !important;
 }
 [data-testid="stSidebar"] .stButton button[kind="secondary"]:hover {
-    background: rgba(255,255,255,0.06) !important;
-    border-color: rgba(255,255,255,0.1) !important;
+    background: rgba(255,255,255,0.09) !important;
+    border-color: rgba(255,255,255,0.18) !important;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.10) !important;
+    transform: translateY(-1px) !important;
+}
+[data-testid="stSidebar"] .stButton button[kind="secondary"]:active {
+    transform: translateY(0) !important;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.4), inset 0 2px 4px rgba(0,0,0,0.2) !important;
+}
+[data-testid="stSidebar"] .stButton button[kind="primary"] {
+    box-shadow: 0 3px 8px rgba(230,57,70,0.5), inset 0 1px 0 rgba(255,255,255,0.15) !important;
+    border: 1px solid rgba(230,57,70,0.6) !important;
+    margin-bottom: 3px !important;
 }
 
 /* ════════ BORDERED CONTAINER（複選框區） ════════ */
@@ -1842,10 +1856,8 @@ def _nav_btn(label: str, icon: str = ""):
 with st.sidebar:
     for t in SINOPAC_TABS:
         _nav_btn(t)
-    st.markdown("---")
     for t in TWSE_TABS:
         _nav_btn(t)
-    st.markdown("---")
     for t in OTHER_TABS:
         _nav_btn(t)
 
