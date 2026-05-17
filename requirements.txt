@@ -1,0 +1,13 @@
+# 完整版（local 分支）— 含永豐金 Shioaji API
+shioaji
+pandas
+yfinance
+FinMind
+requests
+mplfinance
+streamlit
+streamlit-option-menu
+plotly
+openpyxl
+reportlab
+google-genai
