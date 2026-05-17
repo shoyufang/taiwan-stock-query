@@ -128,44 +128,57 @@ TECH_CONDITIONS: Dict[str, str] = {
 }
 
 
+def _sma(s: pd.Series, n: int) -> pd.Series:
+    return s.rolling(n).mean()
+
+def _rsi(s: pd.Series, n: int = 14) -> pd.Series:
+    d = s.diff()
+    gain = d.clip(lower=0).rolling(n).mean()
+    loss = (-d.clip(upper=0)).rolling(n).mean()
+    return 100 - 100 / (1 + gain / loss.replace(0, np.nan))
+
+def _macd(s: pd.Series, fast=12, slow=26, sig=9):
+    ef = s.ewm(span=fast, adjust=False).mean()
+    es = s.ewm(span=slow, adjust=False).mean()
+    line = ef - es
+    signal = line.ewm(span=sig, adjust=False).mean()
+    return line, line - signal, signal
+
+def _stoch(h: pd.Series, l: pd.Series, c: pd.Series, k=9, d=3):
+    lo = l.rolling(k).min()
+    hi = h.rolling(k).max()
+    k_line = 100 * (c - lo) / (hi - lo + 1e-9)
+    return k_line, k_line.rolling(d).mean()
+
+def _bbands(s: pd.Series, n=20, std=2):
+    mid = s.rolling(n).mean()
+    sigma = s.rolling(n).std()
+    return mid + std * sigma, mid, mid - std * sigma
+
+
 def _calc_and_check(
     df: pd.DataFrame,
     conds: List[str],
     mode: str = "OR",
 ) -> Tuple[bool, Dict[str, bool]]:
     """計算技術指標並逐條檢查，回傳 (是否通過, 各條件結果)"""
-    try:
-        import pandas_ta as ta
-    except ImportError:
-        return False, {}
-
     if len(df) < 30:
         return False, {}
 
     c, h, l, v = df["close"], df["high"], df["low"], df["volume"]
 
-    ma5  = ta.sma(c, 5)
-    ma10 = ta.sma(c, 10)
-    ma20 = ta.sma(c, 20)
-    ma60 = ta.sma(c, 60)
+    ma5  = _sma(c, 5)
+    ma10 = _sma(c, 10)
+    ma20 = _sma(c, 20)
+    ma60 = _sma(c, 60)
 
-    stoch = ta.stoch(h, l, c, k=9, d=3)
-    k_line = stoch.iloc[:, 0] if stoch is not None and not stoch.empty else pd.Series(dtype=float)
-    d_line = stoch.iloc[:, 1] if stoch is not None and not stoch.empty else pd.Series(dtype=float)
+    k_line, d_line = _stoch(h, l, c)
+    macd_line, macd_hist, macd_sig = _macd(c)
+    rsi14 = _rsi(c, 14)
+    bb_u, _, bb_l = _bbands(c)
 
-    macd_df = ta.macd(c, fast=12, slow=26, signal=9)
-    macd_line = macd_df.iloc[:, 0] if macd_df is not None and not macd_df.empty else pd.Series(dtype=float)
-    macd_hist = macd_df.iloc[:, 1] if macd_df is not None and not macd_df.empty else pd.Series(dtype=float)
-    macd_sig  = macd_df.iloc[:, 2] if macd_df is not None and not macd_df.empty else pd.Series(dtype=float)
-
-    rsi14 = ta.rsi(c, 14)
-
-    bb = ta.bbands(c, length=20, std=2)
-    bb_u = bb.iloc[:, 0] if bb is not None and not bb.empty else pd.Series(dtype=float)
-    bb_l = bb.iloc[:, 2] if bb is not None and not bb.empty else pd.Series(dtype=float)
-
-    vol_ma5  = ta.sma(v, 5)
-    vol_ma20 = ta.sma(v, 20)
+    vol_ma5  = _sma(v, 5)
+    vol_ma20 = _sma(v, 20)
 
     def last(s: pd.Series) -> float:
         try:

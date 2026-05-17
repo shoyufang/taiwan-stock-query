@@ -12,4 +12,3 @@ plotly
 openpyxl
 reportlab
 google-genai
-pandas-ta
