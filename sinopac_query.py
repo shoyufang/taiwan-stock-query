@@ -1,24 +1,22 @@
 """
-券商提供 Shioaji API 查詢工具箱
-使用方式：直接執行後選擇功能，或 import 後呼叫各函式
+台股查詢工具箱（公開版 / main 分支）
+不依賴永豐金 Shioaji API，使用 TWSE OpenAPI + yfinance 替代。
+帳務功能不支援（需券商 CA 憑證）。
 
-需求：pip install shioaji pandas yfinance FinMind
+local 分支為含永豐金完整版。
+
+需求：pip install pandas yfinance FinMind requests streamlit plotly
 """
 
 import sys
-import shioaji as sj
+import os
 import pandas as pd
 import yfinance as yf
 from FinMind.data import DataLoader
 from datetime import date, timedelta, timezone
 
-# ── 帳號設定 ──────────────────────────────────────────────
-API_KEY    = "<YOUR_SHIOAJI_API_KEY>"
-SECRET_KEY = "<YOUR_SHIOAJI_SECRET_KEY>"
-SIMULATION = True   # 正式環境改 False
-
-FINMIND_TOKEN = "<YOUR_FINMIND_TOKEN>"
-# ─────────────────────────────────────────────────────────
+# FinMind Token（從環境變數讀取，fallback 為空）
+FINMIND_TOKEN = os.environ.get("FINMIND_TOKEN", "")
 
 # ── 共通連線 Session（用於 REST API 優化） ───────────────
 import requests as _requests
@@ -29,66 +27,13 @@ def _finmind() -> DataLoader:
     """取得 FinMind DataLoader（使用單例池）"""
     return FinMindConnectionPool.get_api()
 
-# 在 Streamlit 環境中可能不支持 reconfigure，故使用 try-except
 try:
     sys.stdout.reconfigure(encoding="utf-8")
 except (AttributeError, OSError):
     pass
 
 
-# ── Shioaji 連線池單例模式（Phase 5 性能優化） ──────────
-class ShioajiConnectionPool:
-    """券商提供 Shioaji 連線池管理器（單例模式）
-
-    功能：
-    - 維持全局單一連線，避免重複 login/logout
-    - 自動重連機制
-    - 預期效能提升：40-50%
-    """
-    _instance = None
-    _api = None
-    _fetch_contract = True
-
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super(ShioajiConnectionPool, cls).__new__(cls)
-        return cls._instance
-
-    @classmethod
-    def get_api(cls, fetch_contract: bool = True) -> sj.Shioaji:
-        """取得或建立 API 連線"""
-        pool = cls()
-
-        # 如果沒有連線或連線已斷開，建立新連線
-        if cls._api is None:
-            cls._api = sj.Shioaji(simulation=SIMULATION)
-            cls._api.login(api_key=API_KEY, secret_key=SECRET_KEY, fetch_contract=fetch_contract)
-            cls._fetch_contract = fetch_contract
-        else:
-            # 如果需要的 fetch_contract 設定不同，重新登入
-            if fetch_contract != cls._fetch_contract:
-                try:
-                    cls._api.logout()
-                except:
-                    pass
-                cls._api = sj.Shioaji(simulation=SIMULATION)
-                cls._api.login(api_key=API_KEY, secret_key=SECRET_KEY, fetch_contract=fetch_contract)
-                cls._fetch_contract = fetch_contract
-
-        return cls._api
-
-    @classmethod
-    def close(cls):
-        """關閉連線"""
-        if cls._api is not None:
-            try:
-                cls._api.logout()
-            except:
-                pass
-            cls._api = None
-
-
-# ── FinMind 連線池單例模式（Phase 7 性能優化） ───────────
+# ── FinMind 連線池單例模式 ────────────────────────────────
 class FinMindConnectionPool:
     """FinMind 連線池管理器（單例模式）"""
     _instance = None
@@ -107,44 +52,8 @@ class FinMindConnectionPool:
         return cls._api
 
 
-# ── Futu 連線池單例模式（Phase 7 性能優化） ───────────────
-class FutuConnectionPool:
-    """Futu OpenAPI 連線池管理器（單例模式）"""
-    _instance = None
-    _ctx = None
-
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super(FutuConnectionPool, cls).__new__(cls)
-        return cls._instance
-
-    @classmethod
-    def get_ctx(cls):
-        import futu as ft
-        if cls._ctx is None:
-            # 建立長連線
-            cls._ctx = ft.OpenQuoteContext(host='127.0.0.1', port=11111)
-        return cls._ctx
-
-    @classmethod
-    def close(cls):
-        if cls._ctx is not None:
-            cls._ctx.close()
-            cls._ctx = None
-
-
-def login(fetch_contract: bool = True) -> sj.Shioaji:
-    """取得 Shioaji 連線（使用單例池）"""
-    return ShioajiConnectionPool.get_api(fetch_contract=fetch_contract)
-
-
-def _futu_ctx():
-    """取得 Futu OpenAPI 連線（使用單例池）"""
-    return FutuConnectionPool.get_ctx()
-
-
 # ══════════════════════════════════════════════════════════
-# 一、市場排行（不需 CA）
+# 一、市場排行（TWSE 盤後資料，非即時）
 # ══════════════════════════════════════════════════════════
 
 def query_scanner(
@@ -154,90 +63,81 @@ def query_scanner(
     count: int = 10,
 ) -> pd.DataFrame:
     """
-    市場排行查詢。
+    市場排行（TWSE 盤後資料，收盤後更新，非即時盤中資料）。
 
     scanner_type 選項：
-        ChangePercentRank  漲跌幅%排行（最常用）
+        ChangePercentRank  漲跌幅%排行
         ChangePriceRank    漲跌價排行
         DayRangeRank       日振幅排行
         VolumeRank         成交量排行
         AmountRank         成交金額排行
 
-    ascending=True  → 由大到小（取前段，如漲幅最高）
-    ascending=False → 由小到大（取後段，如跌幅最深）
-    query_date      → "YYYY-MM-DD"，不填則查今日
-    count           → 筆數，最大 200
+    ascending=True  → 由大到小（漲幅最高 / 量最大）
+    ascending=False → 由小到大（跌幅最深）
+    count           → 取前 N 筆
     """
-    type_map = {
-        "ChangePercentRank": sj.constant.ScannerType.ChangePercentRank,
-        "ChangePriceRank":   sj.constant.ScannerType.ChangePriceRank,
-        "DayRangeRank":      sj.constant.ScannerType.DayRangeRank,
-        "VolumeRank":        sj.constant.ScannerType.VolumeRank,
-        "AmountRank":        sj.constant.ScannerType.AmountRank,
-    }
-    api = login(fetch_contract=True)
-    try:
-        results = api.scanners(
-            scanner_type=type_map[scanner_type],
-            ascending=ascending,
-            date=query_date,
-            count=count,
-        )
-    except Exception as e:
-        if "ScannerCountLimit" in str(e) or "not fully defined" in str(e):
-            # Pydantic v2 compatibility issue with Shioaji
-            # Return empty DataFrame as fallback
-            return pd.DataFrame(columns=["代號", "名稱", "漲跌幅%", "昨收", "開盤", "最高", "最低", "收盤", "漲跌", "成交量", "成交金額"])
-        raise
+    df = query_twse_daily_all()
+    if df.empty:
+        return df
 
-    rows = []
-    for r in results:
-        yesterday_close = round(r.close - r.change_price, 2)
-        rows.append({
-            "代號":   r.code,
-            "名稱":   r.name,
-            "漲跌幅%": r.rank_value,
-            "昨收":   yesterday_close,
-            "開盤":   r.open,
-            "最高":   r.high,
-            "最低":   r.low,
-            "收盤":   r.close,
-            "漲跌":   r.change_price,
-            "成交量": r.total_volume,
-            "成交金額": r.total_amount,
-        })
-    return pd.DataFrame(rows)
+    # 轉數字（TWSE 欄位含千分位逗號）
+    num_cols = ["成交量(股)", "成交金額", "開盤", "最高", "最低", "收盤", "漲跌"]
+    for col in num_cols:
+        if col in df.columns:
+            df[col] = pd.to_numeric(
+                df[col].astype(str).str.replace(",", "").str.replace("+", ""),
+                errors="coerce"
+            )
+
+    df["昨收"] = (df["收盤"] - df["漲跌"]).round(2)
+    with_zeros = df["昨收"].replace(0, float("nan"))
+    df["漲跌幅%"] = (df["漲跌"] / with_zeros * 100).round(2)
+    df["振幅%"]   = ((df["最高"] - df["最低"]) / with_zeros * 100).round(2)
+
+    sort_map = {
+        "ChangePercentRank": "漲跌幅%",
+        "ChangePriceRank":   "漲跌",
+        "DayRangeRank":      "振幅%",
+        "VolumeRank":        "成交量(股)",
+        "AmountRank":        "成交金額",
+    }
+    sort_col = sort_map.get(scanner_type, "漲跌幅%")
+    df = df.dropna(subset=[sort_col])
+    df = df.sort_values(sort_col, ascending=not ascending).head(count)
+    return df.reset_index(drop=True)
 
 
 # ══════════════════════════════════════════════════════════
 # 二、即時快照（不需 CA）
 # ══════════════════════════════════════════════════════════
 
-def query_snapshot(codes: list[str]) -> pd.DataFrame:
+def query_snapshot(codes: list) -> pd.DataFrame:
     """
-    查詢多檔股票即時快照（上限 500 檔）。
+    個股報價快照（yfinance，約 15 分鐘延遲）。
     codes 範例：["2330", "2317", "2454"]
     """
-    api = login(fetch_contract=True)
-    contracts = [api.Contracts.Stocks[c] for c in codes if api.Contracts.Stocks[c]]
-    snapshots = api.snapshots(contracts)
-
     rows = []
-    for s in snapshots:
-        rows.append({
-            "代號":    s.code,
-            "漲跌幅%": s.change_rate,
-            "昨收":    round(s.close - s.change_price, 2),
-            "開盤":    s.open,
-            "最高":    s.high,
-            "最低":    s.low,
-            "收盤":    s.close,
-            "漲跌":    s.change_price,
-            "均價":    s.average_price,
-            "成交量":  s.total_volume,
-            "昨量":    s.yesterday_volume,
-            "量比":    s.volume_ratio,
-        })
+    for code in codes:
+        try:
+            t  = yf.Ticker(f"{code}.TW")
+            fi = t.fast_info
+            prev  = fi.previous_close or 0
+            close = fi.last_price or prev
+            chg   = round(close - prev, 2) if prev else 0
+            chg_p = round(chg / prev * 100, 2) if prev else 0
+            rows.append({
+                "代號":    code,
+                "漲跌幅%": chg_p,
+                "昨收":    prev,
+                "開盤":    fi.open,
+                "最高":    fi.day_high,
+                "最低":    fi.day_low,
+                "收盤":    close,
+                "漲跌":    chg,
+                "成交量":  fi.three_month_average_volume,
+            })
+        except Exception as e:
+            rows.append({"代號": code, "說明": f"查無資料 ({e})"})
     return pd.DataFrame(rows)
 
 
@@ -252,146 +152,68 @@ def query_kbars(
     market: str = "Stocks",
 ) -> pd.DataFrame:
     """
-    K 線查詢（日 K，開高低收量）。
-    market：Stocks / Futures / Options
-    code 範例：stock="2330"，future="TXFA5"
+    台股日K線（yfinance，2000年起）。
+    code：股票代號，如 "2330"
     start/end："YYYY-MM-DD"
+    market：Stocks（其他市場不支援公開版）
     """
     if end is None:
         end = str(date.today())
-    api = login(fetch_contract=True)
-    if market == "Stocks":
-        contract = api.Contracts.Stocks[code]
-    elif market == "Futures":
-        contract = api.Contracts.Futures[code]
-    else:
-        contract = api.Contracts.Options[code]
+    ticker_code = f"{code}.TW"
+    df = yf.download(ticker_code, start=start, end=end,
+                     progress=False, auto_adjust=True, multi_level_index=False)
+    if df.empty:
+        return pd.DataFrame({"說明": [f"查無 {code} 的 K 線資料"]})
+    df.index.name = "ts"
+    col_map = {"Open": "開盤", "High": "最高", "Low": "最低",
+               "Close": "收盤", "Volume": "成交量"}
+    df = df.rename(columns={k: v for k, v in col_map.items() if k in df.columns})
+    return df
 
-    kbars = api.kbars(contract, start=start, end=end)
-    return pd.DataFrame({**kbars}).set_index("ts")
 
-
-def query_ticks(
-    code: str,
-    query_date: str,
-    market: str = "Stocks",
-    time_start: str = None,
-    time_end: str = None,
-    last_cnt: int = None,
-) -> pd.DataFrame:
-    """
-    逐筆成交資料。
-    time_start/time_end："HH:MM:SS"（區間查詢）
-    last_cnt：只取最後 N 筆
-    """
-    api = login(fetch_contract=True)
-    if market == "Stocks":
-        contract = api.Contracts.Stocks[code]
-    elif market == "Futures":
-        contract = api.Contracts.Futures[code]
-    else:
-        contract = api.Contracts.Options[code]
-
-    kwargs = {"contract": contract, "date": query_date}
-    if time_start and time_end:
-        from shioaji.constant import TicksQueryType
-        kwargs["query_type"] = TicksQueryType.RangeTime
-        kwargs["time_start"] = time_start
-        kwargs["time_end"]   = time_end
-    elif last_cnt:
-        from shioaji.constant import TicksQueryType
-        kwargs["query_type"] = TicksQueryType.LastCount
-        kwargs["last_cnt"]   = last_cnt
-
-    ticks = api.ticks(**kwargs)
-    return pd.DataFrame({**ticks}).set_index("ts")
+def query_ticks(*args, **kwargs) -> pd.DataFrame:
+    """逐筆成交（公開版不支援，請使用 local 分支完整版）"""
+    return pd.DataFrame({"說明": ["逐筆成交需要永豐金 API，公開版不支援。"
+                                   "請切換至 local 分支（本機完整版）。"]})
 
 
 # ══════════════════════════════════════════════════════════
-# 四、帳務查詢（需登入，模擬環境部分功能受限）
+# 四、帳務查詢（公開版不支援，需永豐金 CA 憑證）
 # ══════════════════════════════════════════════════════════
 
-def query_positions(account_type: str = "stock") -> pd.DataFrame:
-    """
-    庫存未實現損益。
-    account_type：stock / future
-    """
-    api = login(fetch_contract=False)
-    account = api.stock_account if account_type == "stock" else api.futopt_account
-    positions = api.list_positions(account)
-    return pd.DataFrame([p.dict() for p in positions])
+_BROKER_MSG = "此功能需要永豐金券商帳號及 CA 憑證，公開版不支援。請切換至 local 分支（本機完整版）。"
 
 
-def query_position_detail(code: str, account_type: str = "stock") -> pd.DataFrame:
-    """單一股票庫存明細（每筆買入記錄）"""
-    api = login(fetch_contract=True)
-    account = api.stock_account if account_type == "stock" else api.futopt_account
-    contract = api.Contracts.Stocks[code] if account_type == "stock" else None
-    details = api.list_position_detail(account, contract)
-    return pd.DataFrame([d.dict() for d in details])
+def query_positions(*args, **kwargs) -> pd.DataFrame:
+    return pd.DataFrame({"說明": [_BROKER_MSG]})
 
 
-def query_profit_loss(
-    begin_date: str = None,
-    end_date: str = None,
-    account_type: str = "stock",
-) -> pd.DataFrame:
-    """
-    已實現損益查詢。
-    begin_date/end_date："YYYY-MM-DD"，不填則查今日
-    """
-    if begin_date is None:
-        begin_date = str(date.today())
-    if end_date is None:
-        end_date = str(date.today())
-    api = login(fetch_contract=False)
-    account = api.stock_account if account_type == "stock" else api.futopt_account
-    pnl = api.list_profit_loss(account, begin_date=begin_date, end_date=end_date)
-    return pd.DataFrame([p.dict() for p in pnl])
+def query_position_detail(*args, **kwargs) -> pd.DataFrame:
+    return pd.DataFrame({"說明": [_BROKER_MSG]})
 
 
-def query_profit_loss_summary(
-    begin_date: str = None,
-    end_date: str = None,
-    account_type: str = "stock",
-) -> pd.DataFrame:
-    """已實現損益彙總（期間總覽）"""
-    if begin_date is None:
-        begin_date = str(date.today())
-    if end_date is None:
-        end_date = str(date.today())
-    api = login(fetch_contract=False)
-    account = api.stock_account if account_type == "stock" else api.futopt_account
-    summary = api.list_profit_loss_summary(account, begin_date=begin_date, end_date=end_date)
-    return pd.DataFrame([s.dict() for s in summary])
+def query_profit_loss(*args, **kwargs) -> pd.DataFrame:
+    return pd.DataFrame({"說明": [_BROKER_MSG]})
 
 
-def query_account_balance() -> dict:
-    """股票帳戶餘額（可動用金額）"""
-    api = login(fetch_contract=False)
-    balance = api.account_balance()
-    return balance.dict()
+def query_profit_loss_summary(*args, **kwargs) -> pd.DataFrame:
+    return pd.DataFrame({"說明": [_BROKER_MSG]})
 
 
-def query_margin() -> dict:
-    """期貨保證金狀態（初始/維持/追繳/可用）"""
-    api = login(fetch_contract=False)
-    margin = api.margin(api.futopt_account)
-    return margin.dict()
+def query_account_balance(*args, **kwargs) -> dict:
+    return {"說明": _BROKER_MSG}
 
 
-def query_trading_limits() -> dict:
-    """股票帳戶交易額度（可用額度/融資/融券）"""
-    api = login(fetch_contract=False)
-    limits = api.trading_limits(api.stock_account)
-    return limits.dict()
+def query_margin(*args, **kwargs) -> dict:
+    return {"說明": _BROKER_MSG}
 
 
-def query_settlements() -> pd.DataFrame:
-    """股票交割款明細（T/T+1/T+2）"""
-    api = login(fetch_contract=False)
-    settlements = api.settlements(api.stock_account)
-    return pd.DataFrame([s.dict() for s in settlements])
+def query_trading_limits(*args, **kwargs) -> dict:
+    return {"說明": _BROKER_MSG}
+
+
+def query_settlements(*args, **kwargs) -> pd.DataFrame:
+    return pd.DataFrame({"說明": [_BROKER_MSG]})
 
 
 # ══════════════════════════════════════════════════════════

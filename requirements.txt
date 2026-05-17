@@ -1,5 +1,4 @@
-# 完整版（local 分支）— 含永豐金 Shioaji API
-shioaji
+# 公開版（main 分支）— 不需永豐金帳號
 pandas
 yfinance
 FinMind
