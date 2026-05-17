@@ -554,132 +554,95 @@ def render_twse_section():
             display_result(result, item)
 
 
+def _finmind_dispatch(qt: str, code: str, start_date, end_date):
+    """根據項目名稱執行對應 FinMind 查詢。"""
+    if qt == "三大法人明細":  return qw.query_institutional_investors(code, start_date, end_date)
+    if qt == "當沖交易量":    return qw.query_day_trading_volume(code, start_date, end_date)
+    if qt == "融資融券餘額":  return qw.query_margin_short(code, start_date, end_date)
+    if qt == "外資持股比例":  return qw.query_foreign_shareholding(code, start_date, end_date)
+    if qt == "借券成交":      return qw.query_securities_lending(code, start_date, end_date)
+    if qt == "月營收":        return qw.query_month_revenue(code, start_date, end_date)
+    if qt == "綜合損益表":    return qw.query_financial_statement(code, start_date, end_date)
+    if qt == "資產負債表":    return qw.query_balance_sheet(code, start_date, end_date)
+    if qt == "股利政策":      return qw.query_dividend(code, start_date, end_date)
+    return {"error": f"未知項目：{qt}"}
+
+
 def render_finmind():
-    """FinMind 查詢"""
+    """FinMind 查詢 —— 複選批次模式"""
     main_logger.info("渲染 FinMind Tab")
 
-    st.caption("📌 籌碼面")
-    _qbtn_grid(
-        ["三大法人明細", "當沖交易量", "融資融券餘額", "外資持股比例", "借券成交"],
-        "finmind_chip_q", n_cols=5
-    )
-    st.caption("📌 基本面")
-    _qbtn_grid(
-        ["月營收", "綜合損益表", "資產負債表", "股利政策"],
-        "finmind_fund_q", n_cols=4
-    )
+    CHIP_ITEMS = ["三大法人明細", "當沖交易量", "融資融券餘額", "外資持股比例", "借券成交"]
+    FUND_ITEMS = ["月營收", "綜合損益表", "資產負債表", "股利政策"]
 
-    CHIP_OPTS = ["三大法人明細", "當沖交易量", "融資融券餘額", "外資持股比例", "借券成交"]
-    FUND_OPTS = ["月營收", "綜合損益表", "資產負債表", "股利政策"]
-    chip_sel = st.session_state.get("finmind_chip_q", CHIP_OPTS[0])
-    fund_sel = st.session_state.get("finmind_fund_q", FUND_OPTS[0])
+    # ── 上半：複選區（左=籌碼面，右=基本面，兩者均需日期） ──
+    with st.container(border=True):
+        col_left, col_right = st.columns(2)
 
-    # 判斷哪組最近被改動（用 _prev 記錄上一次值）
-    prev_chip = st.session_state.get("_prev_finmind_chip", CHIP_OPTS[0])
-    prev_fund = st.session_state.get("_prev_finmind_fund", FUND_OPTS[0])
-    if chip_sel != prev_chip:
-        st.session_state["finmind_active_group"] = "chip"
-        st.session_state["_prev_finmind_chip"] = chip_sel
-    elif fund_sel != prev_fund:
-        st.session_state["finmind_active_group"] = "fund"
-        st.session_state["_prev_finmind_fund"] = fund_sel
-    elif "finmind_active_group" not in st.session_state:
-        st.session_state["finmind_active_group"] = "chip"
+        with col_left:
+            hc1, hc2 = st.columns([4, 1])
+            with hc1:
+                st.caption("📌 籌碼面（需股票代號＋日期）")
+            with hc2:
+                if st.button("全選", key="fm_all_chip", use_container_width=True):
+                    for i in range(len(CHIP_ITEMS)):
+                        st.session_state[f"fm_cb_chip_{i}"] = True
+            for i, opt in enumerate(CHIP_ITEMS):
+                st.checkbox(opt, key=f"fm_cb_chip_{i}")
 
-    query_type = chip_sel if st.session_state["finmind_active_group"] == "chip" else fund_sel
+        with col_right:
+            hc1, hc2 = st.columns([4, 1])
+            with hc1:
+                st.caption("📌 基本面（需股票代號＋日期）")
+            with hc2:
+                if st.button("全選", key="fm_all_fund", use_container_width=True):
+                    for i in range(len(FUND_ITEMS)):
+                        st.session_state[f"fm_cb_fund_{i}"] = True
+            for i, opt in enumerate(FUND_ITEMS):
+                st.checkbox(opt, key=f"fm_cb_fund_{i}")
 
+    # ── 共用參數（所有項目均需代號＋日期） ─────────────────
     code = code_input_section()
     start_date, end_date = date_input_section(default_days=365)
 
-    if query_type == "三大法人明細":
-        if st.button("查詢", key="institutional"):
-            if code:
-                with st.spinner("查詢中..."):
-                    result = qw.query_institutional_investors(code, start_date, end_date)
-                    st.session_state.current_result = result
-                    display_result(result, f"{code} 三大法人明細")
-            else:
-                st.warning("請輸入股票代號")
+    # 勾選摘要
+    selected = (
+        [opt for i, opt in enumerate(CHIP_ITEMS) if st.session_state.get(f"fm_cb_chip_{i}", False)] +
+        [opt for i, opt in enumerate(FUND_ITEMS)  if st.session_state.get(f"fm_cb_fund_{i}",  False)]
+    )
+    if selected:
+        st.caption(f"已勾選 {len(selected)} 項：{' · '.join(selected)}")
 
-    elif query_type == "當沖交易量":
-        if st.button("查詢", key="day_trading"):
-            if code:
-                with st.spinner("查詢中..."):
-                    result = qw.query_day_trading_volume(code, start_date, end_date)
-                    st.session_state.current_result = result
-                    display_result(result, f"{code} 當沖交易量")
-            else:
-                st.warning("請輸入股票代號")
+    run_batch = st.button("🔍 確認查詢", type="primary", use_container_width=True,
+                          key="fm_run_batch")
 
-    elif query_type == "融資融券餘額":
-        if st.button("查詢", key="margin_short"):
-            if code:
-                with st.spinner("查詢中..."):
-                    result = qw.query_margin_short(code, start_date, end_date)
-                    st.session_state.current_result = result
-                    display_result(result, f"{code} 融資融券餘額")
-            else:
-                st.warning("請輸入股票代號")
+    st.divider()
 
-    elif query_type == "外資持股比例":
-        if st.button("查詢", key="shareholding"):
-            if code:
-                with st.spinner("查詢中..."):
-                    result = qw.query_foreign_shareholding(code, start_date, end_date)
-                    st.session_state.current_result = result
-                    display_result(result, f"{code} 外資持股比例")
-            else:
-                st.warning("請輸入股票代號")
+    # ── 下半：批次執行 + 結果統一顯示 ───────────────────────
+    if run_batch:
+        if not selected:
+            st.warning("請至少勾選一個項目")
+        elif not code:
+            st.warning("請輸入股票代號")
+        else:
+            results = []
+            bar = st.progress(0, text="查詢中...")
+            for idx, item in enumerate(selected):
+                bar.progress((idx + 1) / len(selected), text=f"查詢：{item}")
+                try:
+                    result = _finmind_dispatch(item, code, start_date, end_date)
+                except Exception as e:
+                    result = {"error": str(e)}
+                results.append((item, result))
+            bar.empty()
+            st.session_state["fm_batch_results"] = (results, code)
 
-    elif query_type == "借券成交":
-        if st.button("查詢", key="securities_lending"):
-            if code:
-                with st.spinner("查詢中..."):
-                    result = qw.query_securities_lending(code, start_date, end_date)
-                    st.session_state.current_result = result
-                    display_result(result, f"{code} 借券成交")
-            else:
-                st.warning("請輸入股票代號")
-
-    elif query_type == "月營收":
-        if st.button("查詢", key="month_revenue"):
-            if code:
-                with st.spinner("查詢中..."):
-                    result = qw.query_month_revenue(code, start_date, end_date)
-                    st.session_state.current_result = result
-                    display_result(result, f"{code} 月營收")
-            else:
-                st.warning("請輸入股票代號")
-
-    elif query_type == "綜合損益表":
-        if st.button("查詢", key="financial"):
-            if code:
-                with st.spinner("查詢中..."):
-                    result = qw.query_financial_statement(code, start_date, end_date)
-                    st.session_state.current_result = result
-                    display_result(result, f"{code} 綜合損益表")
-            else:
-                st.warning("請輸入股票代號")
-
-    elif query_type == "資產負債表":
-        if st.button("查詢", key="balance"):
-            if code:
-                with st.spinner("查詢中..."):
-                    result = qw.query_balance_sheet(code, start_date, end_date)
-                    st.session_state.current_result = result
-                    display_result(result, f"{code} 資產負債表")
-            else:
-                st.warning("請輸入股票代號")
-
-    elif query_type == "股利政策":
-        if st.button("查詢", key="dividend"):
-            if code:
-                with st.spinner("查詢中..."):
-                    result = qw.query_dividend(code, start_date, end_date)
-                    st.session_state.current_result = result
-                    display_result(result, f"{code} 股利政策")
-            else:
-                st.warning("請輸入股票代號")
+    stored = st.session_state.get("fm_batch_results")
+    if stored:
+        results, stored_code = stored
+        for item, result in results:
+            with st.expander(f"📋 {stored_code} — {item}", expanded=True):
+                display_result(result, f"{stored_code} {item}")
 
 def render_futures_forex():
     """期貨/匯率 (Phase 7 實作完成)"""
