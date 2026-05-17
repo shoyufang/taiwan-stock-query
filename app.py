@@ -1594,12 +1594,236 @@ def render_gemini_chat():
         st.rerun()
 
 
+# ==================== 選股引擎 ====================
+
+import screener as sc
+
+def _screener_result_block(df: pd.DataFrame, label: str):
+    """顯示選股結果並提供 Excel 下載"""
+    if df is None or df.empty:
+        st.info("無符合條件的股票")
+        return
+    st.success(f"找到 **{len(df)}** 檔符合「{label}」")
+    st.dataframe(df, use_container_width=True, hide_index=True)
+    from utils import export_to_excel
+    excel = export_to_excel({"選股結果": df})
+    if excel:
+        st.download_button("⬇ 下載 Excel", data=excel,
+                           file_name=f"選股_{label}.xlsx",
+                           mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+
+def _universe_sidebar(prefix: str):
+    """股票清單過濾共用 UI，回傳 filtered DataFrame"""
+    with st.expander("📋 股票清單過濾", expanded=False):
+        col1, col2 = st.columns(2)
+        min_p = col1.number_input("最低股價", value=10.0, min_value=0.0, key=f"{prefix}_minp")
+        max_p = col2.number_input("最高股價", value=9999.0, min_value=0.0, key=f"{prefix}_maxp")
+        min_v = st.number_input("最低成交量（張）", value=300, min_value=0, key=f"{prefix}_minv")
+        c1, c2 = st.columns(2)
+        excl_etf  = c1.checkbox("排除 ETF", value=True, key=f"{prefix}_etf")
+        excl_pref = c2.checkbox("排除特別股", value=True, key=f"{prefix}_pref")
+
+    universe = sc.get_twse_universe()
+    filtered = sc.filter_universe(universe, min_p, max_p, int(min_v), excl_etf, excl_pref)
+    st.caption(f"股票池：{len(filtered)} 檔（上市 {len(universe)} 檔）")
+    return filtered
+
+
+def render_screener():
+    """多因子選股頁面"""
+    main_logger.info("渲染選股 Tab")
+    st.markdown("### 🔍 多因子選股")
+    st.caption("模仿 XQ XScript Preset 選股邏輯，以 Python + FinMind + TWSE 實現")
+
+    tab_a, tab_b, tab_c, tab_d = st.tabs(["A 技術面", "B 財報面", "C 籌碼面", "D 多因子組合"])
+
+    # ── A 技術面 ────────────────────────────────────────────────
+    with tab_a:
+        st.markdown("#### 技術指標選股")
+        universe_a = _universe_sidebar("ta")
+
+        st.markdown("**選擇技術條件（可複選）**")
+        all_conds = list(sc.TECH_CONDITIONS.items())
+        col_groups = [all_conds[i:i+3] for i in range(0, len(all_conds), 3)]
+        selected_a = []
+        for row_items in col_groups:
+            cols = st.columns(3)
+            for col, (key, label) in zip(cols, row_items):
+                if col.checkbox(label, key=f"ta_cb_{key}"):
+                    selected_a.append(key)
+
+        mode_a = st.radio("條件模式", ["任一成立 (OR)", "全部成立 (AND)"],
+                          horizontal=True, key="ta_mode")
+        mode_str_a = "OR" if "OR" in mode_a else "AND"
+
+        period_a = st.select_slider("歷史資料長度",
+                                    options=["3mo", "6mo", "1y"], value="6mo", key="ta_period")
+
+        if st.button("🚀 開始技術面選股", type="primary", key="ta_run", use_container_width=True):
+            if not selected_a:
+                st.warning("請至少勾選一個技術條件")
+            else:
+                prog = st.progress(0, text="準備中...")
+                stat = st.empty()
+                with st.spinner("技術面分析中..."):
+                    result = sc.screen_technical(
+                        universe_a, selected_a, mode_str_a, period_a,
+                        progress_bar=prog, status_text=stat,
+                    )
+                st.session_state["screener_a_result"] = result
+
+        _screener_result_block(st.session_state.get("screener_a_result"), "技術面")
+
+    # ── B 財報面 ────────────────────────────────────────────────
+    with tab_b:
+        st.markdown("#### 財報/估值選股")
+        universe_b = _universe_sidebar("fb")
+
+        st.markdown("**TWSE 即時估值（設為 None 表示不篩選）**")
+        col1, col2, col3 = st.columns(3)
+        pe_on  = col1.checkbox("本益比 ≤", value=False, key="fb_pe_on")
+        pb_on  = col2.checkbox("股淨比 ≤", value=False, key="fb_pb_on")
+        yld_on = col3.checkbox("殖利率 ≥", value=False, key="fb_yld_on")
+        pe_v  = col1.number_input("本益比上限", value=20.0, min_value=0.1, key="fb_pe_v",
+                                   disabled=not pe_on)
+        pb_v  = col2.number_input("股淨比上限", value=2.0,  min_value=0.1, key="fb_pb_v",
+                                   disabled=not pb_on)
+        yld_v = col3.number_input("殖利率下限 (%)", value=3.0, min_value=0.0, key="fb_yld_v",
+                                   disabled=not yld_on)
+
+        st.markdown("**FinMind 月營收**")
+        col4, col5 = st.columns(2)
+        ryoy_on = col4.checkbox("月營收 YOY ≥ (%)", value=False, key="fb_ryoy_on")
+        rcons_on = col5.checkbox("月營收連續正成長", value=False, key="fb_rcons_on")
+        ryoy_v  = col4.number_input("YOY 成長率下限 (%)", value=10.0, key="fb_ryoy_v",
+                                     disabled=not ryoy_on)
+        rcons_n = col5.number_input("連續正成長月數", value=3, min_value=1, max_value=12,
+                                     key="fb_rcons_n", disabled=not rcons_on)
+
+        if not (pe_on or pb_on or yld_on or ryoy_on or rcons_on):
+            st.info("請至少勾選一項財報條件")
+
+        if st.button("🚀 開始財報面選股", type="primary", key="fb_run", use_container_width=True):
+            if not (pe_on or pb_on or yld_on or ryoy_on or rcons_on):
+                st.warning("請至少勾選一項財報條件")
+            else:
+                prog = st.progress(0, text="準備中...")
+                stat = st.empty()
+                with st.spinner("財報面分析中..."):
+                    result = sc.screen_fundamental(
+                        universe_b,
+                        pe_max=pe_v if pe_on else None,
+                        pb_max=pb_v if pb_on else None,
+                        yield_min=yld_v if yld_on else None,
+                        rev_yoy_min=ryoy_v if ryoy_on else None,
+                        rev_cons_n=int(rcons_n) if rcons_on else 0,
+                        progress_bar=prog, status_text=stat,
+                    )
+                st.session_state["screener_b_result"] = result
+
+        _screener_result_block(st.session_state.get("screener_b_result"), "財報面")
+
+    # ── C 籌碼面 ────────────────────────────────────────────────
+    with tab_c:
+        st.markdown("#### 籌碼/法人選股")
+        universe_c = _universe_sidebar("cp")
+
+        st.markdown("**選擇籌碼條件（可複選）**")
+        selected_c = []
+        cols = st.columns(3)
+        for i, (key, label) in enumerate(sc.CHIP_CONDITIONS.items()):
+            if cols[i % 3].checkbox(label, key=f"cp_cb_{key}"):
+                selected_c.append(key)
+
+        mode_c = st.radio("條件模式", ["任一成立 (OR)", "全部成立 (AND)"],
+                          horizontal=True, key="cp_mode")
+        mode_str_c = "OR" if "OR" in mode_c else "AND"
+
+        if "foreign_5d" in selected_c:
+            st.caption("⚠️ 外資連5日買超需 FinMind Token，查詢較慢（每檔 ~0.25s）")
+
+        if st.button("🚀 開始籌碼面選股", type="primary", key="cp_run", use_container_width=True):
+            if not selected_c:
+                st.warning("請至少勾選一個籌碼條件")
+            else:
+                prog = st.progress(0, text="準備中...")
+                stat = st.empty()
+                with st.spinner("籌碼面分析中..."):
+                    result = sc.screen_chip(
+                        universe_c, selected_c, mode_str_c,
+                        progress_bar=prog, status_text=stat,
+                    )
+                st.session_state["screener_c_result"] = result
+
+        _screener_result_block(st.session_state.get("screener_c_result"), "籌碼面")
+
+    # ── D 多因子組合 ─────────────────────────────────────────────
+    with tab_d:
+        st.markdown("#### 多因子組合選股（漏斗式）")
+        st.caption("技術面 → 籌碼面 → 財報面，逐步縮小候選池")
+        universe_d = _universe_sidebar("mf")
+
+        col_l, col_r = st.columns(2)
+
+        with col_l:
+            st.markdown("**技術條件**")
+            selected_d_tech = []
+            for key, label in sc.TECH_CONDITIONS.items():
+                if st.checkbox(label, key=f"mf_t_{key}"):
+                    selected_d_tech.append(key)
+            mode_dt = st.radio("技術條件模式", ["任一 (OR)", "全部 (AND)"],
+                                horizontal=True, key="mf_tmode")
+
+            st.markdown("**籌碼條件**")
+            selected_d_chip = []
+            for key, label in sc.CHIP_CONDITIONS.items():
+                if st.checkbox(label, key=f"mf_c_{key}"):
+                    selected_d_chip.append(key)
+            mode_dc = st.radio("籌碼條件模式", ["任一 (OR)", "全部 (AND)"],
+                                horizontal=True, key="mf_cmode")
+
+        with col_r:
+            st.markdown("**財報條件**")
+            pe2_on  = st.checkbox("本益比 ≤", key="mf_pe_on")
+            pe2_v   = st.number_input("本益比上限", value=20.0, key="mf_pe_v", disabled=not pe2_on)
+            pb2_on  = st.checkbox("股淨比 ≤", key="mf_pb_on")
+            pb2_v   = st.number_input("股淨比上限", value=2.0, key="mf_pb_v", disabled=not pb2_on)
+            yld2_on = st.checkbox("殖利率 ≥ (%)", key="mf_yld_on")
+            yld2_v  = st.number_input("殖利率下限", value=3.0, key="mf_yld_v", disabled=not yld2_on)
+            ryoy2_on = st.checkbox("月營收 YOY ≥ (%)", key="mf_ryoy_on")
+            ryoy2_v  = st.number_input("YOY 下限", value=10.0, key="mf_ryoy_v", disabled=not ryoy2_on)
+
+        if st.button("🚀 開始多因子選股", type="primary", key="mf_run", use_container_width=True):
+            if not (selected_d_tech or selected_d_chip or pe2_on or pb2_on or yld2_on or ryoy2_on):
+                st.warning("請至少選擇一項條件")
+            else:
+                prog = st.progress(0, text="準備中...")
+                stat = st.empty()
+                with st.spinner("多因子分析中...（可能需要 1-2 分鐘）"):
+                    result = sc.screen_multi(
+                        universe_d,
+                        tech_conds=selected_d_tech,
+                        tech_mode="OR" if "OR" in mode_dt else "AND",
+                        chip_conds=selected_d_chip,
+                        chip_mode="OR" if "OR" in mode_dc else "AND",
+                        pe_max=pe2_v if pe2_on else None,
+                        pb_max=pb2_v if pb2_on else None,
+                        yield_min=yld2_v if yld2_on else None,
+                        rev_yoy_min=ryoy2_v if ryoy2_on else None,
+                        progress_bar=prog, status_text=stat,
+                    )
+                st.session_state["screener_d_result"] = result
+
+        _screener_result_block(st.session_state.get("screener_d_result"), "多因子")
+
+
 # ==================== SIDEBAR AND MAIN LOGIC ====================
 
 # 三組導航按鈕（永豐金 / TWSE / 其他）
 SINOPAC_TABS = ["儀表板", "台股市場"]
 TWSE_TABS    = ["TWSE"]
-OTHER_TABS   = ["Gemini AI", "FinMind", "期貨/匯率", "新聞", "工具"]
+OTHER_TABS   = ["Gemini AI", "FinMind", "期貨/匯率", "選股", "新聞", "工具"]
 
 def _nav_btn(label: str, icon: str = ""):
     """渲染一個導航按鈕，當前選中顯示 primary 樣式"""
@@ -1733,6 +1957,8 @@ else:
         render_finmind()
     elif selected_tab == "期貨/匯率":
         render_futures_forex()
+    elif selected_tab == "選股":
+        render_screener()
     elif selected_tab == "新聞":
         render_news()
     elif selected_tab == "工具":
