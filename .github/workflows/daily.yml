@@ -1,0 +1,32 @@
+name: 台股每日資料抓取
+
+on:
+  schedule:
+    - cron: '0 10 * * 1-5'   # 每週一至五 18:00 台灣時間（UTC 10:00）
+  workflow_dispatch:           # 允許手動觸發（測試用）
+
+jobs:
+  daily-fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install pandas requests yfinance
+
+      - name: Run daily job
+        env:
+          NOTION_TOKEN:          ${{ secrets.NOTION_TOKEN }}
+          NOTION_MARKET_DB_ID:   ${{ secrets.NOTION_MARKET_DB_ID }}
+          NOTION_SCREENER_DB_ID: ${{ secrets.NOTION_SCREENER_DB_ID }}
+          FINMIND_TOKEN:         ${{ secrets.FINMIND_TOKEN }}
+        run: python daily_job.py
