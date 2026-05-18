@@ -1,27 +1,36 @@
 #!/usr/bin/env python3
 """
 台股每日自動抓取 → 存入 Notion
-每個交易日 18:00 由 GitHub Actions 觸發
+每個交易日 18:05 由 GitHub Actions 觸發
 
 GitHub Secrets 需設定：
   NOTION_TOKEN          — Notion Integration Token
   NOTION_MARKET_DB_ID   — 每日大盤快照 Database ID
   NOTION_SCREENER_DB_ID — 選股紀錄 Database ID
   FINMIND_TOKEN         — FinMind API Token（選填）
+  GMAIL_USER            — 寄件 Gmail 帳號
+  GMAIL_APP_PASSWORD    — Gmail 應用程式密碼
+  NOTIFY_EMAIL          — 收件地址（預設同 GMAIL_USER）
 """
 
 import os
 import sys
 import time
+import smtplib
 import requests
 import pandas as pd
 from datetime import date
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 # ─── 環境變數 ───────────────────────────────────────────────
 NOTION_TOKEN          = os.environ.get("NOTION_TOKEN", "")
 NOTION_MARKET_DB_ID   = os.environ.get("NOTION_MARKET_DB_ID", "")
 NOTION_SCREENER_DB_ID = os.environ.get("NOTION_SCREENER_DB_ID", "")
 FINMIND_TOKEN         = os.environ.get("FINMIND_TOKEN", "")
+GMAIL_USER            = os.environ.get("GMAIL_USER", "")
+GMAIL_APP_PASSWORD    = os.environ.get("GMAIL_APP_PASSWORD", "")
+NOTIFY_EMAIL          = os.environ.get("NOTIFY_EMAIL", "") or GMAIL_USER
 
 NOTION_HEADERS = {
     "Authorization": f"Bearer {NOTION_TOKEN}",
@@ -246,6 +255,49 @@ def write_screener(df: pd.DataFrame) -> int:
 
 
 # ═══════════════════════════════════════════════════════════
+# Step 5：處置股清單 + Email 通知
+# ═══════════════════════════════════════════════════════════
+
+def fetch_disposition() -> pd.DataFrame:
+    import urllib3
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+    try:
+        resp = requests.get(
+            "https://www.twse.com.tw/rwd/zh/announcement/punish",
+            timeout=15, verify=False,
+        )
+        data = resp.json()
+        # 回傳格式：{"stat":"OK","fields":[...],"data":[[...],...]}
+        if data.get("stat") != "OK" or not data.get("data"):
+            return pd.DataFrame()
+        df = pd.DataFrame(data["data"], columns=data["fields"])
+        return df
+    except Exception as e:
+        print(f"  ⚠️  處置股: {e}")
+        return pd.DataFrame()
+
+
+def send_email(subject: str, body: str) -> bool:
+    if not GMAIL_USER or not GMAIL_APP_PASSWORD:
+        print("  ⚠️  GMAIL_USER / GMAIL_APP_PASSWORD 未設定，略過 email")
+        return False
+    try:
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"]    = GMAIL_USER
+        msg["To"]      = NOTIFY_EMAIL
+        msg.attach(MIMEText(body, "plain", "utf-8"))
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+            smtp.login(GMAIL_USER, GMAIL_APP_PASSWORD)
+            smtp.sendmail(GMAIL_USER, NOTIFY_EMAIL, msg.as_string())
+        print(f"  ✅ Email 已寄出 → {NOTIFY_EMAIL}")
+        return True
+    except Exception as e:
+        print(f"  ⚠️  Email 寄送失敗: {e}")
+        return False
+
+
+# ═══════════════════════════════════════════════════════════
 # 主程式
 # ═══════════════════════════════════════════════════════════
 
@@ -258,24 +310,37 @@ def main():
         print("❌ NOTION_TOKEN 未設定，中止")
         sys.exit(1)
 
-    print("📊 Step 1/4  抓取大盤資料...")
+    print("📊 Step 1/5  抓取大盤資料...")
     data = fetch_market()
 
-    print("\n💾 Step 2/4  寫入大盤快照...")
+    print("\n💾 Step 2/5  寫入大盤快照...")
     write_market(data)
 
-    print("\n🔍 Step 3/4  籌碼選股（外資＋投信雙買超）...")
+    print("\n🔍 Step 3/5  籌碼選股（外資＋投信雙買超）...")
     screener_df = run_screener(data)
     print(f"  符合條件：{len(screener_df)} 檔")
     if not screener_df.empty:
         print(screener_df[["代號", "名稱", "外資買賣超(張)", "投信買賣超(張)"]].to_string(index=False))
 
-    print(f"\n💾 Step 4/4  寫入選股紀錄...")
+    print(f"\n💾 Step 4/5  寫入選股紀錄...")
     if not screener_df.empty:
         saved = write_screener(screener_df)
         print(f"  ✅ 已存入 {saved}/{len(screener_df)} 筆")
     else:
         print("  今日無符合選股條件的股票")
+
+    print("\n🚨 Step 5/5  抓取處置股清單...")
+    disp_df = fetch_disposition()
+    if disp_df.empty:
+        print("  今日無處置股")
+    else:
+        print(f"  發現 {len(disp_df)} 檔處置股")
+        lines = [f"📅 {TODAY} 處置有價證券清單（共 {len(disp_df)} 檔）\n"]
+        lines.append(disp_df.to_string(index=False))
+        send_email(
+            subject=f"【台股警示】{TODAY} 處置股 {len(disp_df)} 檔",
+            body="\n".join(lines),
+        )
 
     print(f"\n✅ 完成  {TODAY}\n")
 
