@@ -15,6 +15,7 @@ GitHub Secrets 需設定：
 
 import os
 import sys
+import json
 import time
 import smtplib
 import requests
@@ -38,8 +39,9 @@ NOTION_HEADERS = {
     "Notion-Version": "2022-06-28",
 }
 
-TODAY = date.today().isoformat()
+TODAY      = date.today().isoformat()
 WEEKDAY_CN = ["一", "二", "三", "四", "五", "六", "日"]
+CACHE_FILE = "disposition_cache.json"
 
 
 # ═══════════════════════════════════════════════════════════
@@ -255,7 +257,7 @@ def write_screener(df: pd.DataFrame) -> int:
 
 
 # ═══════════════════════════════════════════════════════════
-# Step 5：處置股清單 + Email 通知
+# Step 5：處置股清單 + Email 通知（只通知新增）
 # ═══════════════════════════════════════════════════════════
 
 def fetch_disposition() -> pd.DataFrame:
@@ -275,6 +277,22 @@ def fetch_disposition() -> pd.DataFrame:
     except Exception as e:
         print(f"  ⚠️  處置股: {e}")
         return pd.DataFrame()
+
+
+def load_prev_codes() -> set:
+    try:
+        with open(CACHE_FILE, encoding="utf-8") as f:
+            return set(json.load(f))
+    except Exception:
+        return set()
+
+
+def save_curr_codes(codes: set) -> None:
+    try:
+        with open(CACHE_FILE, "w", encoding="utf-8") as f:
+            json.dump(sorted(codes), f, ensure_ascii=False)
+    except Exception as e:
+        print(f"  ⚠️  快取寫入失敗: {e}")
 
 
 def send_email(subject: str, body: str) -> bool:
@@ -329,18 +347,36 @@ def main():
     else:
         print("  今日無符合選股條件的股票")
 
-    print("\n🚨 Step 5/5  抓取處置股清單...")
-    disp_df = fetch_disposition()
+    print("\n🚨 Step 5/5  處置股（僅通知新增）...")
+    disp_df    = fetch_disposition()
+    prev_codes = load_prev_codes()
+
     if disp_df.empty:
-        print("  今日無處置股")
+        print("  今日處置股清單為空")
+        save_curr_codes(set())
     else:
-        print(f"  發現 {len(disp_df)} 檔處置股")
-        lines = [f"📅 {TODAY} 處置有價證券清單（共 {len(disp_df)} 檔）\n"]
-        lines.append(disp_df.to_string(index=False))
-        send_email(
-            subject=f"【台股警示】{TODAY} 處置股 {len(disp_df)} 檔",
-            body="\n".join(lines),
-        )
+        # 取代號欄（嘗試常見欄位名）
+        code_col = next((c for c in disp_df.columns if "代號" in c or "Code" in c), disp_df.columns[0])
+        curr_codes = set(disp_df[code_col].astype(str).str.strip())
+        new_codes  = curr_codes - prev_codes
+        gone_codes = prev_codes - curr_codes
+
+        print(f"  目前清單 {len(curr_codes)} 檔 | 新增 {len(new_codes)} 檔 | 解除 {len(gone_codes)} 檔")
+
+        if new_codes:
+            new_df = disp_df[disp_df[code_col].astype(str).str.strip().isin(new_codes)]
+            lines  = [f"📅 {TODAY} 新增處置有價證券（共 {len(new_codes)} 檔）\n",
+                      new_df.to_string(index=False)]
+            if gone_codes:
+                lines.append(f"\n（同日解除處置：{', '.join(sorted(gone_codes))}）")
+            send_email(
+                subject=f"【台股警示】{TODAY} 新增處置股 {len(new_codes)} 檔",
+                body="\n".join(lines),
+            )
+        else:
+            print("  無新增處置股，不寄信")
+
+        save_curr_codes(curr_codes)
 
     print(f"\n✅ 完成  {TODAY}\n")
 
