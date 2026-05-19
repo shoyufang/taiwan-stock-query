@@ -45,6 +45,21 @@ CACHE_FILE = "disposition_cache.json"
 
 
 # ═══════════════════════════════════════════════════════════
+# CSV 存檔工具
+# ═══════════════════════════════════════════════════════════
+
+def save_csv(df: pd.DataFrame, category: str) -> None:
+    """將 DataFrame 存到 data/<category>/YYYY-MM-DD.csv"""
+    if df.empty:
+        return
+    path = os.path.join("data", category)
+    os.makedirs(path, exist_ok=True)
+    filepath = os.path.join(path, f"{TODAY}.csv")
+    df.to_csv(filepath, index=False, encoding="utf-8-sig")
+    print(f"  💾 已存檔 → {filepath}（{len(df)} 筆）")
+
+
+# ═══════════════════════════════════════════════════════════
 # Notion 寫入工具
 # ═══════════════════════════════════════════════════════════
 
@@ -333,6 +348,12 @@ def main():
 
     print("\n💾 Step 2/5  寫入大盤快照...")
     write_market(data)
+    # 大盤摘要存 CSV（單列）
+    summary_row = {k: data[k] for k in
+                   ["taiex","taiex_chg","taiex_pct","up","down","value","foreign","trust","dealer"]
+                   if k in data}
+    summary_row["date"] = TODAY
+    save_csv(pd.DataFrame([summary_row]), "market")
 
     print("\n🔍 Step 3/5  籌碼選股（外資＋投信雙買超）...")
     screener_df = run_screener(data)
@@ -344,6 +365,7 @@ def main():
     if not screener_df.empty:
         saved = write_screener(screener_df)
         print(f"  ✅ 已存入 {saved}/{len(screener_df)} 筆")
+        save_csv(screener_df, "screener")
     else:
         print("  今日無符合選股條件的股票")
 
@@ -377,6 +399,7 @@ def main():
             print("  無新增處置股，不寄信")
 
         save_curr_codes(curr_codes)
+        save_csv(disp_df, "disposition")
 
     print(f"\n✅ 完成  {TODAY}\n")
 

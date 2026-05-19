@@ -36,10 +36,10 @@ jobs:
           NOTIFY_EMAIL:          ${{ secrets.NOTIFY_EMAIL }}
         run: python daily_job.py
 
-      - name: Commit disposition cache
+      - name: Commit data files
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add disposition_cache.json
-          git diff --staged --quiet || git commit -m "chore: update disposition cache [skip ci]"
+          git add disposition_cache.json data/
+          git diff --staged --quiet || git commit -m "data: 每日自動存檔 [skip ci]"
           git push
