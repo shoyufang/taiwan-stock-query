@@ -221,6 +221,7 @@ class GeminiEngine:
     """Gemini 智能查詢 engine (使用新版 google-genai SDK)"""
 
     FALLBACK_MODELS = [
+        "gemini-3.5-flash",
         "gemini-2.5-flash",
         "gemini-2.5-pro",
         "gemini-2.0-flash",
