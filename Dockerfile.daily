@@ -1,0 +1,17 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# 安裝系統套件（git 用於 push CSV 回 GitHub）
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends git && \
+    rm -rf /var/lib/apt/lists/*
+
+# 安裝 Python 依賴（只裝 daily_job 需要的，不裝 streamlit 等 UI 套件）
+COPY requirements.daily.txt .
+RUN pip install --no-cache-dir -r requirements.daily.txt
+
+# 複製專案代碼
+COPY . .
+
+CMD ["python", "daily_job.py"]

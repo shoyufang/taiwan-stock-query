@@ -1,0 +1,6 @@
+# daily_job.py 專用依賴（精簡版，不含 Streamlit UI 套件）
+pandas
+yfinance
+requests
+urllib3
+notion-client
