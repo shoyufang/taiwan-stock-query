@@ -2,8 +2,10 @@
 查詢函式包裝層 — 簡化 UI 調用
 Phase 5.3: 添加日誌和性能追蹤
 Phase 6.1: 添加非同步查詢支持
+Phase 7.6: 本地 TWSE CSV 快取優先讀取
 """
 
+import os
 import pandas as pd
 from datetime import datetime, date
 from typing import Optional, List, Dict, Any, Callable, Tuple
@@ -14,6 +16,54 @@ import sinopac_query as sq
 from config import load_config, add_history
 from logging_config import main_logger, perf_tracker
 from sqlite_cache import get_cache, set_cache
+
+
+# ══════════════════════════════════════════════════════════
+# 本地 TWSE CSV 快取工具
+# ══════════════════════════════════════════════════════════
+
+def _twse_local_cache_path(category: str, query_date: date = None) -> str:
+    """回傳 data/twse/<category>/YYYY-MM-DD.csv 路徑"""
+    d = (query_date or date.today()).isoformat()
+    return os.path.join("data", "twse", category, f"{d}.csv")
+
+
+def _read_twse_local(category: str, query_date: date = None) -> Optional[pd.DataFrame]:
+    """
+    嘗試讀取本地 TWSE CSV 快取。
+    成功回傳 DataFrame，不存在回傳 None。
+    """
+    path = _twse_local_cache_path(category, query_date)
+    if not os.path.exists(path):
+        return None
+    try:
+        df = pd.read_csv(path, dtype=str, encoding="utf-8-sig")
+        main_logger.debug(f"讀取本地快取: {path} ({len(df)} 筆)")
+        return df
+    except Exception as e:
+        main_logger.warning(f"讀取本地快取失敗 {path}: {e}")
+        return None
+
+
+def twse_cache_status() -> dict:
+    """
+    回傳今日 TWSE 本地快取狀態，供 UI 顯示。
+    {category: {"exists": bool, "rows": int, "path": str}}
+    """
+    categories = ["daily_all", "institutional", "valuation", "margin",
+                  "mi_index", "notice", "disposition"]
+    status = {}
+    for cat in categories:
+        path = _twse_local_cache_path(cat)
+        if os.path.exists(path):
+            try:
+                rows = sum(1 for _ in open(path, encoding="utf-8-sig")) - 1
+            except Exception:
+                rows = 0
+            status[cat] = {"exists": True, "rows": rows, "path": path}
+        else:
+            status[cat] = {"exists": False, "rows": 0, "path": path}
+    return status
 
 try:
     import streamlit as st
@@ -564,15 +614,21 @@ def _cached_twse_daily(code: Optional[str]) -> pd.DataFrame:
     return sq.query_twse_daily_all(code)
 
 def query_twse_daily_all(code: Optional[str] = None) -> pd.DataFrame:
-    """查詢全市場當日行情"""
+    """查詢全市場當日行情（優先本地快取）"""
     start_time = time.time()
-    main_logger.info(f"查詢 TWSE 當日行情: {code if code else '全市場'}")
+    local = _read_twse_local("daily_all")
+    if local is not None:
+        if code:
+            col = "Code" if "Code" in local.columns else local.columns[0]
+            local = local[local[col].astype(str) == str(code)]
+        add_history("工具", {"type": "twse_daily", "code": code, "source": "local"})
+        return local
+    main_logger.info(f"查詢 TWSE 當日行情 [API]: {code if code else '全市場'}")
     try:
         result = _cached_twse_daily(code)
         elapsed_ms = (time.time() - start_time) * 1000
         perf_tracker.record_query_time("query_twse_daily_all", elapsed_ms)
-        main_logger.info(f"TWSE 當日行情查詢完成: {len(result)} 筆, 耗時 {elapsed_ms:.1f}ms")
-        add_history("工具", {"type": "twse_daily", "code": code})
+        add_history("工具", {"type": "twse_daily", "code": code, "source": "api"})
         return result
     except Exception as e:
         main_logger.error(f"查詢 TWSE 當日行情失敗: {str(e)}")
@@ -583,15 +639,21 @@ def _cached_twse_valuation(code: Optional[str]) -> pd.DataFrame:
     return sq.query_twse_bwibbu(code)
 
 def query_twse_valuation(code: Optional[str] = None) -> pd.DataFrame:
-    """查詢本益比/殖利率/股淨比"""
+    """查詢本益比/殖利率/股淨比（優先本地快取）"""
     start_time = time.time()
-    main_logger.info(f"查詢本益比/殖利率: {code if code else '全市場'}")
+    local = _read_twse_local("valuation")
+    if local is not None:
+        if code:
+            col = "Code" if "Code" in local.columns else local.columns[0]
+            local = local[local[col].astype(str) == str(code)]
+        add_history("工具", {"type": "twse_valuation", "code": code, "source": "local"})
+        return local
+    main_logger.info(f"查詢本益比/殖利率 [API]: {code if code else '全市場'}")
     try:
         result = _cached_twse_valuation(code)
         elapsed_ms = (time.time() - start_time) * 1000
         perf_tracker.record_query_time("query_twse_valuation", elapsed_ms)
-        main_logger.info(f"本益比查詢完成: {len(result)} 筆, 耗時 {elapsed_ms:.1f}ms")
-        add_history("工具", {"type": "twse_valuation", "code": code})
+        add_history("工具", {"type": "twse_valuation", "code": code, "source": "api"})
         return result
     except Exception as e:
         main_logger.error(f"查詢本益比失敗: {str(e)}")
@@ -602,15 +664,21 @@ def _cached_twse_institutional(code: Optional[str]) -> pd.DataFrame:
     return sq.query_twse_institutional(code)
 
 def query_twse_institutional(code: Optional[str] = None) -> pd.DataFrame:
-    """查詢三大法人（全市場當日）"""
+    """查詢三大法人（優先本地快取）"""
     start_time = time.time()
-    main_logger.info(f"查詢三大法人 TWSE: {code if code else '全市場'}")
+    local = _read_twse_local("institutional")
+    if local is not None:
+        if code:
+            col = "Code" if "Code" in local.columns else local.columns[0]
+            local = local[local[col].astype(str) == str(code)]
+        add_history("工具", {"type": "twse_institutional", "code": code, "source": "local"})
+        return local
+    main_logger.info(f"查詢三大法人 TWSE [API]: {code if code else '全市場'}")
     try:
         result = _cached_twse_institutional(code)
         elapsed_ms = (time.time() - start_time) * 1000
         perf_tracker.record_query_time("query_twse_institutional", elapsed_ms)
-        main_logger.info(f"三大法人 TWSE 查詢完成: {len(result)} 筆, 耗時 {elapsed_ms:.1f}ms")
-        add_history("工具", {"type": "twse_institutional", "code": code})
+        add_history("工具", {"type": "twse_institutional", "code": code, "source": "api"})
         return result
     except Exception as e:
         main_logger.error(f"查詢三大法人 TWSE 失敗: {str(e)}")
@@ -621,15 +689,18 @@ def _cached_twse_margin() -> pd.DataFrame:
     return sq.query_twse_margin()
 
 def query_twse_margin() -> pd.DataFrame:
-    """查詢融資融券彙總"""
+    """查詢融資融券彙總（優先本地快取）"""
     start_time = time.time()
-    main_logger.info(f"查詢融資融券彙總")
+    local = _read_twse_local("margin")
+    if local is not None:
+        add_history("工具", {"type": "twse_margin", "source": "local"})
+        return local
+    main_logger.info("查詢融資融券彙總 [API]")
     try:
         result = _cached_twse_margin()
         elapsed_ms = (time.time() - start_time) * 1000
         perf_tracker.record_query_time("query_twse_margin", elapsed_ms)
-        main_logger.info(f"融資融券彙總查詢完成: {len(result)} 筆, 耗時 {elapsed_ms:.1f}ms")
-        add_history("工具", {"type": "twse_margin"})
+        add_history("工具", {"type": "twse_margin", "source": "api"})
         return result
     except Exception as e:
         main_logger.error(f"查詢融資融券彙總失敗: {str(e)}")
@@ -658,14 +729,18 @@ def _cached_twse_disposition() -> pd.DataFrame:
     return sq.query_twse_disposition()
 
 def query_twse_disposition() -> pd.DataFrame:
-    """查詢處置有價證券清單"""
+    """查詢處置有價證券清單（優先本地快取）"""
     start_time = time.time()
-    main_logger.info("查詢 TWSE 處置股清單")
+    local = _read_twse_local("disposition")
+    if local is not None:
+        add_history("台股市場", {"type": "twse_disposition", "source": "local"})
+        return local
+    main_logger.info("查詢 TWSE 處置股清單 [API]")
     try:
         result = _cached_twse_disposition()
         elapsed_ms = (time.time() - start_time) * 1000
         perf_tracker.record_query_time("query_twse_disposition", elapsed_ms)
-        add_history("台股市場", {"type": "twse_disposition"})
+        add_history("台股市場", {"type": "twse_disposition", "source": "api"})
         return result
     except Exception as e:
         main_logger.error(f"查詢處置股失敗: {str(e)}")
@@ -676,14 +751,18 @@ def _cached_twse_notice() -> pd.DataFrame:
     return sq.query_twse_notice()
 
 def query_twse_notice() -> pd.DataFrame:
-    """查詢注意有價證券清單"""
+    """查詢注意有價證券清單（優先本地快取）"""
     start_time = time.time()
-    main_logger.info("查詢 TWSE 注意股清單")
+    local = _read_twse_local("notice")
+    if local is not None:
+        add_history("台股市場", {"type": "twse_notice", "source": "local"})
+        return local
+    main_logger.info("查詢 TWSE 注意股清單 [API]")
     try:
         result = _cached_twse_notice()
         elapsed_ms = (time.time() - start_time) * 1000
         perf_tracker.record_query_time("query_twse_notice", elapsed_ms)
-        add_history("台股市場", {"type": "twse_notice"})
+        add_history("台股市場", {"type": "twse_notice", "source": "api"})
         return result
     except Exception as e:
         main_logger.error(f"查詢注意股失敗: {str(e)}")

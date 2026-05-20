@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-台股每日自動抓取 → 存入 Notion
-每個交易日 18:05 由 GitHub Actions 觸發
+台股每日自動抓取 → 存入 Notion + 存 CSV 本地快取
+每個交易日 20:05 台灣時間由 GitHub Actions 觸發（UTC 12:05）
 
 GitHub Secrets 需設定：
   NOTION_TOKEN          — Notion Integration Token
@@ -11,6 +11,14 @@ GitHub Secrets 需設定：
   GMAIL_USER            — 寄件 Gmail 帳號
   GMAIL_APP_PASSWORD    — Gmail 應用程式密碼
   NOTIFY_EMAIL          — 收件地址（預設同 GMAIL_USER）
+
+TWSE 每日資料快取目錄（data/twse/）：
+  daily_all/    — 全市場當日行情（STOCK_DAY_ALL）
+  institutional/ — 三大法人（T86）
+  valuation/    — 本益比/殖利率/股淨比（BWIBBU_ALL）
+  margin/       — 融資融券彙總（MI_MARGN）
+  notice/       — 注意有價證券
+  disposition/  — 處置有價證券
 """
 
 import os
@@ -365,6 +373,107 @@ def df_to_html_table(df: pd.DataFrame) -> str:
 
 
 # ═══════════════════════════════════════════════════════════
+# Step 6：TWSE 每日完整快取（供 Streamlit App 直接讀取）
+# ═══════════════════════════════════════════════════════════
+
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+# TWSE 每日快取端點設定
+_TWSE_DAILY_ENDPOINTS = {
+    "daily_all": {
+        "url": "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL",
+        "label": "全市場當日行情",
+        "verify": True,
+    },
+    "institutional": {
+        "url": "https://openapi.twse.com.tw/v1/fund/T86",
+        "label": "三大法人",
+        "verify": True,
+    },
+    "valuation": {
+        "url": "https://openapi.twse.com.tw/v1/exchangeReport/BWIBBU_ALL",
+        "label": "本益比/殖利率/股淨比",
+        "verify": True,
+    },
+    "margin": {
+        "url": "https://openapi.twse.com.tw/v1/exchangeReport/MI_MARGN",
+        "label": "融資融券彙總",
+        "verify": True,
+    },
+    "mi_index": {
+        "url": "https://openapi.twse.com.tw/v1/exchangeReport/MI_INDEX",
+        "label": "大盤指數",
+        "verify": True,
+    },
+    "notice": {
+        "url": "https://www.twse.com.tw/rwd/zh/announcement/notice",
+        "label": "注意有價證券",
+        "verify": False,   # 舊版 API 需 verify=False
+        "is_rwd": True,    # 舊版格式：{"stat":"OK","fields":[...],"data":[[...]]}
+    },
+    "disposition": {
+        "url": "https://www.twse.com.tw/rwd/zh/announcement/punish",
+        "label": "處置有價證券",
+        "verify": False,
+        "is_rwd": True,
+    },
+}
+
+
+def fetch_twse_daily_cache() -> dict:
+    """
+    下載所有 TWSE 每日資料，存到 data/twse/<category>/YYYY-MM-DD.csv。
+    回傳 {category: DataFrame} 字典。
+    """
+    results = {}
+    print(f"\n📥 Step 6  下載 TWSE 每日快取資料（{len(_TWSE_DAILY_ENDPOINTS)} 項）")
+
+    for category, cfg in _TWSE_DAILY_ENDPOINTS.items():
+        out_path = os.path.join("data", "twse", category, f"{TODAY}.csv")
+
+        # 已存在則跳過
+        if os.path.exists(out_path):
+            print(f"  ⏭  {cfg['label']}（已存在，跳過）")
+            try:
+                results[category] = pd.read_csv(out_path, dtype=str)
+            except Exception:
+                pass
+            continue
+
+        try:
+            resp = requests.get(cfg["url"], timeout=20, verify=cfg.get("verify", True))
+            resp.raise_for_status()
+            raw = resp.json()
+
+            # 判斷格式
+            if cfg.get("is_rwd"):
+                # 舊版 TWSE 格式：{"stat":"OK","fields":[...],"data":[[...],...]}
+                if raw.get("stat") != "OK" or not raw.get("data"):
+                    print(f"  ⚠️  {cfg['label']}：回傳空資料（可能非交易日）")
+                    continue
+                df = pd.DataFrame(raw["data"], columns=raw["fields"])
+            else:
+                # 新版 OpenAPI 格式：直接是 list of dict
+                if not raw:
+                    print(f"  ⚠️  {cfg['label']}：回傳空資料")
+                    continue
+                df = pd.DataFrame(raw)
+
+            os.makedirs(os.path.dirname(out_path), exist_ok=True)
+            df.to_csv(out_path, index=False, encoding="utf-8-sig")
+            results[category] = df
+            print(f"  ✅ {cfg['label']}：{len(df)} 筆 → {out_path}")
+
+        except Exception as e:
+            print(f"  ⚠️  {cfg['label']}：{e}")
+
+        time.sleep(0.5)   # 限速
+
+    return results
+
+
+# ═══════════════════════════════════════════════════════════
 # 主程式
 # ═══════════════════════════════════════════════════════════
 
@@ -479,6 +588,9 @@ def main():
 
         save_curr_codes(curr_codes)
         save_csv(disp_df, "disposition")
+
+    # Step 6：TWSE 每日完整快取（供 Streamlit 直接讀取）
+    fetch_twse_daily_cache()
 
     print(f"\n✅ 完成  {TODAY}\n")
 

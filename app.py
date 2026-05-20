@@ -742,6 +742,29 @@ def render_twse_section():
     """TWSE 證交所查詢（OpenAPI 全端點）—— 複選批次模式"""
     main_logger.info("渲染 TWSE Tab")
 
+    # ── 今日快取狀態欄 ─────────────────────────────────────
+    try:
+        cache_info = qw.twse_cache_status()
+        ready = [c for c, v in cache_info.items() if v["exists"]]
+        total = len(cache_info)
+        if len(ready) == total:
+            st.success(f"✅ 今日 TWSE 資料已快取（{total}/{total} 項）— 查詢速度更快", icon="⚡")
+        elif ready:
+            st.info(
+                f"📦 今日快取：{len(ready)}/{total} 項已就緒  "
+                f"（{', '.join(ready)}）\n\n"
+                "未快取項目將即時呼叫 API。快取每天 20:05 自動更新。",
+                icon="📡",
+            )
+        else:
+            st.warning(
+                "📡 今日尚無本地快取，所有查詢將即時呼叫 TWSE API。\n\n"
+                "快取將於今日 20:05 自動下載（或週末/假日無資料）。",
+                icon="⏳",
+            )
+    except Exception:
+        pass  # 狀態顯示失敗不影響主功能
+
     GROUPS = [
         ("📊 行情資訊",   ["當日全市場行情", "月均價", "月成交資訊", "年成交資訊", "大盤指數"]),
         ("🏦 法人/籌碼",  ["當日三大法人", "融資融券彙總", "外資持股(產業)", "外資持股前20"]),
