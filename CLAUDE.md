@@ -525,6 +525,70 @@ streamlit run app.py
     - `acb2b5b` — fix: 修復 TWSE 三大法人查詢（T86 必須帶日期參數）
     - `0253d27` — fix: 修復 daily_job.py Step 6 的三大法人下載
 
+### 2026-05-20 Claude Session（NAS Docker 每日排程設定）
+- **核心任務**：解決 TWSE API 封鎖 Streamlit Cloud 海外 IP 問題，改由 NAS 在台灣 IP 執行每日任務
+- **架構決策**：
+    - Streamlit Cloud（海外 IP）→ TWSE API 被封鎖
+    - 方案：NAS 本機執行 `daily_job.py`（台灣 IP），抓完 CSV 後 push 到 GitHub；Streamlit Cloud 只讀 CSV
+    - GitHub Actions 保留為 20:05 備援，NAS 排程為 20:00 主力
+- **新增檔案（已 commit 9e3b8fc）**：
+    - `Dockerfile.daily` — 輕量 Docker 映像（python:3.11-slim + git + requirements.daily.txt）
+    - `requirements.daily.txt` — 精簡依賴（pandas / yfinance / requests / urllib3 / notion-client）
+- **NAS 設定（ASUSTOR AS6604T）**：
+    - Docker 版本：28.1.1，NAS 路徑：`/volume1/docker/sinopac`
+    - `/volume1/docker/sinopac/run_daily.sh`（NAS 本機，不在 repo）
+        - `git pull` → `docker run` daily_job.py → `git add data/ && git push`
+        - ⚠️ ASUSTOR 使用 `sh`（busybox），shebang 需為 `#!/bin/sh`，不可用 `bash`
+    - crontab（`sudo crontab -e`）加入：
+      ```
+      0 12 * * 1-5 /bin/sh /volume1/docker/sinopac/run_daily.sh >> /volume1/docker/sinopac/run_daily.log 2>&1
+      ```
+      UTC 12:00 = 台灣時間 20:00，週一至五
+- **安全事項**：⚠️ Git PAT token 曾外洩於對話中，請確認已在 GitHub 撤銷並更新 NAS remote URL：
+    ```bash
+    git -C /volume1/docker/sinopac remote set-url origin https://新PAT@github.com/shoyufang/taiwan-stock-query.git
+    ```
+- **已知待修**：
+    - `daily_job.py` 的 `main()` 在 `NOTION_TOKEN` 未設定時會 `sys.exit(1)`（第 486 行），導致 Step 6（TWSE 快取）跑不到。建議將 Step 6 移到 NOTION_TOKEN 檢查之前。
+
+---
+
+## NAS 每日排程（ASUSTOR AS6604T）
+
+### 架構說明
+
+```
+NAS (台灣 IP, 20:00)
+  └─ git pull
+  └─ docker run daily_job.py  →  data/twse/*.csv, data/market/*.csv …
+  └─ git push
+        │
+        ▼
+   GitHub repo  ←  Streamlit Cloud 讀取 CSV（不呼叫 TWSE）
+        │
+        ▼
+  GitHub Actions (20:05, 備援)
+```
+
+### 關鍵路徑
+
+| 項目 | 路徑/指令 |
+|---|---|
+| NAS 專案目錄 | `/volume1/docker/sinopac` |
+| 執行腳本 | `/volume1/docker/sinopac/run_daily.sh` |
+| 執行日誌 | `/volume1/docker/sinopac/run_daily.log` |
+| crontab 檔案 | `/var/spool/cron/crontabs.26988` |
+| Docker 映像 | `python:3.11-slim`（直接跑，不 build 自訂 image） |
+
+### NAS 常見注意事項
+
+| 問題 | 解法 |
+|---|---|
+| `-sh: bash: not found` | 改用 `sh script.sh`，shebang 改 `#!/bin/sh` |
+| `crontab: must be suid` | 使用 `sudo crontab -e` |
+| 無 nano 編輯器 | 使用 `vi`（`:wq` 存檔，`:q!` 放棄） |
+| git push 需輸入密碼 | remote URL 嵌入 PAT：`https://TOKEN@github.com/…` |
+
 ---
 
 ## 環境需求（完整）
