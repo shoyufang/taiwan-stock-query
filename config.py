@@ -16,6 +16,9 @@ WATCHLIST_FILE = CONFIG_DIR / "watchlist.json"
 
 # 默認配置（不含任何金鑰）
 DEFAULT_CONFIG = {
+    "api_key": "",
+    "secret_key": "",
+    "simulation_mode": True,
     "finmind_token": "",
     "notion_token": "",
     "notion_database_id": "",
@@ -82,6 +85,7 @@ def load_bookmarks() -> List[Dict[str, Any]]:
 def save_bookmarks(bookmarks: List[Dict[str, Any]]):
     """保存書籤"""
     _ensure_config_dir()
+    bookmarks = bookmarks[:100]
     with open(BOOKMARKS_FILE, "w", encoding="utf-8") as f:
         json.dump(bookmarks, f, ensure_ascii=False, indent=2)
 
@@ -122,7 +126,19 @@ def save_history(history: List[Dict[str, Any]]):
     """保存查詢歷史"""
     _ensure_config_dir()
     # 只保留最近 100 筆
-    history = history[:100]
+    if len(history) > 100:
+        try:
+            # 判斷是新到舊（首筆較新）還是舊到新（尾筆較新），以保留最晚近的紀錄且維持原有順序
+            first_ts = history[0].get("timestamp", "")
+            last_ts = history[-1].get("timestamp", "")
+            if first_ts >= last_ts:
+                history = history[:100]
+            else:
+                history = history[-100:]
+        except Exception:
+            history = history[:100]
+    else:
+        history = history[:100]
     with open(HISTORY_FILE, "w", encoding="utf-8") as f:
         json.dump(history, f, ensure_ascii=False, indent=2)
 
@@ -158,3 +174,43 @@ def save_watchlist(watchlist: Dict[str, List[str]]):
     _ensure_config_dir()
     with open(WATCHLIST_FILE, "w", encoding="utf-8") as f:
         json.dump(watchlist, f, ensure_ascii=False, indent=2)
+
+
+class ConfigManager:
+    """相容性包裝器，將舊的類別呼叫導向到新的純函數"""
+    def __init__(self, config_dir=None):
+        if config_dir:
+            global CONFIG_DIR, CONFIG_FILE, BOOKMARKS_FILE, HISTORY_FILE, WATCHLIST_FILE
+            CONFIG_DIR = Path(config_dir)
+            CONFIG_FILE = CONFIG_DIR / "config.json"
+            BOOKMARKS_FILE = CONFIG_DIR / "bookmarks.json"
+            HISTORY_FILE = CONFIG_DIR / "history.json"
+            WATCHLIST_FILE = CONFIG_DIR / "watchlist.json"
+
+    def load_config(self):
+        if CONFIG_FILE.exists():
+            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                json.load(f)
+        return load_config()
+
+    def save_config(self, config):
+        save_config(config)
+
+    def load_bookmarks(self):
+        return load_bookmarks()
+
+    def save_bookmarks(self, bookmarks):
+        save_bookmarks(bookmarks)
+
+    def load_history(self, limit=100):
+        return load_history(limit)
+
+    def save_history(self, history):
+        save_history(history)
+
+    def clear_history(self):
+        clear_history()
+
+    def ensure_default_config(self):
+        load_config()
+

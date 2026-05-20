@@ -32,6 +32,18 @@ from datetime import date
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
+# 解決 Windows 終端機 CP950 編碼不支援 Unicode Emojis 的問題
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+if hasattr(sys.stderr, "reconfigure"):
+    try:
+        sys.stderr.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+
 # ─── 環境變數 ───────────────────────────────────────────────
 NOTION_TOKEN          = os.environ.get("NOTION_TOKEN", "")
 NOTION_MARKET_DB_ID   = os.environ.get("NOTION_MARKET_DB_ID", "")
@@ -88,6 +100,8 @@ def _date_prop(d: str) -> dict:
 
 
 def notion_insert(db_id: str, props: dict) -> bool:
+    if not NOTION_TOKEN or not db_id:
+        return False
     resp = requests.post(
         "https://api.notion.com/v1/pages",
         headers=NOTION_HEADERS,
@@ -165,6 +179,9 @@ def fetch_market() -> dict:
 # ═══════════════════════════════════════════════════════════
 
 def write_market(data: dict) -> bool:
+    if not NOTION_TOKEN or not NOTION_MARKET_DB_ID:
+        print("  ⚠️  Notion Token 或 Market Database ID 未設定，略過 Notion 寫入")
+        return False
     wd  = WEEKDAY_CN[date.today().weekday()]
     props = {
         "名稱": _title(f"{TODAY} (週{wd})"),
@@ -257,6 +274,9 @@ def run_screener(data: dict) -> pd.DataFrame:
 # ═══════════════════════════════════════════════════════════
 
 def write_screener(df: pd.DataFrame) -> int:
+    if not NOTION_TOKEN or not NOTION_SCREENER_DB_ID:
+        print("  ⚠️  Notion Token 或 Screener Database ID 未設定，略過 Notion 寫入")
+        return 0
     count = 0
     for _, r in df.iterrows():
         props = {
@@ -490,8 +510,7 @@ def main():
     print(f"{'='*52}\n")
 
     if not NOTION_TOKEN:
-        print("❌ NOTION_TOKEN 未設定，中止")
-        sys.exit(1)
+        print("⚠️  提示：NOTION_TOKEN 未設定，將會略過 Notion 寫入部份\n")
 
     print("📊 Step 1/5  抓取大盤資料...")
     data = fetch_market()

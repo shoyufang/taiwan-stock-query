@@ -715,13 +715,68 @@ def query_twse_margin() -> pd.DataFrame:
     return _twse_get("/exchangeReport/MI_MARGN")
 
 
+def _process_company_df(df: pd.DataFrame) -> pd.DataFrame:
+    """處理並重新命名公司基本資料的欄位 (維持向後相容)"""
+    df = df.rename(columns={
+        "公司代號": "代號",
+        "公司名稱": "名稱",
+        "英文簡稱": "英文名稱",
+        "產業別": "產業別",
+        "住址": "地址",
+        "營利事業統一編號": "統一編號",
+        "董事長": "董事長",
+        "發言人": "發言人",
+        "發言人職稱": "發言人職稱",
+        "上市日期": "上市日期",
+        "上櫃日期": "上市日期"
+    })
+    cols = ["代號", "名稱", "英文名稱", "產業別", "地址", "統一編號", "董事長", "發言人", "發言人職稱", "上市日期"]
+    # 兼容簡繁體
+    if "產業別" in df.columns:
+        cols[3] = "產業別"
+    return df[[c for c in cols if c in df.columns]]
+
+
 def query_twse_company(code: str) -> pd.DataFrame:
     """
-    上市公司基本資料。
-    code：股票代號，如 "2330"
+    上市公司、上櫃公司與興櫃公司基本資料 (整合 TWSE OpenAPI 與 MOPS OpenData)
+    code：股票代號，如 "2330" 或 "5483"
     """
-    df = _twse_get(f"/company/getCompanyByCode?response=json&key={code}")
-    return df
+    code = str(code).strip()
+    
+    # 方案 A: 優先使用本機的 TWSE OpenAPI 查詢上市公司 JSON (最快且有快取與 Session 機制)
+    try:
+        df = _twse_get("/opendata/t187ap03_L")
+        if not df.empty and "公司代號" in df.columns:
+            df["公司代號"] = df["公司代號"].astype(str).str.strip()
+            match_df = df[df["公司代號"] == code]
+            if not match_df.empty:
+                return _process_company_df(match_df)
+    except Exception as e:
+        import logging
+        logging.warning(f"TWSE OpenAPI 查詢失敗，將嘗試公開資訊觀測站備用方案: {e}")
+
+    # 方案 B: 透過公開資訊觀測站 (MOPS) CSV 查詢 (同時支援 上市 _L, 上櫃 _O, 興櫃 _R)
+    import urllib3
+    from io import StringIO
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+    
+    for suffix in ["L", "O", "R"]:
+        url = f"https://mopsfin.twse.com.tw/opendata/t187ap03_{suffix}.csv"
+        try:
+            r = _SESSION.get(url, timeout=10, verify=False)
+            r.raise_for_status()
+            r.encoding = "utf-8-sig"
+            df_csv = pd.read_csv(StringIO(r.text))
+            if not df_csv.empty and "公司代號" in df_csv.columns:
+                df_csv["公司代號"] = df_csv["公司代號"].astype(str).str.strip()
+                match_df = df_csv[df_csv["公司代號"] == code]
+                if not match_df.empty:
+                    return _process_company_df(match_df)
+        except Exception as e:
+            continue
+            
+    return pd.DataFrame()
 
 
 def _twse_old(path: str, params: dict = None) -> pd.DataFrame:

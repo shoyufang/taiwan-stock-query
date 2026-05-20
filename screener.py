@@ -6,6 +6,8 @@ C: 籌碼面  (TWSE T86 三大法人 + FinMind 連續買超)
 D: 多因子  (漏斗式：技術→籌碼→財報)
 """
 
+import os
+import glob
 import pandas as pd
 import numpy as np
 import yfinance as yf
@@ -24,26 +26,143 @@ warnings.filterwarnings("ignore")
 # 1. 股票清單
 # ═══════════════════════════════════════════════════════════
 
+def _load_local_csv_fallback(category: str, max_days: int = 5) -> pd.DataFrame:
+    """從 data/twse/{category}/ 尋找最近 max_days 天內最新的 YYYY-MM-DD.csv 檔案並讀取"""
+    base_dir = os.path.join("data", "twse", category)
+    if not os.path.isdir(base_dir):
+        return pd.DataFrame()
+    
+    # 優先從今天開始往前找 5 天 (覆蓋週末與假日)
+    today = date.today()
+    for i in range(max_days):
+        check_date = today - timedelta(days=i)
+        file_path = os.path.join(base_dir, f"{check_date.isoformat()}.csv")
+        if os.path.exists(file_path):
+            try:
+                df = pd.read_csv(file_path, dtype=str, encoding="utf-8-sig")
+                if not df.empty:
+                    return df
+            except Exception:
+                pass
+                
+    # 若無，則透過 glob 找該目錄下修改時間最新的一個 CSV 檔案 (終極安全 fallback)
+    try:
+        files = glob.glob(os.path.join(base_dir, "*.csv"))
+        if files:
+            latest_file = max(files, key=os.path.getmtime)
+            df = pd.read_csv(latest_file, dtype=str, encoding="utf-8-sig")
+            if not df.empty:
+                return df
+    except Exception:
+        pass
+        
+    return pd.DataFrame()
+
+
+def _process_universe_df(df: pd.DataFrame) -> pd.DataFrame:
+    """統一處理上市行情 (STOCK_DAY_ALL) DataFrame 格式 (相容新舊 API 與 CSV)"""
+    rename = {
+        "Code": "代號", "Name": "名稱",
+        "TradeVolume": "成交量", "ClosingPrice": "收盤", "Change": "漲跌",
+        "證券代號": "代號", "證券名稱": "名稱",
+        "成交股數": "成交量", "收盤價": "收盤", "漲跌價差": "漲跌",
+    }
+    df = df.rename(columns={k: v for k, v in rename.items() if k in df.columns})
+    for col in ["成交量", "收盤", "漲跌"]:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col].astype(str).str.replace(",", ""), errors="coerce")
+    if "代號" in df.columns and "收盤" in df.columns:
+        return df.dropna(subset=["代號", "收盤"])
+    return pd.DataFrame()
+
+
+def _process_valuation_df(df: pd.DataFrame) -> pd.DataFrame:
+    """統一處理本益比估值 (BWIBBU_ALL) DataFrame 格式"""
+    rename = {
+        "Code": "代號", "Name": "名稱",
+        "PEratio": "本益比", "DividendYield": "殖利率", "PBratio": "股淨比",
+        "證券代號": "代號", "證券名稱": "名稱",
+        "本益比": "本益比", "殖利率(%)": "殖利率", "股價淨值比": "股淨比",
+    }
+    df = df.rename(columns={k: v for k, v in rename.items() if k in df.columns})
+    for col in ["本益比", "殖利率", "股淨比"]:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+    return df
+
+
+def _process_institutional_df(df: pd.DataFrame) -> pd.DataFrame:
+    """統一處理三大法人 (T86) DataFrame 格式 (相容 OpenAPI, RWD 與 CSV)"""
+    rename = {
+        # OpenAPI
+        "Code": "代號",
+        "ForeignInvestmentNetBuySell":  "外資買賣超",
+        "InvestmentTrustNetBuySell":    "投信買賣超",
+        "DealerNetBuySell":             "自營商買賣超",
+        # RWD / 本地 CSV
+        "證券代號": "代號",
+        "證券名稱": "名稱",
+        "外陸資買賣超股數(不含外資自營商)": "外資買賣超",
+        "投信買賣超股數": "投信買賣超",
+        "自營商買賣超股數": "自營商買賣超",
+        "三大法人買賣超股數": "合計買賣超",
+    }
+    df = df.rename(columns={k: v for k, v in rename.items() if k in df.columns})
+    for col in ["外資買賣超", "投信買賣超", "自營商買賣超"]:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col].astype(str).str.replace(",", ""), errors="coerce")
+            
+    if "外資買賣超" in df.columns and "投信買賣超" in df.columns and "自營商買賣超" in df.columns:
+        if "合計買賣超" not in df.columns:
+            df["合計買賣超"] = df["外資買賣超"].fillna(0) + df["投信買賣超"].fillna(0) + df["自營商買賣超"].fillna(0)
+        else:
+            df["合計買賣超"] = pd.to_numeric(df["合計買賣超"].astype(str).str.replace(",", ""), errors="coerce")
+            
+    # 移除重複的名稱欄位以防止 merge 後產生 名稱_x / 名稱_y 導致 KeyError
+    for col in ["名稱", "證券名稱", "Name"]:
+        if col in df.columns:
+            df = df.drop(columns=[col])
+
+    return df
+
+
 @st.cache_data(ttl=600, show_spinner=False)
 def get_twse_universe() -> pd.DataFrame:
-    """取得台灣上市股票清單及當日行情 (TWSE STOCK_DAY_ALL)"""
+    """取得台灣上市股票清單及當日行情 (STOCK_DAY_ALL)"""
+    # 1. 優先嘗試讀取今日的本地快取 CSV
+    today_str = date.today().isoformat()
+    local_path = os.path.join("data", "twse", "daily_all", f"{today_str}.csv")
+    if os.path.exists(local_path):
+        try:
+            df = pd.read_csv(local_path, dtype=str, encoding="utf-8-sig")
+            if not df.empty:
+                df_p = _process_universe_df(df)
+                if not df_p.empty:
+                    return df_p
+        except Exception:
+            pass
+
+    # 2. 若無今日快取，嘗試線上抓取
     try:
         resp = requests.get(
             "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL",
             timeout=15,
         )
-        df = pd.DataFrame(resp.json())
-        rename = {
-            "Code": "代號", "Name": "名稱",
-            "TradeVolume": "成交量", "ClosingPrice": "收盤", "Change": "漲跌",
-        }
-        df = df.rename(columns={k: v for k, v in rename.items() if k in df.columns})
-        for col in ["成交量", "收盤", "漲跌"]:
-            if col in df.columns:
-                df[col] = pd.to_numeric(df[col].astype(str).str.replace(",", ""), errors="coerce")
-        return df.dropna(subset=["代號", "收盤"])
+        if resp.status_code == 200:
+            df_p = _process_universe_df(pd.DataFrame(resp.json()))
+            if not df_p.empty:
+                return df_p
     except Exception:
-        return pd.DataFrame()
+        pass
+
+    # 3. 終極 Fallback：尋找最近 5 天內最新的本地快取
+    df_fallback = _load_local_csv_fallback("daily_all")
+    if not df_fallback.empty:
+        df_p = _process_universe_df(df_fallback)
+        if not df_p.empty:
+            return df_p
+
+    return pd.DataFrame()
 
 
 def filter_universe(
@@ -276,24 +395,41 @@ def screen_technical(
 
 @st.cache_data(ttl=600, show_spinner=False)
 def _get_twse_valuation() -> pd.DataFrame:
-    """取得全市場本益比/股淨比/殖利率 (TWSE BWIBBU_ALL)"""
+    """取得全市場本益比/股淨比/殖利率 (BWIBBU_ALL)"""
+    # 1. 優先嘗試讀取今日的本地快取 CSV
+    today_str = date.today().isoformat()
+    local_path = os.path.join("data", "twse", "valuation", f"{today_str}.csv")
+    if os.path.exists(local_path):
+        try:
+            df = pd.read_csv(local_path, dtype=str, encoding="utf-8-sig")
+            if not df.empty:
+                df_p = _process_valuation_df(df)
+                if not df_p.empty:
+                    return df_p
+        except Exception:
+            pass
+
+    # 2. 若無今日快取，嘗試線上抓取
     try:
         resp = requests.get(
             "https://openapi.twse.com.tw/v1/exchangeReport/BWIBBU_ALL",
             timeout=15,
         )
-        df = pd.DataFrame(resp.json())
-        rename = {
-            "Code": "代號", "Name": "名稱",
-            "PEratio": "本益比", "DividendYield": "殖利率", "PBratio": "股淨比",
-        }
-        df = df.rename(columns={k: v for k, v in rename.items() if k in df.columns})
-        for col in ["本益比", "殖利率", "股淨比"]:
-            if col in df.columns:
-                df[col] = pd.to_numeric(df[col], errors="coerce")
-        return df
+        if resp.status_code == 200:
+            df_p = _process_valuation_df(pd.DataFrame(resp.json()))
+            if not df_p.empty:
+                return df_p
     except Exception:
-        return pd.DataFrame()
+        pass
+
+    # 3. 終極 Fallback：尋找最近 5 天內最新的本地快取
+    df_fallback = _load_local_csv_fallback("valuation")
+    if not df_fallback.empty:
+        df_p = _process_valuation_df(df_fallback)
+        if not df_p.empty:
+            return df_p
+
+    return pd.DataFrame()
 
 
 def _get_finmind_rev(codes: List[str]) -> Dict[str, pd.DataFrame]:
@@ -422,28 +558,50 @@ CHIP_CONDITIONS: Dict[str, str] = {
 
 @st.cache_data(ttl=600, show_spinner=False)
 def _get_twse_institutional() -> pd.DataFrame:
-    """取得今日三大法人 (TWSE T86)"""
+    """取得今日三大法人買賣超 (T86)"""
+    # 1. 優先嘗試讀取今日的本地快取 CSV
+    today_str = date.today().isoformat()
+    local_path = os.path.join("data", "twse", "institutional", f"{today_str}.csv")
+    if os.path.exists(local_path):
+        try:
+            df = pd.read_csv(local_path, dtype=str, encoding="utf-8-sig")
+            if not df.empty:
+                df_p = _process_institutional_df(df)
+                if not df_p.empty:
+                    return df_p
+        except Exception:
+            pass
+
+    # 2. 若無今日快取，嘗試線上抓取 (改用可用且穩定的舊版 RWD API)
     try:
+        twse_date_str = date.today().strftime("%Y%m%d")
         resp = requests.get(
-            "https://openapi.twse.com.tw/v1/fund/T86",
+            "https://www.twse.com.tw/rwd/zh/fund/T86",
+            params={
+                "response": "json",
+                "date": twse_date_str,
+                "selectType": "ALL"
+            },
             timeout=15,
         )
-        df = pd.DataFrame(resp.json())
-        rename = {
-            "Code": "代號",
-            "ForeignInvestmentNetBuySell":  "外資買賣超",
-            "InvestmentTrustNetBuySell":    "投信買賣超",
-            "DealerNetBuySell":             "自營商買賣超",
-        }
-        df = df.rename(columns={k: v for k, v in rename.items() if k in df.columns})
-        for col in ["外資買賣超", "投信買賣超", "自營商買賣超"]:
-            if col in df.columns:
-                df[col] = pd.to_numeric(df[col].astype(str).str.replace(",", ""), errors="coerce")
-        if "外資買賣超" in df.columns and "投信買賣超" in df.columns and "自營商買賣超" in df.columns:
-            df["合計買賣超"] = df["外資買賣超"].fillna(0) + df["投信買賣超"].fillna(0) + df["自營商買賣超"].fillna(0)
-        return df
+        if resp.status_code == 200:
+            raw = resp.json()
+            if raw.get("stat") == "OK" and raw.get("data"):
+                df = pd.DataFrame(raw["data"], columns=raw["fields"])
+                df_p = _process_institutional_df(df)
+                if not df_p.empty:
+                    return df_p
     except Exception:
-        return pd.DataFrame()
+        pass
+
+    # 3. 終極 Fallback：尋找最近 5 天內最新的本地快取
+    df_fallback = _load_local_csv_fallback("institutional")
+    if not df_fallback.empty:
+        df_p = _process_institutional_df(df_fallback)
+        if not df_p.empty:
+            return df_p
+
+    return pd.DataFrame()
 
 
 def _get_finmind_inst_history(codes: List[str], days: int = 12) -> Dict[str, pd.DataFrame]:

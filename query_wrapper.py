@@ -1353,3 +1353,14 @@ def save_performance_report(filepath=None):
     if filepath is None:
         filepath = Path.home() / ".app_config" / "logs" / f"performance_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
     main_logger.info(f"性能報告已儲存至: {filepath}")
+
+
+# ══════════════════════════════════════════════════════════
+# 向後相容別名（Legacy Aliases for Testing）
+# ══════════════════════════════════════════════════════════
+query_kbars = query_daily_kbar
+query_institutional = query_institutional_investors
+query_shareholding = query_foreign_shareholding
+query_day_trading = query_day_trading_volume
+query_scanner = sq.query_scanner
+
