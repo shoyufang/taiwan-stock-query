@@ -19,6 +19,7 @@
 | `app.py` | Streamlit Web UI 應用（Phase 4+） |
 | `query_wrapper.py` | 查詢包裝層 + 非同步批量查詢（Phase 6.1） |
 | `preload.py` | 背景預加載管理器（Phase 6.2） |
+| `technical_analysis.py` | Plotly 互動式K線圖 + 技術指標（Phase 7.5） |
 
 **性能優化歷程**
 
@@ -33,6 +34,16 @@
 
 - `PHASE6_ASYNC_REPORT.md` — Phase 6.1 非同步查詢完整報告
 - `PHASE6_PRELOAD_REPORT.md` — Phase 6.2 背景預加載完整報告
+
+**Phase 7.5：技術分析視覺化（2026-05-20）**
+- 新增 `technical_analysis.py` 模組：Plotly 互動式K線圖
+- 支援指標：MA (5/10/20/60/120)、EMA、RSI、MACD、布林帶、ATR
+- app.py 集成新 Tab「技術分析」，包含：
+  * 動態指標選擇（多選）
+  * 日期範圍篩選
+  * 互動功能：放大/縮小、懸停提示、日期拖拉
+  * 基礎統計（收盤價、漲跌、成交量）
+  * 查詢自動記錄到歷史
 
 **執行方式**
 ```bash
@@ -391,6 +402,27 @@ streamlit run app.py
 - **完全向後相容**：現有同步查詢無任何改動
 - **9/9 測試通過**：包括性能基準驗證
 
+### Phase 7.5：技術分析視覺化（已實現）🎨
+- **Plotly 互動式K線圖**：`technical_analysis.py` 完整實現
+- **支援技術指標**：
+  * MA (5/10/20/60/120)：移動平均線，顏色編碼
+  * EMA (5/10/12/26)：指數移動平均
+  * RSI：相對強度指標，含超買 (70) / 超賣 (30) 線
+  * MACD：信號線 + Histogram 柱狀圖
+  * 布林帶 (BB)：上軌/下軌，透明填充區域
+  * ATR：真實波幅，波動性分析
+- **Streamlit UI 集成**（app.py「技術分析」Tab）：
+  * 股票代號輸入 + 日期範圍選擇
+  * 多選指標，動態組合
+  * 互動功能：放大/縮小、懸停提示、日期拖拉
+  * 基礎統計面板：收盤價、漲跌、成交量
+  * 自動記錄到查詢歷史
+- **視覺特性**：
+  * 台股慣例：漲紅跌綠
+  * 成交量柱狀圖，顏色與漲跌對應
+  * 多行子圖：K線在上，指標在下，共享 X 軸
+  * 響應式設計，適配各螢幕寬度
+
 參考文件：
 - `PHASE4_FEATURES.md` — Phase 4 詳細功能說明
 - `TESTING_GUIDE_PHASE4.md` — Phase 4 功能測試指南
@@ -424,17 +456,25 @@ streamlit run app.py
         - 實作 **背景預載 (Non-blocking Startup)**，數據抓取移至背景線程，網頁進入速度提升至秒開。
         - 強化 **JSON 容錯機制**，針對損壞的配置或歷史檔案具備自動回退功能。
 
-### 2026-05-20 Claude Session (郵件格式修復 + 歷史數據回填)
-- **核心任務**：修復處置股郵件通知格式，完成 5 年歷史數據回填
+### 2026-05-20 Claude Session (郵件格式修復 + 技術分析視覺化 + 歷史數據回填)
+- **核心任務**：修復處置股郵件通知格式、實現技術分析圖表、完成 5 年歷史數據回填
 - **主要成果**：
     - **郵件格式修復**（daily_job.py）：
         - 升級從純文本 → HTML 專業格式
         - 新增 `df_to_html_table()` 函數，自動轉換 DataFrame 為帶樣式 HTML 表格
         - 改進 `send_email()` 函數支援 HTML 格式（新參數 `html=True`）
-        - 視覺設計：紅色警示標題、專業表格樣式、交替背景色、數字右對齐
+        - 視覺設計：紅色警示標題、專業表格樣式、交替背景色、數字右對齊
         - 完全行動裝置友善，CSS 內聯樣式確保兼容各郵件客戶端
         - 新增同日解除處置的橙色區塊突出顯示
     - **郵件主旨改進**：`【台股警示】...` → `⚠️ 台股警示 {DATE} 新增處置股 {COUNT} 檔`
+    - **技術分析圖表實現**（Phase 7.5）：
+        - 新建 `technical_analysis.py` — 350 行完整 Plotly 模組
+        - 函數：`calc_ma`、`calc_ema`、`calc_rsi`、`calc_macd`、`calc_bollinger_bands`、`calc_atr`
+        - 主函數 `plot_kbar_with_indicators()`：K線 + 多指標子圖
+        - 快速化 `quick_chart()`：一行呼叫預設組合
+        - Streamlit 整合：app.py 新增「技術分析」Tab（render_technical_analysis）
+        - UI 功能：動態指標選擇、日期範圍篩選、統計面板、歷史記錄
+        - 互動特性：放大/縮小、懸停提示、日期拖拉、右鍵保存圖表
     - **測試工具新增**：
         - `email_preview.py` — 無需寄信即可預覽郵件格式
         - 生成 `email_preview.html` 供瀏覽器預覽
@@ -443,9 +483,11 @@ streamlit run app.py
         - 歷史數據回填：執行 `python backfill.py`（25-35 分鐘）
         - 數據上傳：`git add data/ && git commit && git push`
 - **相關文件**：
-    - `daily_job.py` — 新增郵件 HTML 格式實現
+    - `daily_job.py` — 郵件 HTML 格式實現
     - `email_preview.py` — 郵件預覽工具（新增）
-    - `backfill.py` — 5 年歷史數據回填腳本（已存在）
+    - `technical_analysis.py` — 技術分析圖表模組（新增）
+    - `app.py` — 技術分析 Tab 集成
+    - `backfill.py` — 5 年歷史數據回填腳本
 
 ---
 

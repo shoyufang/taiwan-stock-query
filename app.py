@@ -1832,10 +1832,165 @@ def render_screener():
         _screener_result_block(st.session_state.get("screener_d_result"), "多因子")
 
 
+# ==================== 技術分析 Tab ====================
+
+def render_technical_analysis():
+    """技術分析 — K線圖 + 技術指標（Plotly互動式）"""
+    main_logger.info("渲染技術分析 Tab")
+
+    st.markdown("""
+    ### 📈 K 線圖分析
+    使用 **Plotly** 互動式圖表，支援各項技術指標。
+    """)
+
+    import technical_analysis as ta
+
+    # ── 輸入參數 ──────────────────────────────────────────
+    col1, col2 = st.columns(2)
+    with col1:
+        code = st.text_input("股票代號", value="2330", key="ta_code")
+    with col2:
+        chart_type = st.selectbox(
+            "圖表類型",
+            options=["日K", "5分K", "1小時K"],
+            key="ta_chart_type",
+            help="日K：歷史價格；分鐘K：需要當日數據"
+        )
+
+    # ── 日期範圍 ──────────────────────────────────────────
+    col1, col2 = st.columns(2)
+    with col1:
+        start_date = st.date_input("開始日期", value=date.today() - timedelta(days=120),
+                                   key="ta_start")
+    with col2:
+        end_date = st.date_input("結束日期", value=date.today(), key="ta_end")
+
+    # ── 技術指標選擇 ──────────────────────────────────────
+    st.markdown("**選擇技術指標（可複選）**")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        show_ma = st.checkbox("移動平均線 (MA)", value=True, key="ta_ma")
+        show_rsi = st.checkbox("RSI", value=False, key="ta_rsi")
+    with col2:
+        show_macd = st.checkbox("MACD", value=False, key="ta_macd")
+        show_bb = st.checkbox("布林帶 (BB)", value=False, key="ta_bb")
+    with col3:
+        show_ema = st.checkbox("指數移動平均 (EMA)", value=False, key="ta_ema")
+        show_atr = st.checkbox("ATR", value=False, key="ta_atr")
+
+    # ── 移動平均線參數 ────────────────────────────────────
+    if show_ma or show_ema:
+        st.markdown("**移動平均線參數**")
+        col1, col2 = st.columns(2)
+        with col1:
+            ma_periods = st.multiselect(
+                "MA 周期",
+                options=[5, 10, 20, 60, 120],
+                default=[5, 20],
+                key="ta_ma_periods"
+            )
+        with col2:
+            ema_periods = st.multiselect(
+                "EMA 周期",
+                options=[5, 10, 12, 26],
+                default=[12],
+                key="ta_ema_periods"
+            )
+    else:
+        ma_periods = []
+        ema_periods = []
+
+    # ── 查詢按鈕 ──────────────────────────────────────────
+    if st.button("🔍 繪製K線圖", type="primary", use_container_width=True, key="ta_plot"):
+        if not code:
+            st.warning("⚠️ 請輸入股票代號")
+        elif start_date >= end_date:
+            st.warning("⚠️ 開始日期必須早於結束日期")
+        else:
+            with st.spinner(f"正在獲取 {code} 的K線數據..."):
+                try:
+                    # 根據圖表類型查詢數據
+                    if chart_type == "日K":
+                        kbar_df = qw.query_daily_kbar(code, start_date, end_date)
+                    else:
+                        # 分鐘K 需要特殊處理
+                        st.info("分鐘K 圖表開發中，目前支援日K。")
+                        kbar_df = qw.query_daily_kbar(code, start_date, end_date)
+
+                    if isinstance(kbar_df, dict) and "error" in kbar_df:
+                        st.error(f"❌ 查詢失敗：{kbar_df['error']}")
+                    elif isinstance(kbar_df, pd.DataFrame) and kbar_df.empty:
+                        st.warning(f"⚠️ {code} 無可用數據")
+                    else:
+                        # 構建指標列表
+                        indicators = []
+                        for p in ma_periods:
+                            indicators.append(f"MA{p}")
+                        for p in ema_periods:
+                            indicators.append(f"EMA{p}")
+                        if show_rsi:
+                            indicators.append("RSI")
+                        if show_macd:
+                            indicators.append("MACD")
+                        if show_bb:
+                            indicators.append("BB")
+                        if show_atr:
+                            indicators.append("ATR")
+
+                        # 繪製圖表
+                        fig = ta.plot_kbar_with_indicators(
+                            kbar_df,
+                            code,
+                            indicators=indicators if indicators else ["MA5", "MA20"],
+                            height=800
+                        )
+
+                        # 顯示圖表
+                        st.plotly_chart(fig, use_container_width=True)
+
+                        # 顯示統計信息
+                        st.success(f"✅ 成功繪製 {code} K線圖（{len(kbar_df)} 根K線）")
+
+                        # 添加到歷史記錄
+                        add_history("技術分析", {
+                            "type": "technical_analysis",
+                            "code": code,
+                            "start": start_date.isoformat(),
+                            "end": end_date.isoformat(),
+                            "indicators": indicators
+                        })
+
+                        # 基礎統計信息
+                        with st.expander("📊 統計信息", expanded=False):
+                            col1, col2, col3, col4 = st.columns(4)
+                            latest = kbar_df.iloc[-1] if not kbar_df.empty else {}
+
+                            with col1:
+                                st.metric("最新收盤價", f"${latest.get('close', 'N/A'):.2f}"
+                                         if 'close' in latest else "N/A")
+                            with col2:
+                                if 'open' in latest and 'close' in latest:
+                                    chg = latest['close'] - latest['open']
+                                    st.metric("日漲跌", f"{chg:+.2f}",
+                                             delta=f"{chg/latest['open']*100:+.2f}%")
+                                else:
+                                    st.metric("日漲跌", "N/A")
+                            with col3:
+                                if 'high' in latest and 'low' in latest:
+                                    st.metric("日高低",
+                                             f"${latest['high']:.2f} / ${latest['low']:.2f}")
+                            with col4:
+                                st.metric("成交量", f"{latest.get('volume', 0):,.0f}")
+
+                except Exception as e:
+                    main_logger.error(f"技術分析繪圖失敗：{str(e)}")
+                    st.error(f"❌ 繪圖失敗：{str(e)}")
+
+
 # ==================== SIDEBAR AND MAIN LOGIC ====================
 
 # 三組導航按鈕（永豐金 / TWSE / 其他）
-SINOPAC_TABS = ["儀表板", "台股市場"]
+SINOPAC_TABS = ["儀表板", "台股市場", "技術分析"]
 TWSE_TABS    = ["TWSE"]
 OTHER_TABS   = ["Gemini AI", "FinMind", "期貨/匯率", "選股", "新聞", "工具"]
 
@@ -1963,6 +2118,8 @@ else:
         render_dashboard()
     elif selected_tab == "台股市場":
         render_taistock_market()
+    elif selected_tab == "技術分析":
+        render_technical_analysis()
     elif selected_tab == "TWSE":
         render_twse_section()
     elif selected_tab == "FinMind":
