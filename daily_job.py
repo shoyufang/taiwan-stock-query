@@ -310,7 +310,7 @@ def save_curr_codes(codes: set) -> None:
         print(f"  ⚠️  快取寫入失敗: {e}")
 
 
-def send_email(subject: str, body: str) -> bool:
+def send_email(subject: str, body: str, html: bool = False) -> bool:
     if not GMAIL_USER or not GMAIL_APP_PASSWORD:
         print("  ⚠️  GMAIL_USER / GMAIL_APP_PASSWORD 未設定，略過 email")
         return False
@@ -319,7 +319,12 @@ def send_email(subject: str, body: str) -> bool:
         msg["Subject"] = subject
         msg["From"]    = GMAIL_USER
         msg["To"]      = NOTIFY_EMAIL
-        msg.attach(MIMEText(body, "plain", "utf-8"))
+
+        if html:
+            msg.attach(MIMEText(body, "html", "utf-8"))
+        else:
+            msg.attach(MIMEText(body, "plain", "utf-8"))
+
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
             smtp.login(GMAIL_USER, GMAIL_APP_PASSWORD)
             smtp.sendmail(GMAIL_USER, NOTIFY_EMAIL, msg.as_string())
@@ -328,6 +333,35 @@ def send_email(subject: str, body: str) -> bool:
     except Exception as e:
         print(f"  ⚠️  Email 寄送失敗: {e}")
         return False
+
+
+def df_to_html_table(df: pd.DataFrame) -> str:
+    """將 DataFrame 轉換為 HTML 表格"""
+    if df.empty:
+        return ""
+
+    html = '<table style="border-collapse: collapse; width: 100%; font-family: Arial, sans-serif; font-size: 12px;">'
+    html += '<thead><tr style="background-color: #f0f0f0; border: 1px solid #ddd;">'
+
+    # 表頭
+    for col in df.columns:
+        html += f'<th style="border: 1px solid #ddd; padding: 8px; text-align: left; font-weight: bold;">{col}</th>'
+    html += '</tr></thead><tbody>'
+
+    # 表內容（交替背景色，提高可讀性）
+    for idx, row in df.iterrows():
+        bg_color = "#ffffff" if idx % 2 == 0 else "#f9f9f9"
+        html += f'<tr style="background-color: {bg_color}; border: 1px solid #ddd;">'
+        for val in row:
+            # 處理數字對齐
+            if isinstance(val, (int, float)):
+                html += f'<td style="border: 1px solid #ddd; padding: 8px; text-align: right;">{val}</td>'
+            else:
+                html += f'<td style="border: 1px solid #ddd; padding: 8px; text-align: left;">{val}</td>'
+        html += '</tr>'
+
+    html += '</tbody></table>'
+    return html
 
 
 # ═══════════════════════════════════════════════════════════
@@ -387,13 +421,58 @@ def main():
 
         if new_codes:
             new_df = disp_df[disp_df[code_col].astype(str).str.strip().isin(new_codes)]
-            lines  = [f"📅 {TODAY} 新增處置有價證券（共 {len(new_codes)} 檔）\n",
-                      new_df.to_string(index=False)]
+
+            # 構建 HTML email
+            html_body = f"""
+            <html>
+            <head>
+                <meta charset="utf-8">
+                <style>
+                    body {{ font-family: Arial, sans-serif; background-color: #f5f5f5; margin: 0; padding: 20px; }}
+                    .container {{ background-color: #ffffff; border-radius: 8px; padding: 20px; max-width: 800px; margin: 0 auto; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }}
+                    .header {{ color: #d32f2f; font-size: 18px; font-weight: bold; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 2px solid #d32f2f; }}
+                    .info {{ color: #666; font-size: 14px; margin-bottom: 20px; }}
+                    .table-wrapper {{ overflow-x: auto; margin-bottom: 20px; }}
+                    table {{ border-collapse: collapse; width: 100%; font-size: 13px; }}
+                    th {{ background-color: #d32f2f; color: white; padding: 10px; text-align: left; font-weight: bold; border: 1px solid #b71c1c; }}
+                    td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
+                    tr:nth-child(even) {{ background-color: #f9f9f9; }}
+                    .footer {{ color: #999; font-size: 12px; margin-top: 20px; padding-top: 10px; border-top: 1px solid #eee; }}
+                    .gone {{ color: #ff9800; margin-top: 15px; padding: 10px; background-color: #fff3e0; border-left: 3px solid #ff9800; }}
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">⚠️ 新增處置有價證券通知</div>
+                    <div class="info">
+                        <strong>日期：</strong> {TODAY}<br>
+                        <strong>新增檔數：</strong> {len(new_codes)} 檔
+                    </div>
+                    <div class="table-wrapper">
+                        {df_to_html_table(new_df[new_df.columns.tolist()])}
+                    </div>
+            """
+
             if gone_codes:
-                lines.append(f"\n（同日解除處置：{', '.join(sorted(gone_codes))}）")
+                html_body += f"""
+                    <div class="gone">
+                        <strong>同日解除處置：</strong> {', '.join(sorted(gone_codes))}
+                    </div>
+            """
+
+            html_body += """
+                    <div class="footer">
+                        此為系統自動通知，請勿直接回覆此郵件。
+                    </div>
+                </div>
+            </body>
+            </html>
+            """
+
             send_email(
-                subject=f"【台股警示】{TODAY} 新增處置股 {len(new_codes)} 檔",
-                body="\n".join(lines),
+                subject=f"⚠️ 台股警示 {TODAY} 新增處置股 {len(new_codes)} 檔",
+                body=html_body.strip(),
+                html=True,
             )
         else:
             print("  無新增處置股，不寄信")
