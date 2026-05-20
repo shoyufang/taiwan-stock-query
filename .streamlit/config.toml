@@ -1,0 +1,22 @@
+[logger]
+level = "error"
+
+[client]
+showErrorDetails = false
+
+[browser]
+serverAddress = "localhost"
+
+[server]
+port = 8501
+headless = true
+
+[telemetry]
+enabled = false
+
+[theme]
+primaryColor      = "#D97757"
+backgroundColor   = "#F2F0EB"
+secondaryBackgroundColor = "#E8E4DC"
+textColor         = "#1A1A1A"
+font              = "sans serif"

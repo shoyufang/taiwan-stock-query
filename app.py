@@ -33,22 +33,40 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-/* ═══════════════════════════════════════════════
-   台股查詢工具 — 全域設計系統
-   主色調：#e63946（紅）  輔色：rgba(255,255,255,0.08)
-   ═══════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════
+   台股查詢工具 — 設計系統（Claude 官網配色）
+   主色：#D97757（珊瑚橘）  背景：#F2F0EB（暖奶油白）
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── CSS 變數定義（單一來源） ── */
+:root {
+    --claude-bg:        #F2F0EB;
+    --claude-sidebar:   #E8E4DC;
+    --claude-surface:   #FFFFFF;
+    --claude-primary:   #D97757;
+    --claude-primary-dark: #BF6340;
+    --claude-text:      #1A1A1A;
+    --claude-text-2:    #6B6B6B;
+    --claude-border:    #D8D4CB;
+    --claude-border-light: #EAE7E0;
+    --claude-shadow:    rgba(0,0,0,0.08);
+}
 
 /* ── 字型 & 基礎 ── */
-html, body, [class*="css"] { font-family: 'Inter','Segoe UI',-apple-system,sans-serif; }
+html, body, [class*="css"] {
+    font-family: 'Inter','Segoe UI',-apple-system,sans-serif;
+    color: var(--claude-text);
+}
 .block-container { padding-top: 1.4rem !important; }
-h1 { font-size: 1.45rem !important; margin-bottom: 0 !important; font-weight: 700 !important; letter-spacing: -0.01em; }
-h2 { font-size: 1.1rem !important; font-weight: 600 !important; }
-h3 { font-size: 0.95rem !important; font-weight: 600 !important; }
+h1 { font-size: 1.45rem !important; margin-bottom: 0 !important; font-weight: 700 !important; letter-spacing: -0.02em; color: var(--claude-text) !important; }
+h2 { font-size: 1.1rem !important; font-weight: 600 !important; color: var(--claude-text) !important; }
+h3 { font-size: 0.95rem !important; font-weight: 600 !important; color: var(--claude-text) !important; }
 
 /* ════════════════════ SIDEBAR ════════════════════ */
 [data-testid="stSidebar"] {
     width: 250px !important;
-    border-right: 1px solid rgba(255,255,255,0.06) !important;
+    background-color: var(--claude-sidebar) !important;
+    border-right: 1px solid var(--claude-border) !important;
 }
 [data-testid="stSidebar"] .stButton button {
     width: 100%;
@@ -57,32 +75,34 @@ h3 { font-size: 0.95rem !important; font-weight: 600 !important; }
     padding: 7px 14px !important;
     text-align: left !important;
     transition: all 0.15s ease !important;
-    border: 1px solid rgba(255,255,255,0.10) !important;
-    background: rgba(255,255,255,0.04) !important;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.07) !important;
+    border: 1px solid var(--claude-border) !important;
+    background: rgba(255,255,255,0.6) !important;
+    color: var(--claude-text) !important;
+    box-shadow: 0 1px 3px var(--claude-shadow) !important;
     margin-bottom: 3px !important;
 }
-[data-testid="stSidebar"] .stButton button[kind="secondary"]:hover {
-    background: rgba(255,255,255,0.09) !important;
-    border-color: rgba(255,255,255,0.18) !important;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.10) !important;
+[data-testid="stSidebar"] .stButton button:hover {
+    background: var(--claude-surface) !important;
+    border-color: var(--claude-primary) !important;
+    box-shadow: 0 2px 8px rgba(217,119,87,0.20) !important;
     transform: translateY(-1px) !important;
 }
-[data-testid="stSidebar"] .stButton button[kind="secondary"]:active {
+[data-testid="stSidebar"] .stButton button:active {
     transform: translateY(0) !important;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.4), inset 0 2px 4px rgba(0,0,0,0.2) !important;
 }
 [data-testid="stSidebar"] .stButton button[kind="primary"] {
-    box-shadow: 0 3px 8px rgba(230,57,70,0.5), inset 0 1px 0 rgba(255,255,255,0.15) !important;
-    border: 1px solid rgba(230,57,70,0.6) !important;
-    margin-bottom: 3px !important;
+    background: var(--claude-primary) !important;
+    color: #fff !important;
+    border-color: var(--claude-primary) !important;
+    box-shadow: 0 2px 8px rgba(217,119,87,0.35) !important;
 }
 
 /* ════════ BORDERED CONTAINER（複選框區） ════════ */
 [data-testid="stVerticalBlockBorderWrapper"] {
     border-radius: 12px !important;
-    border: 1px solid rgba(255,255,255,0.09) !important;
-    background: rgba(255,255,255,0.015) !important;
+    border: 1px solid var(--claude-border) !important;
+    background: var(--claude-surface) !important;
+    box-shadow: 0 1px 4px var(--claude-shadow) !important;
 }
 
 /* ════════════════ CAPTION（分組標題） ════════════ */
@@ -91,7 +111,7 @@ h3 { font-size: 0.95rem !important; font-weight: 600 !important; }
     font-weight: 700 !important;
     letter-spacing: 0.09em !important;
     text-transform: uppercase !important;
-    color: #6b7280 !important;
+    color: var(--claude-text-2) !important;
     margin-bottom: 2px !important;
 }
 
@@ -102,82 +122,84 @@ h3 { font-size: 0.95rem !important; font-weight: 600 !important; }
     padding: 3px 8px 3px 4px !important;
     border-radius: 6px !important;
     transition: background 0.12s !important;
+    color: var(--claude-text) !important;
 }
-[data-testid="stCheckbox"] label:hover { background: rgba(255,255,255,0.05) !important; }
+[data-testid="stCheckbox"] label:hover { background: rgba(217,119,87,0.08) !important; }
 
 /* ════════════════════ BUTTONS ════════════════ */
-/* 主要按鈕（確認查詢） */
 button[kind="primary"] {
-    background: linear-gradient(135deg,#e63946 0%,#c1121f 100%) !important;
+    background: linear-gradient(135deg, var(--claude-primary) 0%, var(--claude-primary-dark) 100%) !important;
+    color: #fff !important;
     border: none !important;
     border-radius: 9px !important;
     font-weight: 600 !important;
     font-size: 0.9rem !important;
-    letter-spacing: 0.025em !important;
-    box-shadow: 0 2px 14px rgba(230,57,70,0.32) !important;
+    letter-spacing: 0.02em !important;
+    box-shadow: 0 2px 10px rgba(217,119,87,0.30) !important;
     transition: all 0.15s ease !important;
 }
 button[kind="primary"]:hover {
-    box-shadow: 0 4px 20px rgba(230,57,70,0.50) !important;
+    box-shadow: 0 4px 18px rgba(217,119,87,0.45) !important;
     transform: translateY(-1px) !important;
 }
 button[kind="primary"]:active { transform: translateY(0) !important; }
 
-/* 次要按鈕（全選等小按鈕） */
 button[kind="secondary"] {
     border-radius: 6px !important;
     font-size: 0.73rem !important;
     padding: 2px 10px !important;
-    border: 1px solid rgba(255,255,255,0.14) !important;
-    color: rgba(255,255,255,0.6) !important;
+    border: 1px solid var(--claude-border) !important;
+    color: var(--claude-text-2) !important;
+    background: var(--claude-surface) !important;
     transition: all 0.12s ease !important;
 }
 button[kind="secondary"]:hover {
-    border-color: rgba(255,255,255,0.32) !important;
-    color: rgba(255,255,255,0.9) !important;
-    background: rgba(255,255,255,0.07) !important;
+    border-color: var(--claude-primary) !important;
+    color: var(--claude-primary) !important;
+    background: rgba(217,119,87,0.06) !important;
 }
 
 /* ════════════ TEXT INPUT / DATE INPUT ═══════════ */
 [data-testid="stTextInput"] input,
 [data-testid="stDateInput"] input {
     border-radius: 8px !important;
-    border: 1px solid rgba(255,255,255,0.12) !important;
+    border: 1px solid var(--claude-border) !important;
     font-size: 0.87rem !important;
-    transition: border-color 0.15s,box-shadow 0.15s !important;
+    background: var(--claude-surface) !important;
+    color: var(--claude-text) !important;
+    transition: border-color 0.15s, box-shadow 0.15s !important;
 }
 [data-testid="stTextInput"] input:focus,
 [data-testid="stDateInput"] input:focus {
-    border-color: #e63946 !important;
-    box-shadow: 0 0 0 2px rgba(230,57,70,0.18) !important;
+    border-color: var(--claude-primary) !important;
+    box-shadow: 0 0 0 3px rgba(217,119,87,0.15) !important;
 }
 
 /* ══════════════════ SELECTBOX ═══════════════ */
 [data-testid="stSelectbox"] [data-baseweb="select"] > div {
     border-radius: 8px !important;
-    border-color: rgba(255,255,255,0.12) !important;
+    border-color: var(--claude-border) !important;
     font-size: 0.87rem !important;
+    background: var(--claude-surface) !important;
 }
 
 /* ══════════════════ SLIDER ═════════════════ */
 [data-testid="stSlider"] [role="slider"] {
-    background: #e63946 !important;
-    border-color: #e63946 !important;
-}
-[data-testid="stSlider"] [data-baseweb="slider"] [data-testid="stThumbValue"] {
-    background: #e63946 !important;
+    background: var(--claude-primary) !important;
+    border-color: var(--claude-primary) !important;
 }
 
 /* ═════════════════ PROGRESS BAR ════════════ */
 [data-testid="stProgressBar"] > div > div > div > div {
-    background: linear-gradient(90deg,#e63946,#ff6b6b) !important;
+    background: linear-gradient(90deg, var(--claude-primary), #E8956F) !important;
 }
 
 /* ═══════════════════ EXPANDER ══════════════ */
 [data-testid="stExpander"] {
     border-radius: 10px !important;
-    border: 1px solid rgba(255,255,255,0.09) !important;
-    background: rgba(255,255,255,0.02) !important;
+    border: 1px solid var(--claude-border) !important;
+    background: var(--claude-surface) !important;
+    box-shadow: 0 1px 3px var(--claude-shadow) !important;
     margin-bottom: 8px !important;
     overflow: hidden !important;
 }
@@ -187,35 +209,59 @@ button[kind="secondary"]:hover {
     padding: 10px 14px !important;
     border-radius: 10px !important;
     transition: background 0.12s !important;
+    color: var(--claude-text) !important;
 }
-[data-testid="stExpander"] summary:hover { background: rgba(255,255,255,0.04) !important; }
+[data-testid="stExpander"] summary:hover { background: rgba(217,119,87,0.06) !important; }
 
 /* ══════════════════ DIVIDER ════════════════ */
-hr { border:none !important; border-top:1px solid rgba(255,255,255,0.08) !important; margin:1rem 0 !important; }
+hr { border: none !important; border-top: 1px solid var(--claude-border) !important; margin: 1rem 0 !important; }
 
 /* ═══════════════ METRIC CARDS ══════════════ */
 [data-testid="stMetric"] {
-    background: rgba(255,255,255,0.03) !important;
-    border: 1px solid rgba(255,255,255,0.08) !important;
+    background: var(--claude-surface) !important;
+    border: 1px solid var(--claude-border) !important;
     border-radius: 10px !important;
     padding: 12px 16px !important;
+    box-shadow: 0 1px 4px var(--claude-shadow) !important;
 }
-[data-testid="stMetricLabel"] p { font-size: 0.73rem !important; color: #6b7280 !important; font-weight: 500 !important; }
-[data-testid="stMetricValue"] div { font-size: 1.4rem !important; font-weight: 700 !important; }
+[data-testid="stMetricLabel"] p { font-size: 0.73rem !important; color: var(--claude-text-2) !important; font-weight: 500 !important; }
+[data-testid="stMetricValue"] div { font-size: 1.4rem !important; font-weight: 700 !important; color: var(--claude-text) !important; }
 
 /* ════════════════ DATAFRAME ═════════════════ */
-[data-testid="stDataFrame"] { border-radius: 8px !important; overflow: hidden !important; }
+[data-testid="stDataFrame"] {
+    border-radius: 8px !important;
+    overflow: hidden !important;
+    border: 1px solid var(--claude-border) !important;
+}
 
 /* ══════════════ ALERT BOXES ═════════════════ */
-[data-testid="stInfo"]    { border-radius: 8px !important; border-left: 3px solid #3b82f6 !important; }
-[data-testid="stWarning"] { border-radius: 8px !important; border-left: 3px solid #f59e0b !important; }
-[data-testid="stError"]   { border-radius: 8px !important; border-left: 3px solid #ef4444 !important; }
-[data-testid="stSuccess"] { border-radius: 8px !important; border-left: 3px solid #10b981 !important; }
+[data-testid="stInfo"]    { border-radius: 8px !important; border-left: 3px solid #3b82f6 !important; background: #EFF6FF !important; }
+[data-testid="stWarning"] { border-radius: 8px !important; border-left: 3px solid #f59e0b !important; background: #FFFBEB !important; }
+[data-testid="stError"]   { border-radius: 8px !important; border-left: 3px solid #ef4444 !important; background: #FEF2F2 !important; }
+[data-testid="stSuccess"] { border-radius: 8px !important; border-left: 3px solid #10b981 !important; background: #ECFDF5 !important; }
 
 /* ══════════════════ CHAT ════════════════════ */
-[data-testid="stChatInput"] { border-radius: 12px !important; }
-[data-testid="stChatInput"] textarea { font-size: 0.95rem !important; }
+[data-testid="stChatInput"] { border-radius: 12px !important; border: 1px solid var(--claude-border) !important; }
+[data-testid="stChatInput"] textarea { font-size: 0.95rem !important; background: var(--claude-surface) !important; }
 [data-testid="stChatMessage"] { border-radius: 12px !important; padding: 4px 0 !important; }
+
+/* ══════════ TAB 標籤 ═══════════════════════ */
+[data-testid="stTabs"] [role="tab"] {
+    font-size: 0.86rem !important;
+    font-weight: 500 !important;
+    color: var(--claude-text-2) !important;
+    border-radius: 8px 8px 0 0 !important;
+    transition: color 0.12s !important;
+}
+[data-testid="stTabs"] [role="tab"][aria-selected="true"] {
+    color: var(--claude-primary) !important;
+    border-bottom-color: var(--claude-primary) !important;
+    font-weight: 600 !important;
+}
+[data-testid="stTabs"] [role="tab"]:hover {
+    color: var(--claude-primary) !important;
+    background: rgba(217,119,87,0.06) !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
