@@ -688,19 +688,26 @@ def query_twse_institutional(code: Optional[str] = None) -> pd.DataFrame:
 def _cached_twse_margin() -> pd.DataFrame:
     return sq.query_twse_margin()
 
-def query_twse_margin() -> pd.DataFrame:
-    """查詢融資融券彙總（優先本地快取）"""
+def query_twse_margin(code: Optional[str] = None) -> pd.DataFrame:
+    """查詢融資融券彙總（優先本地快取）；code 可篩選特定股票代號"""
     start_time = time.time()
     local = _read_twse_local("margin")
     if local is not None:
-        add_history("工具", {"type": "twse_margin", "source": "local"})
+        if code:
+            # MI_MARGN 欄位為「股票代號」
+            col = "股票代號" if "股票代號" in local.columns else local.columns[0]
+            local = local[local[col].astype(str).str.strip() == str(code)]
+        add_history("工具", {"type": "twse_margin", "code": code, "source": "local"})
         return local
-    main_logger.info("查詢融資融券彙總 [API]")
+    main_logger.info(f"查詢融資融券彙總 [API]: {code if code else '全市場'}")
     try:
         result = _cached_twse_margin()
+        if code and not result.empty:
+            col = "股票代號" if "股票代號" in result.columns else result.columns[0]
+            result = result[result[col].astype(str).str.strip() == str(code)]
         elapsed_ms = (time.time() - start_time) * 1000
         perf_tracker.record_query_time("query_twse_margin", elapsed_ms)
-        add_history("工具", {"type": "twse_margin", "source": "api"})
+        add_history("工具", {"type": "twse_margin", "code": code, "source": "api"})
         return result
     except Exception as e:
         main_logger.error(f"查詢融資融券彙總失敗: {str(e)}")

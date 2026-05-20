@@ -758,7 +758,7 @@ def _twse_dispatch(qt: str, code: str = "") -> tuple:
     if qt == "年成交資訊":        return qw.query_twse_annual(c), False
     if qt == "大盤指數":          return qw.query_twse_mi_index(), False
     if qt == "當日三大法人":      return qw.query_twse_institutional(c), False
-    if qt == "融資融券彙總":      return qw.query_twse_margin(), False
+    if qt == "融資融券彙總":      return qw.query_twse_margin(c), False
     if qt == "外資持股(產業)":    return qw.query_twse_qfiis_cat(), False
     if qt == "外資持股前20":      return qw.query_twse_qfiis_top20(), False
     if qt == "本益比/殖利率":     return qw.query_twse_valuation(c), False
