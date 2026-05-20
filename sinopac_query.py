@@ -636,9 +636,20 @@ _TWSE = "https://openapi.twse.com.tw/v1"
 
 
 def _twse_get(path: str) -> pd.DataFrame:
+    """
+    呼叫 TWSE 新版 OpenAPI。
+    注意：Streamlit Cloud（海外 IP）可能被 TWSE 限流，回傳空 body 或 HTML。
+    此時拋出 RuntimeError 讓上層顯示友善訊息，而非 JSON parse error。
+    """
     r = _SESSION.get(f"{_TWSE}{path}", timeout=15,
                      headers={"Accept": "application/json"})
     r.raise_for_status()
+    ct = r.headers.get("Content-Type", "")
+    if not r.text or r.text.strip().startswith("<!"):
+        raise RuntimeError(
+            "TWSE OpenAPI 回傳空白或 HTML（可能因海外 IP 被限制）。\n"
+            "今日資料將於 20:05 自動快取後可查詢，或請稍後再試。"
+        )
     return pd.DataFrame(r.json())
 
 

@@ -630,9 +630,11 @@ def query_twse_daily_all(code: Optional[str] = None) -> pd.DataFrame:
         perf_tracker.record_query_time("query_twse_daily_all", elapsed_ms)
         add_history("工具", {"type": "twse_daily", "code": code, "source": "api"})
         return result
+    except RuntimeError as e:
+        return {"error": str(e)}
     except Exception as e:
         main_logger.error(f"查詢 TWSE 當日行情失敗: {str(e)}")
-        return pd.DataFrame({"錯誤": [str(e)]})
+        return {"error": f"查詢失敗：{str(e)}"}
 
 @st.cache_data(ttl=300, show_spinner=False)
 def _cached_twse_valuation(code: Optional[str]) -> pd.DataFrame:
@@ -655,9 +657,11 @@ def query_twse_valuation(code: Optional[str] = None) -> pd.DataFrame:
         perf_tracker.record_query_time("query_twse_valuation", elapsed_ms)
         add_history("工具", {"type": "twse_valuation", "code": code, "source": "api"})
         return result
+    except RuntimeError as e:
+        return {"error": str(e)}
     except Exception as e:
         main_logger.error(f"查詢本益比失敗: {str(e)}")
-        return pd.DataFrame({"錯誤": [str(e)]})
+        return {"error": f"查詢失敗：{str(e)}"}
 
 @st.cache_data(ttl=300, show_spinner=False)
 def _cached_twse_institutional(code: Optional[str]) -> pd.DataFrame:
@@ -680,9 +684,11 @@ def query_twse_institutional(code: Optional[str] = None) -> pd.DataFrame:
         perf_tracker.record_query_time("query_twse_institutional", elapsed_ms)
         add_history("工具", {"type": "twse_institutional", "code": code, "source": "api"})
         return result
+    except RuntimeError as e:
+        return {"error": str(e)}
     except Exception as e:
         main_logger.error(f"查詢三大法人 TWSE 失敗: {str(e)}")
-        return pd.DataFrame({"錯誤": [str(e)]})
+        return {"error": f"查詢失敗：{str(e)}"}
 
 @st.cache_data(ttl=300, show_spinner=False)
 def _cached_twse_margin() -> pd.DataFrame:
@@ -694,7 +700,6 @@ def query_twse_margin(code: Optional[str] = None) -> pd.DataFrame:
     local = _read_twse_local("margin")
     if local is not None:
         if code:
-            # MI_MARGN 欄位為「股票代號」
             col = "股票代號" if "股票代號" in local.columns else local.columns[0]
             local = local[local[col].astype(str).str.strip() == str(code)]
         add_history("工具", {"type": "twse_margin", "code": code, "source": "local"})
@@ -709,9 +714,12 @@ def query_twse_margin(code: Optional[str] = None) -> pd.DataFrame:
         perf_tracker.record_query_time("query_twse_margin", elapsed_ms)
         add_history("工具", {"type": "twse_margin", "code": code, "source": "api"})
         return result
+    except RuntimeError as e:
+        # TWSE 海外 IP 限制 → 友善提示
+        return {"error": str(e)}
     except Exception as e:
         main_logger.error(f"查詢融資融券彙總失敗: {str(e)}")
-        return pd.DataFrame({"錯誤": [str(e)]})
+        return {"error": f"查詢失敗：{str(e)}"}
 
 @st.cache_data(ttl=300, show_spinner=False)
 def _cached_twse_company(code: str) -> pd.DataFrame:
