@@ -200,6 +200,12 @@ def query_daily_kbar(code: str, start_date: date, end_date: date) -> pd.DataFram
     _record_cache_hit("query_daily_kbar", cache_key, is_cache_hit)
     main_logger.info(f"查詢 K 線: {code}, {start_date} ~ {end_date} ({'CACHE HIT' if is_cache_hit else 'CACHE MISS'})")
     try:
+        # 確保日期格式正確
+        if isinstance(start_date, str):
+            start_date = pd.to_datetime(start_date).date()
+        if isinstance(end_date, str):
+            end_date = pd.to_datetime(end_date).date()
+
         start_str = start_date.strftime("%Y-%m-%d")
         end_str = end_date.strftime("%Y-%m-%d")
         result = _cached_kbar(code, start_str, end_str)

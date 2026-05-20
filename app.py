@@ -1909,6 +1909,12 @@ def render_technical_analysis():
         else:
             with st.spinner(f"正在獲取 {code} 的K線數據..."):
                 try:
+                    # 確保日期是 datetime.date 類型
+                    if isinstance(start_date, str):
+                        start_date = pd.to_datetime(start_date).date()
+                    if isinstance(end_date, str):
+                        end_date = pd.to_datetime(end_date).date()
+
                     # 根據圖表類型查詢數據
                     if chart_type == "日K":
                         kbar_df = qw.query_daily_kbar(code, start_date, end_date)

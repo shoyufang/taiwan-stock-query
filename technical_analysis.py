@@ -115,7 +115,14 @@ def plot_kbar_with_indicators(
             df[new] = df[old]
 
     df = df.rename(columns=str.lower)
-    df.index = pd.to_datetime(df.index) if not isinstance(df.index, pd.DatetimeIndex) else df.index
+
+    # 安全地轉換索引為 DatetimeIndex
+    try:
+        if not isinstance(df.index, pd.DatetimeIndex):
+            df.index = pd.to_datetime(df.index, errors='coerce')
+    except Exception as e:
+        print(f"警告：日期索引轉換失敗：{e}")
+        df.index = pd.RangeIndex(len(df))
 
     # 計算指標
     indicator_data = {}
