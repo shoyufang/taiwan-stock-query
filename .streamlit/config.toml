@@ -11,9 +11,6 @@ serverAddress = "localhost"
 port = 8501
 headless = true
 
-[telemetry]
-enabled = false
-
 [theme]
 primaryColor      = "#D97757"
 backgroundColor   = "#F2F0EB"

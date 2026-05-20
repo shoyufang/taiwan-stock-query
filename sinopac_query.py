@@ -687,9 +687,11 @@ def query_twse_institutional(code: str = None) -> pd.DataFrame:
     """
     三大法人買賣超（全市場，當日）。
     新版 OpenAPI /fund/T86 已失效，改用舊版 rwd API。
+    必須帶 date 與 selectType=ALL，否則只回傳約 7 筆摘要資料。
     code：篩選特定代號；不填則傳回全市場。
     """
-    df = _twse_old("fund/T86")
+    today = date.today().strftime("%Y%m%d")
+    df = _twse_old("fund/T86", {"date": today, "selectType": "ALL"})
     if code and "證券代號" in df.columns:
         df = df[df["證券代號"] == code]
     elif code and "Code" in df.columns:
