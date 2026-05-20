@@ -544,10 +544,7 @@ streamlit run app.py
       0 12 * * 1-5 /bin/sh /volume1/docker/sinopac/run_daily.sh >> /volume1/docker/sinopac/run_daily.log 2>&1
       ```
       UTC 12:00 = 台灣時間 20:00，週一至五
-- **安全事項**：⚠️ Git PAT token 曾外洩於對話中，請確認已在 GitHub 撤銷並更新 NAS remote URL：
-    ```bash
-    git -C /volume1/docker/sinopac remote set-url origin https://新PAT@github.com/shoyufang/taiwan-stock-query.git
-    ```
+- **安全事項**：✅ Git PAT token 曾外洩於對話中，已在 GitHub 撤銷並更新 NAS remote URL（token 名稱：`NAS-sinopac`）
 - **已知待修**：
     - `daily_job.py` 的 `main()` 在 `NOTION_TOKEN` 未設定時會 `sys.exit(1)`（第 486 行），導致 Step 6（TWSE 快取）跑不到。建議將 Step 6 移到 NOTION_TOKEN 檢查之前。
 
