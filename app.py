@@ -1615,6 +1615,14 @@ def render_gemini_chat():
             except Exception as exc:
                 response = {"error": str(exc)}
 
+        # 若有模型自動回退，顯示提示
+        if "model_fallback" in response:
+            st.info(
+                f"⚠️ 原設定模型不可用，已自動切換至 `{response['model_fallback']}`。\n\n"
+                "建議在 **⚙️ 系統設定** 中將模型名稱更新為 `gemini-2.5-flash`。",
+                icon="🔄",
+            )
+
         ai_text = (
             f"❌ 發生錯誤：{response['error']}"
             if "error" in response

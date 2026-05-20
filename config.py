@@ -20,7 +20,7 @@ DEFAULT_CONFIG = {
     "notion_token": "",
     "notion_database_id": "",
     "gemini_api_key": "",
-    "gemini_model": "gemini-3.0-flash",
+    "gemini_model": "gemini-2.5-flash",
     "export_format": "csv",
 }
 

@@ -228,10 +228,35 @@ class GeminiEngine:
         "gemini-1.5-pro",
     ]
 
+    # 舊 preview 版本 → 新正式版對照表
+    _MODEL_ALIASES = {
+        "gemini-2.5-flash-preview-05-20": "gemini-2.5-flash",
+        "gemini-2.5-flash-preview-04-17": "gemini-2.5-flash",
+        "gemini-2.5-pro-preview-05-06":   "gemini-2.5-pro",
+        "gemini-2.5-pro-preview-03-25":   "gemini-2.5-pro",
+        "gemini-2.0-flash-exp":           "gemini-2.0-flash",
+        "gemini-1.5-flash-002":           "gemini-1.5-flash",
+        "gemini-1.5-pro-002":             "gemini-1.5-pro",
+        "gemini-3.0-flash":               "gemini-2.5-flash",  # 不存在，回退
+        "gemini-3.0-pro":                 "gemini-2.5-pro",
+    }
+
+    @classmethod
+    def _resolve_model(cls, model_name: str) -> str:
+        """將舊/已下線的模型名稱自動對應到現有版本"""
+        if not model_name:
+            return cls.FALLBACK_MODELS[0]
+        # 精確對照
+        if model_name in cls._MODEL_ALIASES:
+            resolved = cls._MODEL_ALIASES[model_name]
+            main_logger.warning(f"模型 '{model_name}' 已下線，自動改用 '{resolved}'")
+            return resolved
+        return model_name
+
     def __init__(self, api_key: str, model_name: str = ""):
         self.api_key = api_key
-        self.model_name = model_name
-        if not api_key or not model_name:
+        self.model_name = self._resolve_model(model_name)
+        if not api_key or not self.model_name:
             self.client = None
             return
         try:
@@ -353,8 +378,30 @@ class GeminiEngine:
             return {"analysis": answer, "raw_response": response}
 
         except Exception as e:
-            main_logger.error(f"Gemini 執行查詢失敗: {str(e)}")
-            return {"error": f"AI 查詢發生異常: {str(e)}"}
+            err_str = str(e)
+            main_logger.error(f"Gemini 執行查詢失敗: {err_str}")
+
+            # 模型不存在（404）→ 自動嘗試 FALLBACK_MODELS
+            if "404" in err_str or "NOT_FOUND" in err_str or "not found" in err_str.lower():
+                main_logger.warning(f"模型 '{self.model_name}' 不存在，嘗試回退模型...")
+                for fallback in self.FALLBACK_MODELS:
+                    if fallback == self.model_name:
+                        continue
+                    try:
+                        self.model_name = fallback
+                        main_logger.info(f"切換至回退模型: {fallback}")
+                        response = _call_with_retry(_do_call, max_retries=2)
+                        answer = response.text or "（AI 無回應，請重試）"
+                        return {
+                            "analysis": answer,
+                            "raw_response": response,
+                            "model_fallback": fallback,
+                        }
+                    except Exception:
+                        continue
+                return {"error": f"所有模型均不可用。請在設定中更新 Gemini 模型名稱。\n\n原始錯誤：{err_str}"}
+
+            return {"error": f"AI 查詢發生異常: {err_str}"}
 
     def summarize_news(self, news_text: str, subject: str = "") -> Dict[str, Any]:
         """
