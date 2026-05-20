@@ -1879,7 +1879,15 @@ def render_technical_analysis():
     # ── 輸入參數 ──────────────────────────────────────────
     col1, col2 = st.columns(2)
     with col1:
-        code = st.text_input("股票代號", value="2330", key="ta_code")
+        try:
+            from stock_lookup import resolve_code, get_name_hint
+            _raw_ta = st.text_input("股票代號", value="2330", placeholder="例：2330、台積電、AAPL", key="ta_code")
+            code = resolve_code(_raw_ta) if _raw_ta else "2330"
+            _hint = get_name_hint(_raw_ta)
+            if _hint:
+                st.caption(f"✅ 已解析：{_hint}")
+        except ImportError:
+            code = st.text_input("股票代號", value="2330", key="ta_code")
     with col2:
         chart_type = st.selectbox(
             "圖表類型",

@@ -429,9 +429,34 @@ def date_input_section(label: str = "選擇日期範圍", default_days: int = 30
     return start_date, end_date
 
 def code_input_section(label: str = "輸入股票代號", single: bool = True) -> str | list:
-    """股票代號輸入區域"""
+    """股票代號輸入區域（支援中文名稱輸入，如：台積電、蘋果、NVIDIA）"""
+    try:
+        from stock_lookup import resolve_code, resolve_codes, get_name_hint
+        _lookup_ok = True
+    except ImportError:
+        _lookup_ok = False
+
     if single:
-        return st.text_input(label, placeholder="例：2330").strip()
+        raw = st.text_input(label, placeholder="例：2330、台積電、蘋果、AAPL").strip()
+        if raw and _lookup_ok:
+            resolved = resolve_code(raw)
+            hint = get_name_hint(raw)
+            if hint:
+                st.caption(f"✅ 已解析：{hint}")
+            return resolved
+        return raw
     else:
-        codes_str = st.text_input(label, placeholder="例：2330,2412,3008，用逗號分隔")
-        return [c.strip() for c in codes_str.split(",") if c.strip()] if codes_str else []
+        codes_str = st.text_input(label, placeholder="例：2330,台積電,蘋果，用逗號分隔")
+        if not codes_str:
+            return []
+        if _lookup_ok:
+            parts = [p.strip() for p in codes_str.split(",") if p.strip()]
+            resolved_list = [resolve_code(p) for p in parts]
+            hints = []
+            for raw_p, res_p in zip(parts, resolved_list):
+                if res_p.upper() != raw_p.upper() and res_p != raw_p:
+                    hints.append(f"{raw_p}→{res_p}")
+            if hints:
+                st.caption("✅ 已解析：" + "，".join(hints))
+            return resolved_list
+        return [c.strip() for c in codes_str.split(",") if c.strip()]
