@@ -31,10 +31,20 @@ def _is_rate_limit_error(err_str: str) -> bool:
     return "429" in err_str or "RESOURCE_EXHAUSTED" in err_str
 
 
+def _is_transient_error(err_str: str) -> bool:
+    """503 超載 / 502 / 暫時性錯誤（值得短暫等待後重試）"""
+    return (
+        "503" in err_str or "UNAVAILABLE" in err_str or
+        "502" in err_str or "high demand" in err_str.lower() or
+        "temporarily" in err_str.lower()
+    )
+
+
 def _call_with_retry(fn: Callable, max_retries: int = 3) -> Any:
     """
-    執行 fn()，遇到 429 速率限制時自動等待並重試。
-    等待時間取自 API 回應的 retryDelay，否則使用指數退避。
+    執行 fn()，遇到可重試錯誤時自動等待並重試：
+    - 429 速率限制：等待 API 指定的 retryDelay
+    - 503 超載：短暫等待 3s 後重試（最多 2 次，之後交給 fallback 處理）
     """
     for attempt in range(max_retries):
         try:
@@ -48,6 +58,10 @@ def _call_with_retry(fn: Callable, max_retries: int = 3) -> Any:
                     f"（第 {attempt + 1}/{max_retries - 1} 次）"
                 )
                 time.sleep(delay)
+            elif _is_transient_error(err_str) and attempt < 1:
+                # 503 只重試一次（3秒後），失敗就讓外層做 model fallback
+                main_logger.warning(f"Gemini 503 暫時超載，等待 3s 後重試...")
+                time.sleep(3)
             else:
                 raise
 
@@ -382,9 +396,15 @@ class GeminiEngine:
             err_str = str(e)
             main_logger.error(f"Gemini 執行查詢失敗: {err_str}")
 
-            # 模型不存在（404）→ 自動嘗試 FALLBACK_MODELS
-            if "404" in err_str or "NOT_FOUND" in err_str or "not found" in err_str.lower():
-                main_logger.warning(f"模型 '{self.model_name}' 不存在，嘗試回退模型...")
+            # 模型不可用（404 不存在 / 503 超載）→ 自動嘗試 FALLBACK_MODELS
+            _should_fallback = (
+                "404" in err_str or "NOT_FOUND" in err_str or "not found" in err_str.lower() or
+                "503" in err_str or "UNAVAILABLE" in err_str or "unavailable" in err_str.lower() or
+                "high demand" in err_str.lower()
+            )
+            if _should_fallback:
+                reason = "不存在" if ("404" in err_str or "NOT_FOUND" in err_str) else "暫時超載"
+                main_logger.warning(f"模型 '{self.model_name}' {reason}，嘗試回退模型...")
                 for fallback in self.FALLBACK_MODELS:
                     if fallback == self.model_name:
                         continue
@@ -398,9 +418,13 @@ class GeminiEngine:
                             "raw_response": response,
                             "model_fallback": fallback,
                         }
-                    except Exception:
-                        continue
-                return {"error": f"所有模型均不可用。請在設定中更新 Gemini 模型名稱。\n\n原始錯誤：{err_str}"}
+                    except Exception as fe:
+                        # 回退模型也超載就繼續下一個
+                        if "503" in str(fe) or "UNAVAILABLE" in str(fe):
+                            main_logger.warning(f"回退模型 {fallback} 也超載，繼續...")
+                            continue
+                        break
+                return {"error": f"所有模型均暫時不可用，請稍後再試。\n\n原始錯誤：{err_str}"}
 
             return {"error": f"AI 查詢發生異常: {err_str}"}
 
