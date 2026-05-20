@@ -387,9 +387,12 @@ _TWSE_DAILY_ENDPOINTS = {
         "verify": True,
     },
     "institutional": {
-        "url": "https://openapi.twse.com.tw/v1/fund/T86",
+        # 新版 openapi.twse.com.tw/v1/fund/T86 回傳 HTML，改用舊版 rwd API
+        "url": "https://www.twse.com.tw/rwd/zh/fund/T86",
         "label": "三大法人",
-        "verify": True,
+        "verify": False,
+        "is_rwd": True,
+        "params": {"selectType": "ALL"},   # 不帶 selectType 只回 7 筆
     },
     "valuation": {
         "url": "https://openapi.twse.com.tw/v1/exchangeReport/BWIBBU_ALL",
@@ -442,7 +445,11 @@ def fetch_twse_daily_cache() -> dict:
             continue
 
         try:
-            resp = requests.get(cfg["url"], timeout=20, verify=cfg.get("verify", True))
+            # 合併基底 params（response=json）與端點自訂 params（如 selectType=ALL）
+            req_params = {"response": "json"} if cfg.get("is_rwd") else {}
+            req_params.update(cfg.get("params", {}))
+            resp = requests.get(cfg["url"], params=req_params if req_params else None,
+                                timeout=20, verify=cfg.get("verify", True))
             resp.raise_for_status()
             raw = resp.json()
 
