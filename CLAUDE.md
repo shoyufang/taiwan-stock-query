@@ -489,6 +489,42 @@ streamlit run app.py
     - `app.py` — 技術分析 Tab 集成
     - `backfill.py` — 5 年歷史數據回填腳本
 
+### 2026-05-20 Claude Session（UI 配色 + 中文股票名稱 + TWSE Bug 修復）
+- **核心任務**：套用 Claude 官網配色、支援中文股票名稱輸入、修復 TWSE 三大法人查詢
+- **主要成果**：
+    - **Claude 官網配色（UI 全面換新）**：
+        - `.streamlit/config.toml` 新增 `[theme]`：primaryColor=`#D97757`、bg=`#F2F0EB`、sidebar=`#E8E4DC`
+        - `app.py` CSS 從暗色系（紅 `#e63946`）改為 Claude 暖色系（珊瑚橘 `#D97757`）
+        - 定義 CSS 變數：`--claude-bg/sidebar/surface/primary/text/border`
+        - 移除廢棄的 `[telemetry]` config 設定（避免 Streamlit Cloud 啟動警告）
+    - **中文股票名稱輸入支援**：
+        - 新增 `stock_lookup.py` 模組：
+            - `US_STOCK_ALIASES`：~80 筆美股/港股中英文別名（蘋果→AAPL、輝達→NVDA、騰訊→0700.HK 等）
+            - `_load_tw_name_map()`：從每日 TWSE CSV 或 API 載入台股名稱→代號對照
+            - `resolve_code(raw)`：中文名稱/英文別名/代號 → 標準股票代號
+            - `resolve_codes(raw, sep)`：批量解析逗號分隔名稱
+            - `get_name_hint(raw)`：回傳「台積電 → **2330**」提示字串
+        - `ui_components.py` `code_input_section()` 整合 resolve_code，自動顯示解析提示
+        - `app.py` 技術分析 Tab 代號輸入框也支援中文輸入
+    - **TWSE 三大法人 Bug 修復**：
+        - **根本原因**：`openapi.twse.com.tw/v1/fund/T86` 回傳 HTML（非 JSON），已失效
+        - **影響範圍**：`sinopac_query.py` + `daily_job.py` Step 6 都用了壞端點
+        - **修復方式**：改用舊版 `www.twse.com.tw/rwd/zh/fund/T86?selectType=ALL`
+            - 不帶日期時只回 7 筆摘要（無意義） → 加 `date=今日&selectType=ALL` → 14,116 筆
+        - `sinopac_query.py`：`query_twse_institutional()` 加入日期參數
+        - `daily_job.py`：Step 6 `_TWSE_DAILY_ENDPOINTS["institutional"]` 改用舊版 rwd 端點
+        - `daily_job.py`：`fetch_twse_daily_cache()` 支援 endpoint 自訂 params 合併
+
+- **已知問題**：
+    - GitHub Actions 排程在 `NOTION_TOKEN` 未設定時，`main()` 會 `sys.exit(1)`，Step 6（TWSE 快取下載）永遠跑不到
+    - 建議：將 Step 6 移到 NOTION_TOKEN 檢查之前，或獨立為不需 Notion 的步驟
+
+- **Commit 記錄**：
+    - `cc5bff6` — feat: 支援中文股票名稱輸入（台股＋美股）
+    - `12e0bef` — style: 套用 Claude 官網配色系統（暖奶油白 + 珊瑚橘）
+    - `acb2b5b` — fix: 修復 TWSE 三大法人查詢（T86 必須帶日期參數）
+    - `0253d27` — fix: 修復 daily_job.py Step 6 的三大法人下載
+
 ---
 
 ## 環境需求（完整）
