@@ -22,20 +22,32 @@ from sqlite_cache import get_cache, set_cache
 # 本地 TWSE CSV 快取工具
 # ══════════════════════════════════════════════════════════
 
-def _twse_local_cache_path(category: str, query_date: date = None) -> str:
-    """回傳 data/twse/<category>/YYYY-MM-DD.csv 路徑"""
-    d = (query_date or date.today()).isoformat()
-    return os.path.join("data", "twse", category, f"{d}.csv")
+def _twse_local_cache_path(category: str, query_date: date = None) -> Optional[str]:
+    """回傳 data/twse/<category> 下指定的或最新的 CSV 路徑。若無則回傳 None。"""
+    dir_path = os.path.join("data", "twse", category)
+    if not os.path.exists(dir_path):
+        return None
+        
+    if query_date:
+        path = os.path.join(dir_path, f"{query_date.isoformat()}.csv")
+        return path if os.path.exists(path) else None
+        
+    # Find the latest available CSV
+    files = [f for f in os.listdir(dir_path) if f.endswith(".csv")]
+    if not files:
+        return None
+    return os.path.join(dir_path, sorted(files)[-1])
 
 
 def _read_twse_local(category: str, query_date: date = None) -> Optional[pd.DataFrame]:
     """
-    嘗試讀取本地 TWSE CSV 快取。
+    嘗試讀取本地 TWSE CSV 快取（自動尋找最新版本）。
     成功回傳 DataFrame，不存在回傳 None。
     """
     path = _twse_local_cache_path(category, query_date)
-    if not os.path.exists(path):
+    if not path:
         return None
+        
     try:
         df = pd.read_csv(path, dtype=str, encoding="utf-8-sig")
         main_logger.debug(f"讀取本地快取: {path} ({len(df)} 筆)")
@@ -55,14 +67,14 @@ def twse_cache_status() -> dict:
     status = {}
     for cat in categories:
         path = _twse_local_cache_path(cat)
-        if os.path.exists(path):
+        if path and os.path.exists(path):
             try:
                 rows = sum(1 for _ in open(path, encoding="utf-8-sig")) - 1
             except Exception:
                 rows = 0
             status[cat] = {"exists": True, "rows": rows, "path": path}
         else:
-            status[cat] = {"exists": False, "rows": 0, "path": path}
+            status[cat] = {"exists": False, "rows": 0, "path": path or "無檔案"}
     return status
 
 try:
