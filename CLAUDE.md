@@ -657,7 +657,7 @@ NAS (台灣 IP, 20:00)
 1. 進入 NAS 專案目錄：`cd /volume1/docker/sinopac`
 2. 編輯並填入 API 金鑰：`vi update_web.sh` (填入 `GEMINI_API_KEY` 與 `FINMIND_TOKEN`)
 3. 執行啟動腳本：`sudo sh update_web.sh`
-4. 網頁將背景運行於 NAS 的 **Port 8501** (`http://NAS_IP:8501`)。
+4. 網頁將背景運行於 NAS 的 **Port 8502** (`http://NAS_IP:8502`)。
 
 未來若需更新網站，只要在 NAS 上重新執行 `sudo sh update_web.sh` 即可自動 `git pull` 最新程式碼並重啟 Docker 容器。
 

@@ -13,10 +13,10 @@ sudo docker run -d --name sinopac-web \
   --restart unless-stopped \
   -v /volume1/docker/sinopac:/app \
   -w /app \
-  -p 8501:8501 \
+  -p 8502:8501 \
   -e GEMINI_API_KEY="請在此填入您的_Gemini_API_Key" \
   -e FINMIND_TOKEN="請在此填入您的_FinMind_Token_如果有的話" \
   python:3.11-slim bash -c "pip install -q -r requirements.txt && streamlit run app.py --server.port=8501 --server.address=0.0.0.0"
 
-echo "=== 更新完成！網站已在 NAS Port 8501 背景運行 ==="
-echo "=== 請使用 http://您的NAS內網IP:8501 連線查看 ==="
+echo "=== 更新完成！網站已在 NAS Port 8502 背景運行 ==="
+echo "=== 請使用 http://您的NAS內網IP:8502 連線查看 ==="
