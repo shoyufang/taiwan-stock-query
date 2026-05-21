@@ -648,6 +648,21 @@ NAS (台灣 IP, 20:00)
 
 ---
 
+## NAS 本地網頁伺服器部署 (解鎖海外 IP 限制)
+
+為了解決 Streamlit Cloud (海外 IP) 無法查詢 TWSE 即時資料 (如月/年成交資訊) 的問題，建議將 Streamlit 網站直接運行於本地 NAS，利用台灣 IP 進行 API 查詢，並達成資料 0 延遲。
+
+### 部署腳本 (`update_web.sh`)
+本專案已提供 `update_web.sh`。執行流程：
+1. 進入 NAS 專案目錄：`cd /volume1/docker/sinopac`
+2. 編輯並填入 API 金鑰：`vi update_web.sh` (填入 `GEMINI_API_KEY` 與 `FINMIND_TOKEN`)
+3. 執行啟動腳本：`sudo sh update_web.sh`
+4. 網頁將背景運行於 NAS 的 **Port 8501** (`http://NAS_IP:8501`)。
+
+未來若需更新網站，只要在 NAS 上重新執行 `sudo sh update_web.sh` 即可自動 `git pull` 最新程式碼並重啟 Docker 容器。
+
+---
+
 ## 環境需求（完整）
 
 ```bash
