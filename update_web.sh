@@ -5,11 +5,11 @@ echo "=== 正在拉取 GitHub 最新程式碼 ==="
 git pull origin main
 
 echo "=== 停止並移除舊的 Streamlit 網站容器 ==="
-sudo docker stop sinopac-web 2>/dev/null
-sudo docker rm sinopac-web 2>/dev/null
+docker stop sinopac-web 2>/dev/null
+docker rm sinopac-web 2>/dev/null
 
 echo "=== 啟動全新的 Streamlit 網站容器 ==="
-sudo docker run -d --name sinopac-web \
+docker run -d --name sinopac-web \
   --restart unless-stopped \
   -v /volume1/docker/sinopac:/app \
   -w /app \
