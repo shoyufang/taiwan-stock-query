@@ -645,12 +645,24 @@ def _twse_get(path: str) -> pd.DataFrame:
                      headers={"Accept": "application/json"})
     r.raise_for_status()
     ct = r.headers.get("Content-Type", "")
+    
+    # Check for obvious HTML response first
     if not r.text or r.text.strip().startswith("<!"):
         raise RuntimeError(
             "TWSE OpenAPI 回傳空白或 HTML（可能因海外 IP 被限制）。\n"
             "今日資料將於 20:05 自動快取後可查詢，或請稍後再試。"
         )
-    return pd.DataFrame(r.json())
+        
+    try:
+        data = r.json()
+    except ValueError:
+        # JSONDecodeError inherits from ValueError
+        raise RuntimeError(
+            "TWSE OpenAPI 回傳非 JSON 格式（可能因海外 IP 被限制）。\n"
+            "今日資料將於 20:05 自動快取後可查詢，或請稍後再試。"
+        )
+        
+    return pd.DataFrame(data)
 
 
 def query_twse_daily_all(code: str = None) -> pd.DataFrame:
