@@ -11,7 +11,7 @@
 6. 期貨/匯率 (Futures/Exchange Rate)
 7. 選股 (Screener)
 8. 新聞 (News)
-9. Gemini AI
+9. DeepSeek AI
 10. 工具 (Tools - Bookmarks & History)
 """
 
@@ -39,7 +39,7 @@ import query_wrapper as qw
 import sinopac_query as sq
 import technical_analysis as ta
 import screener
-from gemini_engine import GeminiEngine, get_gemini_engine
+from deepseek_engine import DeepSeekEngine, get_deepseek_engine
 
 # 美化終端機輸出
 class Colors:
@@ -93,7 +93,7 @@ def test_system_config():
         print_info(f"模擬模式啟用狀態: {cfg.get('simulation_mode')}")
         
         # 遮蔽敏感金鑰顯示
-        for key in ["api_key", "secret_key", "finmind_token", "notion_token", "gemini_api_key"]:
+        for key in ["api_key", "secret_key", "finmind_token", "notion_token", "deepseek_api_key"]:
             val = cfg.get(key, "")
             status_str = f"已設定 (長度 {len(val)})" if val else "未設定"
             print_info(f"金鑰 {key}: {status_str}")
@@ -424,32 +424,32 @@ def test_news():
         print_error(f"新聞查詢失敗: {str(e)}")
         record_result("新聞模組", "個股/大盤新聞查詢", "FAIL", str(e))
 
-# 9. 驗證 Gemini AI 功能
-def test_gemini_ai():
-    print_header("9. Gemini AI 模組驗證")
+# 9. 驗證 DeepSeek AI 功能
+def test_deepseek_ai():
+    print_header("9. DeepSeek AI 模組驗證")
     
     cfg = config.load_config()
-    api_key = cfg.get("gemini_api_key", "")
-    model_name = cfg.get("gemini_model", "gemini-3.5-flash")
+    api_key = cfg.get("deepseek_api_key", "")
+    model_name = cfg.get("deepseek_model", "deepseek-3.5-flash")
     
     if not api_key:
-        print_warning("尚未設定 Gemini API Key，跳過實際網路調用測試")
-        record_result("Gemini AI", "Gemini 引擎連接", "WARN", "無 API Key，跳過實際調用")
+        print_warning("尚未設定 DeepSeek API Key，跳過實際網路調用測試")
+        record_result("DeepSeek AI", "DeepSeek 引擎連接", "WARN", "無 API Key，跳過實際調用")
         return
         
     try:
-        print_info(f"嘗試連接 Gemini Engine, 模型: {model_name}...")
-        engine = GeminiEngine(api_key, model_name=model_name)
+        print_info(f"嘗試連接 DeepSeek Engine, 模型: {model_name}...")
+        engine = DeepSeekEngine(api_key, model_name=model_name)
         
         # 測試獲取可用模型
-        models = GeminiEngine.list_available_models(api_key)
-        print_info(f"帳戶可用 Gemini 模型列表: {models}")
-        print_success("Gemini API 連接及模型獲取成功")
-        record_result("Gemini AI", "Gemini 引擎連接", "PASS", f"成功連結並獲取可用模型，當前：{model_name}")
+        models = DeepSeekEngine.list_available_models(api_key)
+        print_info(f"帳戶可用 DeepSeek 模型列表: {models}")
+        print_success("DeepSeek API 連接及模型獲取成功")
+        record_result("DeepSeek AI", "DeepSeek 引擎連接", "PASS", f"成功連結並獲取可用模型，當前：{model_name}")
         
     except Exception as e:
-        print_error(f"Gemini API 測試失敗: {str(e)}")
-        record_result("Gemini AI", "Gemini 引擎連接", "FAIL", str(e))
+        print_error(f"DeepSeek API 測試失敗: {str(e)}")
+        record_result("DeepSeek AI", "DeepSeek 引擎連接", "FAIL", str(e))
 
 # 10. 驗證工具功能 (Bookmarks & History)
 def test_tools():
@@ -520,7 +520,7 @@ def run_all_tests():
     test_futures_forex()
     test_screener()
     test_news()
-    test_gemini_ai()
+    test_deepseek_ai()
     test_tools()
     
     elapsed = time.time() - start_time

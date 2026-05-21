@@ -11,4 +11,5 @@ streamlit-option-menu
 plotly
 openpyxl
 reportlab
-google-genai
+# AI
+openai

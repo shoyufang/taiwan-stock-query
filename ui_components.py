@@ -290,29 +290,29 @@ def render_settings_panel(config: Dict[str, Any], in_sidebar: bool = True) -> Di
             notion_token = st.text_input("Notion Token", value=config.get("notion_token", ""), type="password", key="notion_token_input", placeholder="secret_xxx...")
             notion_db_id = st.text_input("Notion Database ID", value=config.get("notion_database_id", ""), key="notion_db_input", placeholder="32位元ID")
 
-            st.markdown("**Google Gemini**")
-            gemini_api_key = st.text_input("Gemini API Key", value=config.get("gemini_api_key", ""), type="password", key="gemini_api_key_input", placeholder="AIzaSy...")
+            st.markdown("**DeepSeek AI**")
+            deepseek_api_key = st.text_input("DeepSeek API Key", value=config.get("deepseek_api_key", ""), type="password", key="deepseek_api_key_input", placeholder="sk-...")
             
             # 初始化可用模型列表
-            from gemini_engine import GeminiEngine
+            from deepseek_engine import DeepSeekEngine
             
             # 使用 session_state 暫存模型列表，避免每次 UI 刷新都重新打 API
-            if "available_gemini_models" not in st.session_state:
-                st.session_state.available_gemini_models = []
+            if "available_deepseek_models" not in st.session_state:
+                st.session_state.available_deepseek_models = []
                 # 如果已有 Key，嘗試初始化讀取一次
-                if gemini_api_key:
+                if deepseek_api_key:
                     try:
-                        st.session_state.available_gemini_models = GeminiEngine.list_available_models(gemini_api_key)
+                        st.session_state.available_deepseek_models = DeepSeekEngine.list_available_models(deepseek_api_key)
                     except:
                         pass
 
             col_fetch, col_info = st.columns([1, 2])
             with col_fetch:
-                if st.button("🔍 獲取模型列表", key="fetch_gemini_models"):
-                    if gemini_api_key:
+                if st.button("🔍 獲取模型列表", key="fetch_deepseek_models"):
+                    if deepseek_api_key:
                         with st.spinner("獲取中..."):
-                            st.session_state.available_gemini_models = GeminiEngine.list_available_models(gemini_api_key)
-                            if st.session_state.available_gemini_models:
+                            st.session_state.available_deepseek_models = DeepSeekEngine.list_available_models(deepseek_api_key)
+                            if st.session_state.available_deepseek_models:
                                 st.success("已更新清單")
                             else:
                                 st.error("獲取失敗")
@@ -320,8 +320,8 @@ def render_settings_panel(config: Dict[str, Any], in_sidebar: bool = True) -> Di
                         st.warning("請先輸入 Key")
 
             # 準備選單內容
-            current_model = config.get("gemini_model", "")
-            models_list = st.session_state.available_gemini_models
+            current_model = config.get("deepseek_model", "")
+            models_list = st.session_state.available_deepseek_models
             if not models_list:
                 models_list = ["(點擊上方按鈕獲取)"]
                 model_index = 0
@@ -331,16 +331,16 @@ def render_settings_panel(config: Dict[str, Any], in_sidebar: bool = True) -> Di
                 else:
                     model_index = 0
 
-            gemini_model = st.selectbox("Gemini 模型選擇", models_list, index=model_index, key="gemini_model_select")
+            deepseek_model = st.selectbox("DeepSeek 模型選擇", models_list, index=model_index, key="deepseek_model_select")
 
             # 已有模型時預設開啟手動輸入（避免下拉清單空白時清掉設定）
             has_existing_model = bool(current_model and current_model != "(點擊上方按鈕獲取)")
-            use_custom_model = st.checkbox("手動輸入模型名稱", value=has_existing_model, key="use_custom_gemini")
+            use_custom_model = st.checkbox("手動輸入模型名稱", value=has_existing_model, key="use_custom_deepseek")
             if use_custom_model:
-                custom_model_name = st.text_input("輸入自訂模型代號", value=current_model, placeholder="例：gemini-2.5-flash-preview-05-20")
+                custom_model_name = st.text_input("輸入自訂模型代號", value=current_model, placeholder="例：deepseek-v4-flash")
                 final_model = custom_model_name
             else:
-                final_model = gemini_model if gemini_model != "(點擊上方按鈕獲取)" else current_model
+                final_model = deepseek_model if deepseek_model != "(點擊上方按鈕獲取)" else current_model
 
             col1, col2 = st.columns(2)
             with col1:
@@ -350,11 +350,11 @@ def render_settings_panel(config: Dict[str, Any], in_sidebar: bool = True) -> Di
                     config["finmind_token"] = finmind_token
                     config["notion_token"] = notion_token
                     config["notion_database_id"] = notion_db_id
-                    config["gemini_api_key"] = gemini_api_key
-                    config["gemini_model"] = final_model if final_model != "(點擊上方按鈕獲取)" else ""
+                    config["deepseek_api_key"] = deepseek_api_key
+                    config["deepseek_model"] = final_model if final_model != "(點擊上方按鈕獲取)" else ""
                     from config import save_config
                     save_config(config)
-                    st.success(f"✅ 設定已保存：{config['gemini_model']}")
+                    st.success(f"✅ 設定已保存：{config['deepseek_model']}")
             with col2:
                 if st.button("🔄 重置", key="reset_keys"):
                     from config import DEFAULT_CONFIG, save_config

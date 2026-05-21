@@ -18,7 +18,7 @@ import query_wrapper as qw
 from logging_config import main_logger
 from health_check import HealthChecker
 from preload import PreloadManager, get_preload_summary
-from gemini_engine import get_gemini_engine
+from deepseek_engine import get_deepseek_engine
 
 # ══════════════════════════════════════════════════════════
 # Streamlit 配置
@@ -319,9 +319,9 @@ if "execute_bookmark" not in st.session_state:
 if "execute_history" not in st.session_state:
     st.session_state.execute_history = None
 if "selected_tab" not in st.session_state:
-    st.session_state.selected_tab = "Gemini AI"
-if "gemini_chat_history" not in st.session_state:
-    st.session_state.gemini_chat_history = []
+    st.session_state.selected_tab = "DeepSeek AI"
+if "deepseek_chat_history" not in st.session_state:
+    st.session_state.deepseek_chat_history = []
 if "_news_df" not in st.session_state:
     st.session_state["_news_df"] = None
 if "_news_summary" not in st.session_state:
@@ -1220,7 +1220,7 @@ def _render_news_cards(df: pd.DataFrame):
 
 
 def _news_to_text(df: pd.DataFrame) -> str:
-    """把新聞 DataFrame 轉成純文字給 Gemini 摘要"""
+    """把新聞 DataFrame 轉成純文字給 DeepSeek 摘要"""
     lines = []
     for i, row in df.iterrows():
         lines.append(f"[{i+1}] {row.get('時間','')}  {row.get('來源','')}")
@@ -1232,7 +1232,7 @@ def _news_to_text(df: pd.DataFrame) -> str:
 
 
 def render_news():
-    """新聞（Yahoo Finance + Gemini AI 摘要）"""
+    """新聞（Yahoo Finance + DeepSeek AI 摘要）"""
     main_logger.info("渲染新聞 Tab")
 
     query_type = _qbtn_grid(["個股新聞", "大盤新聞"], "news_q", n_cols=2)
@@ -1278,26 +1278,26 @@ def render_news():
 
 
 def _news_ai_summary_btn(df: pd.DataFrame, subject: str):
-    """在新聞列表下方顯示 Gemini 摘要按鈕與結果"""
+    """在新聞列表下方顯示 DeepSeek 摘要按鈕與結果"""
     st.divider()
     col_btn, col_hint = st.columns([2, 5])
     with col_btn:
-        do_summary = st.button("🤖 Gemini AI 摘要＆翻譯", key="news_ai_btn", use_container_width=True)
+        do_summary = st.button("🤖 DeepSeek AI 摘要＆翻譯", key="news_ai_btn", use_container_width=True)
     with col_hint:
         st.caption("一鍵將英文新聞翻譯成繁體中文，並給出投資觀點")
 
     # 顯示已有的摘要
     if st.session_state.get("_news_summary"):
-        with st.expander("📊 Gemini AI 分析結果", expanded=True):
+        with st.expander("📊 DeepSeek AI 分析結果", expanded=True):
             st.markdown(st.session_state["_news_summary"])
 
     if do_summary:
-        engine = get_gemini_engine()
+        engine = get_deepseek_engine()
         if not engine:
-            st.warning("請先在左側欄 ⚙️ 設定中填入 Gemini API Key")
+            st.warning("請先在左側欄 ⚙️ 設定中填入 DeepSeek API Key")
             return
         news_text = _news_to_text(df)
-        with st.spinner("🤖 Gemini AI 翻譯與分析中…"):
+        with st.spinner("🤖 DeepSeek AI 翻譯與分析中…"):
             result = engine.summarize_news(news_text, subject)
         if "error" in result:
             st.error(result["error"])
@@ -1585,24 +1585,24 @@ if __name__ == "__main__":
     pass
 
 
-def render_gemini_chat():
-    """Gemini AI 智能對話 — Chat UI"""
-    main_logger.info("渲染 Gemini AI Chat Tab")
+def render_deepseek_chat():
+    """DeepSeek AI 智能對話 — Chat UI"""
+    main_logger.info("渲染 DeepSeek AI Chat Tab")
 
-    engine = get_gemini_engine()
+    engine = get_deepseek_engine()
     if not engine:
-        st.markdown("## 🤖 Gemini AI")
-        st.warning("請先在左側欄 **⚙️ 系統設定** 中填入 Gemini API Key 與模型名稱，儲存後重新整理頁面。")
+        st.markdown("## 🤖 DeepSeek AI")
+        st.warning("請先在左側欄 **⚙️ 系統設定** 中填入 DeepSeek API Key 與模型名稱，儲存後重新整理頁面。")
         with st.expander("如何取得 API Key？"):
             st.markdown(
                 "1. 前往 [Google AI Studio](https://aistudio.google.com/app/apikey)\n"
                 "2. 建立 API Key（免費）\n"
-                "3. 複製後貼入左側欄 ⚙️ 設定，模型選 `gemini-2.5-flash`\n"
+                "3. 複製後貼入左側欄 ⚙️ 設定，模型選 `deepseek-2.5-flash`\n"
                 "4. 按儲存後重新整理"
             )
         return
 
-    history = st.session_state.gemini_chat_history
+    history = st.session_state.deepseek_chat_history
 
     # ── 空白狀態：置中歡迎畫面 ─────────────────────────────
     if not history:
@@ -1614,7 +1614,7 @@ def render_gemini_chat():
                 color:#aaa; gap:12px;
             ">
                 <div style="font-size:3rem">🤖</div>
-                <div style="font-size:1.4rem; font-weight:600; color:#ddd;">Gemini AI 智能助手</div>
+                <div style="font-size:1.4rem; font-weight:600; color:#ddd;">DeepSeek AI 智能助手</div>
                 <div style="font-size:0.95rem; text-align:center; max-width:480px; line-height:1.8;">
                     可自動調用台股、港美股、FinMind、匯率等本地工具<br/>
                     並搜尋網路即時資訊。直接用中文提問。
@@ -1638,8 +1638,8 @@ def render_gemini_chat():
             "<div style='display:flex; justify-content:flex-end; margin-bottom:4px;'>",
             unsafe_allow_html=True,
         )
-        if st.button("🗑️ 清除對話", key="clear_gemini_chat"):
-            st.session_state.gemini_chat_history = []
+        if st.button("🗑️ 清除對話", key="clear_deepseek_chat"):
+            st.session_state.deepseek_chat_history = []
             st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
 
@@ -1650,12 +1650,12 @@ def render_gemini_chat():
                 st.markdown(msg["content"])
 
     # ── 輸入框（Streamlit 原生，自動固定底部）────────────────
-    user_input = st.chat_input("輸入問題，按 Enter 或點傳送鍵…", key="gemini_input")
+    user_input = st.chat_input("輸入問題，按 Enter 或點傳送鍵…", key="deepseek_input")
 
     if user_input:
-        st.session_state.gemini_chat_history.append({"role": "user", "content": user_input})
+        st.session_state.deepseek_chat_history.append({"role": "user", "content": user_input})
 
-        with st.spinner("🤖 Gemini AI 思考中，正在調用工具與搜尋…"):
+        with st.spinner("🤖 DeepSeek AI 思考中，正在調用工具與搜尋…"):
             try:
                 response = engine.smart_query(user_input)
             except Exception as exc:
@@ -1665,7 +1665,7 @@ def render_gemini_chat():
         if "model_fallback" in response:
             st.info(
                 f"⚠️ 原設定模型不可用，已自動切換至 `{response['model_fallback']}`。\n\n"
-                "建議在 **⚙️ 系統設定** 中將模型名稱更新為 `gemini-2.5-flash`。",
+                "建議在 **⚙️ 系統設定** 中將模型名稱更新為 `deepseek-2.5-flash`。",
                 icon="🔄",
             )
 
@@ -1675,8 +1675,8 @@ def render_gemini_chat():
             else (response.get("analysis") or "（AI 無回應，請重試）")
         )
 
-        st.session_state.gemini_chat_history.append({"role": "assistant", "content": ai_text})
-        add_history("Gemini AI", {"type": "gemini_chat", "query": user_input[:40]})
+        st.session_state.deepseek_chat_history.append({"role": "assistant", "content": ai_text})
+        add_history("DeepSeek AI", {"type": "deepseek_chat", "query": user_input[:40]})
         st.rerun()
 
 
@@ -2083,7 +2083,7 @@ def render_technical_analysis():
 # 三組導航按鈕（永豐金 / TWSE / 其他）
 SINOPAC_TABS = ["儀表板", "技術分析"]
 TWSE_TABS    = ["TWSE"]
-OTHER_TABS   = ["Gemini AI", "FinMind", "期貨/匯率", "選股", "新聞", "工具"]
+OTHER_TABS   = ["DeepSeek AI", "FinMind", "期貨/匯率", "選股", "新聞", "工具"]
 
 def _nav_btn(label: str, icon: str = ""):
     """渲染一個導航按鈕，當前選中顯示 primary 樣式"""
@@ -2182,7 +2182,7 @@ with st.sidebar.expander("健康檢查", expanded=False):
     st.metric("系統狀態", summary, emoji)
     st.divider()
     st.caption("🚀 v1.1 | Phase 7 智慧版")
-    st.caption("✅ 非同步預載 | SQLite 快取 | Gemini AI")
+    st.caption("✅ 非同步預載 | SQLite 快取 | DeepSeek AI")
 
 # 側邊欄導航結束
 # ══════════════════════════════════════════════════════════
@@ -2200,8 +2200,8 @@ elif st.session_state.execute_history:
 # 主內容區
 # ══════════════════════════════════════════════════════════
 
-if selected_tab == "Gemini AI":
-    render_gemini_chat()
+if selected_tab == "DeepSeek AI":
+    render_deepseek_chat()
 else:
     st.title(f"📊 {selected_tab}")
     st.markdown("---")
