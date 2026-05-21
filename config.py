@@ -22,8 +22,8 @@ DEFAULT_CONFIG = {
     "finmind_token": "",
     "notion_token": "",
     "notion_database_id": "",
-    "gemini_api_key": "",
-    "gemini_model": "gemini-3.5-flash",
+    "deepseek_api_key": "",
+    "deepseek_model": "deepseek-v4-flash",
     "export_format": "csv",
 }
 
@@ -37,8 +37,8 @@ def _load_streamlit_secrets() -> Dict[str, Any]:
         import streamlit as st
         mapping = {
             "FINMIND_TOKEN": "finmind_token",
-            "GEMINI_API_KEY": "gemini_api_key",
-            "GEMINI_MODEL":   "gemini_model",
+            "DEEPSEEK_API_KEY": "deepseek_api_key",
+            "DEEPSEEK_MODEL":   "deepseek_model",
         }
         return {cfg_key: st.secrets[secret_key]
                 for secret_key, cfg_key in mapping.items()

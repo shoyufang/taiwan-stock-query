@@ -668,3 +668,11 @@ NAS (å°ç£ IP, 20:00)
 ```bash
 pip install shioaji pandas yfinance FinMind requests futu-api mplfinance streamlit streamlit-option-menu plotly openpyxl reportlab
 ```
+
+ -   [ x ]   * * A I   _ÎdhQb—ÿfÛc  ( 2 0 2 6 - 0 5 - 2 2 ) * * ÿ
+         -   [ x ]   ûyd–  ` g o o g l e - g e n a i `   ‚  G e m i n i   OôŒ0
+         -   [ x ]   °eX  ` d e e p s e e k _ e n g i n e . p y `   teT  O p e n A I   øv¹[<h_0
+         -   [ x ]   /eôc  D e e p S e e k   V 3 / V 4   „v  F u n c t i o n   C a l l i n g   ( 1 2   ˜ğS¡€,g0Wå]wQ!q+~wûy) 0
+         -   [ x ]   U I   ÊSs,g-Šš[ÃSxe1u  ` g e m i n i _ * `   hQb—9eºp  ` d e e p s e e k _ * ` 0
+  
+ 

@@ -1,0 +1,1147 @@
+"""
+永豐金查詢工具 - Streamlit Web UI
+Phase 5.3: 添加日誌和性能追蹤
+"""
+
+import streamlit as st
+import pandas as pd
+from datetime import date, timedelta, datetime
+from typing import Dict, Any
+import sys
+
+from config import load_config, save_config, load_bookmarks, load_history, add_history, add_bookmark, remove_bookmark
+from ui_components import (
+    display_result, render_sidebar_menu, render_search_box, render_bookmarks_section,
+    render_history_section, render_settings_panel, date_input_section, code_input_section
+)
+import query_wrapper as qw
+from logging_config import main_logger
+from health_check import HealthChecker
+from preload import PreloadManager, get_preload_summary
+
+# ══════════════════════════════════════════════════════════
+# Streamlit 配置
+# ══════════════════════════════════════════════════════════
+
+st.set_page_config(
+    page_title="永豐金查詢工具",
+    page_icon="📊",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+st.markdown("""
+    <style>
+    [data-testid="stSidebar"] {
+        width: 300px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+# ══════════════════════════════════════════════════════════
+# 全局預加載管理器（緩存）
+# ══════════════════════════════════════════════════════════
+
+@st.cache_resource
+def get_preload_manager():
+    """初始化並啟動預加載管理器"""
+    import asyncio
+    pm = PreloadManager()
+    main_logger.info("初始化預加載管理器...")
+
+    try:
+        # 嘗試執行預加載
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(pm.run_all_preloads())
+    except Exception as e:
+        main_logger.warning(f"預加載執行出錯: {str(e)}")
+
+    return pm
+
+# 初始化預加載管理器
+preload_manager = get_preload_manager()
+
+# ══════════════════════════════════════════════════════════
+# 初始化 Session State
+# ══════════════════════════════════════════════════════════
+
+if "config" not in st.session_state:
+    st.session_state.config = load_config()
+if "bookmarks" not in st.session_state:
+    st.session_state.bookmarks = load_bookmarks()
+if "history" not in st.session_state:
+    st.session_state.history = load_history()
+if "current_result" not in st.session_state:
+    st.session_state.current_result = None
+if "execute_bookmark" not in st.session_state:
+    st.session_state.execute_bookmark = None
+if "execute_history" not in st.session_state:
+    st.session_state.execute_history = None
+
+# ══════════════════════════════════════════════════════════
+# 側邊欄導航
+# ══════════════════════════════════════════════════════════
+
+AVAILABLE_TABS = [
+    "台股市場",
+    "帳務",
+    "FinMind",
+    "期貨/匯率",
+    "港美股",
+    "新聞",
+    "工具"
+]
+
+# 側邊欄
+with st.sidebar:
+    st.title("📊 永豐金查詢工具")
+    st.markdown("---")
+
+selected_tab = st.sidebar.radio(
+    "選擇查詢類型",
+    AVAILABLE_TABS,
+    label_visibility="collapsed"
+)
+
+# 搜尋框
+search_query = render_search_box()
+
+# 書籤區域
+st.sidebar.markdown("---")
+st.sidebar.markdown("### ⭐ 釘選功能")
+bookmarks = st.session_state.bookmarks
+if bookmarks:
+    selected_bookmark = st.sidebar.selectbox(
+        "選擇書籤",
+        options=bookmarks,
+        format_func=lambda x: x.get("name", "未命名"),
+        key="bookmark_select",
+        label_visibility="collapsed"
+    )
+    if st.sidebar.button("▶️ 執行書籤", key="run_bookmark"):
+        if selected_bookmark:
+            st.session_state.execute_bookmark = selected_bookmark
+            st.rerun()
+else:
+    st.sidebar.caption("暫無書籤")
+
+# 查詢歷史區域
+st.sidebar.markdown("---")
+st.sidebar.markdown("### 📋 最近查詢")
+history = st.session_state.history
+if history:
+    selected_history = st.sidebar.selectbox(
+        "最近查詢",
+        options=history[:10],  # 只顯示最近 10 筆
+        format_func=lambda x: f"{x.get('tab', '')} - {x.get('timestamp', '')[:10]}",
+        key="history_select",
+        label_visibility="collapsed"
+    )
+    if st.sidebar.button("▶️ 重複查詢", key="repeat_history"):
+        if selected_history:
+            st.session_state.execute_history = selected_history
+            st.rerun()
+else:
+    st.sidebar.caption("暫無歷史")
+
+# 設定面板
+st.session_state.config = render_settings_panel(st.session_state.config)
+
+# 預加載狀態
+st.sidebar.markdown("---")
+preload_summary = preload_manager.get_status_summary()
+st.sidebar.caption(f"📦 {preload_summary}")
+
+# 健康檢查面板
+st.sidebar.markdown("---")
+st.sidebar.markdown("### 🏥 系統狀態")
+with st.sidebar.expander("健康檢查", expanded=False):
+    health_status = HealthChecker.get_health_status()
+
+    # 顯示各項檢查結果
+    col1, col2 = st.columns(2)
+
+    with col1:
+        ok, msg = health_status["shioaji"]
+        st.write(f"**API 連線**")
+        st.caption(msg)
+
+    with col2:
+        ok, msg = health_status["config"]
+        st.write(f"**配置檢查**")
+        st.caption(msg)
+
+    # 檔案系統
+    ok, msg = health_status["filesystem"]
+    st.write(f"**檔案系統**")
+    st.caption(msg)
+
+    # 摘要狀態
+    st.divider()
+    emoji, summary = HealthChecker.get_summary_status()
+    st.metric("系統狀態", summary, emoji)
+
+# 處理書籤/歷史執行
+if st.session_state.execute_bookmark:
+    st.info(f"正在執行書籤: {st.session_state.execute_bookmark['name']}")
+    st.session_state.execute_bookmark = None  # 清除標記
+elif st.session_state.execute_history:
+    st.info(f"正在重複查詢: {st.session_state.execute_history['tab']}")
+    execute_from_history(st.session_state.execute_history)
+    st.session_state.execute_history = None  # 清除標記
+
+# ══════════════════════════════════════════════════════════
+# 主內容區
+# ══════════════════════════════════════════════════════════
+
+st.title(f"🔍 {selected_tab}")
+st.markdown("---")
+
+# 根據選中的 Tab 呈現不同的查詢界面
+if selected_tab == "台股市場":
+    render_taistock_market()
+
+elif selected_tab == "帳務":
+    render_account()
+
+elif selected_tab == "FinMind":
+    render_finmind()
+
+elif selected_tab == "期貨/匯率":
+    render_futures_forex()
+
+elif selected_tab == "港美股":
+    render_hk_us_stocks()
+
+elif selected_tab == "新聞":
+    render_news()
+
+elif selected_tab == "工具":
+    render_tools()
+
+# ══════════════════════════════════════════════════════════
+# 執行函式 — 處理書籤和歷史重複
+# ══════════════════════════════════════════════════════════
+
+def execute_from_history(history_item: Dict[str, Any]):
+    """從歷史記錄執行查詢"""
+    main_logger.info(f"從歷史記錄執行: {history_item.get('tab', '')} - {history_item.get('title', '')}")
+    params = history_item.get("params", {})
+    query_type = params.get("type", "")
+
+    if not query_type:
+        main_logger.warning(f"查詢類型不完整: {history_item}")
+        st.warning("無法執行：查詢類型不完整")
+        return
+
+    with st.spinner("執行中..."):
+        try:
+            # 根據查詢類型執行對應的查詢
+            if query_type == "ranking":
+                ranking_type = params.get("ranking_type", "up")
+                limit = params.get("limit", 10)
+                result = qw.query_ranking(ranking_type, limit)
+                st.session_state.current_result = result
+                display_result(result, f"{history_item.get('tab', '')} - {ranking_type}")
+
+            elif query_type == "snapshot":
+                codes = params.get("codes", [])
+                if codes:
+                    result = qw.query_snapshot(codes)
+                    st.session_state.current_result = result
+                    display_result(result, "個股即時快照")
+
+            elif query_type == "kbar":
+                code = params.get("code", "")
+                start = params.get("start", "")
+                end = params.get("end", "")
+                if code and start and end:
+                    from datetime import datetime
+                    start_date = datetime.strptime(start, "%Y-%m-%d").date()
+                    end_date = datetime.strptime(end, "%Y-%m-%d").date()
+                    result = qw.query_daily_kbar(code, start_date, end_date)
+                    st.session_state.current_result = result
+                    display_result(result, f"{code} 日K")
+
+            elif query_type == "ticks":
+                code = params.get("code", "")
+                query_date = params.get("date", "")
+                if code and query_date:
+                    from datetime import datetime
+                    query_date_obj = datetime.strptime(query_date, "%Y-%m-%d").date()
+                    result = qw.query_ticks(code, query_date_obj)
+                    st.session_state.current_result = result
+                    display_result(result, f"{code} 逐筆成交")
+
+            elif query_type == "institutional":
+                code = params.get("code", "")
+                start = params.get("start", "")
+                end = params.get("end", "")
+                if code and start and end:
+                    from datetime import datetime
+                    start_date = datetime.strptime(start, "%Y-%m-%d").date()
+                    end_date = datetime.strptime(end, "%Y-%m-%d").date()
+                    result = qw.query_institutional_investors(code, start_date, end_date)
+                    st.session_state.current_result = result
+                    display_result(result, f"{code} 三大法人明細")
+
+            main_logger.info(f"歷史查詢執行完成: {query_type}")
+            st.success("✅ 查詢執行完成")
+        except Exception as e:
+            main_logger.error(f"歷史查詢執行失敗: {query_type}, 錯誤: {str(e)}")
+            st.error(f"❌ 執行失敗: {str(e)}")
+
+# ══════════════════════════════════════════════════════════
+# Tab 對應的查詢界面
+# ══════════════════════════════════════════════════════════
+
+def render_taistock_market():
+    """台股市場查詢"""
+    main_logger.info("渲染台股市場 Tab")
+    query_type = st.selectbox(
+        "選擇查詢類型",
+        [
+            "漲幅排行",
+            "跌幅排行",
+            "成交量排行",
+            "成交金額排行",
+            "個股即時快照",
+            "個股日K",
+            "逐筆成交"
+        ]
+    )
+
+    if query_type == "漲幅排行":
+        st.subheader("📈 漲幅排行")
+        col1, col2 = st.columns(2)
+        with col1:
+            count = st.slider("筆數", 5, 50, 10)
+        with col2:
+            st.info(f"取前 {count} 檔")
+        if st.button("查詢", key="ranking_up"):
+            with st.spinner("查詢中..."):
+                result = qw.query_ranking("up", count)
+                st.session_state.current_result = result
+                display_result(result, "漲幅排行")
+
+    elif query_type == "跌幅排行":
+        st.subheader("📉 跌幅排行")
+        col1, col2 = st.columns(2)
+        with col1:
+            count = st.slider("筆數", 5, 50, 10)
+        with col2:
+            st.info(f"取後 {count} 檔")
+        if st.button("查詢", key="ranking_down"):
+            with st.spinner("查詢中..."):
+                result = qw.query_ranking("down", count)
+                st.session_state.current_result = result
+                display_result(result, "跌幅排行")
+
+    elif query_type == "成交量排行":
+        st.subheader("📊 成交量排行")
+        count = st.slider("筆數", 5, 50, 10)
+        if st.button("查詢", key="ranking_volume"):
+            with st.spinner("查詢中..."):
+                result = qw.query_ranking("volume", count)
+                st.session_state.current_result = result
+                display_result(result, "成交量排行")
+
+    elif query_type == "成交金額排行":
+        st.subheader("💰 成交金額排行")
+        count = st.slider("筆數", 5, 50, 10)
+        if st.button("查詢", key="ranking_amount"):
+            with st.spinner("查詢中..."):
+                result = qw.query_ranking("amount", count)
+                st.session_state.current_result = result
+                display_result(result, "成交金額排行")
+
+    elif query_type == "個股即時快照":
+        st.subheader("📊 個股即時快照")
+        codes = code_input_section("輸入股票代號", single=False)
+        if st.button("查詢", key="snapshot"):
+            if codes:
+                with st.spinner("查詢中..."):
+                    result = qw.query_snapshot(codes)
+                    st.session_state.current_result = result
+                    display_result(result, "個股即時快照")
+            else:
+                st.warning("請輸入至少一個股票代號")
+
+    elif query_type == "個股日K":
+        st.subheader("📈 個股日K")
+        code = code_input_section("輸入股票代號")
+        start_date, end_date = date_input_section()
+        if st.button("查詢", key="kbar"):
+            if code:
+                with st.spinner("查詢中..."):
+                    result = qw.query_daily_kbar(code, start_date, end_date)
+                    st.session_state.current_result = result
+                    display_result(result, f"{code} 日K")
+            else:
+                st.warning("請輸入股票代號")
+
+    elif query_type == "逐筆成交":
+        st.subheader("📝 逐筆成交")
+        code = code_input_section("輸入股票代號")
+        query_date = st.date_input("選擇日期", date.today())
+        if st.button("查詢", key="ticks"):
+            if code:
+                with st.spinner("查詢中..."):
+                    result = qw.query_ticks(code, query_date)
+                    st.session_state.current_result = result
+                    display_result(result, f"{code} 逐筆成交")
+            else:
+                st.warning("請輸入股票代號")
+
+def render_account():
+    """帳務查詢"""
+    main_logger.info("渲染帳務 Tab")
+    st.warning("⚠️ 帳務功能需要 CA 憑證，模擬環境受限")
+
+    query_type = st.selectbox(
+        "選擇查詢類型",
+        [
+            "庫存未實現損益",
+            "已實現損益",
+            "帳戶餘額",
+            "交易額度",
+            "期貨保證金",
+            "交割款明細"
+        ]
+    )
+
+    if query_type == "庫存未實現損益":
+        st.subheader("📊 庫存未實現損益")
+        st.info("查詢持有股票的未實現損益")
+        if st.button("查詢庫存", key="positions"):
+            with st.spinner("查詢中..."):
+                try:
+                    result = qw.query_positions("stock")
+                    st.session_state.current_result = result
+                    if not result.empty:
+                        display_result(result, "庫存未實現損益")
+                        add_history({
+                            "tab": "帳務",
+                            "title": "庫存未實現損益",
+                            "params": {"type": "positions"}
+                        })
+                    else:
+                        st.info("無持股資料")
+                except Exception as e:
+                    st.error(f"查詢失敗: {str(e)}")
+
+    elif query_type == "已實現損益":
+        st.subheader("💰 已實現損益")
+        start_date, end_date = date_input_section(default_days=90)
+        if st.button("查詢損益", key="profit_loss"):
+            with st.spinner("查詢中..."):
+                try:
+                    result = qw.query_profit_loss(start_date, end_date)
+                    st.session_state.current_result = result
+                    if not result.empty:
+                        display_result(result, f"已實現損益 ({start_date} ~ {end_date})")
+                        add_history({
+                            "tab": "帳務",
+                            "title": "已實現損益",
+                            "params": {"type": "profit_loss", "start": str(start_date), "end": str(end_date)}
+                        })
+                    else:
+                        st.info("查詢期間無損益記錄")
+                except Exception as e:
+                    st.error(f"查詢失敗: {str(e)}")
+
+    elif query_type == "帳戶餘額":
+        st.subheader("💳 帳戶餘額")
+        st.info("查詢帳戶現金及可用額度")
+        if st.button("查詢餘額", key="account_balance"):
+            with st.spinner("查詢中..."):
+                try:
+                    result = qw.query_account_balance()
+                    st.session_state.current_result = result
+                    if result is not None:
+                        display_result(result, "帳戶餘額")
+                        add_history({
+                            "tab": "帳務",
+                            "title": "帳戶餘額",
+                            "params": {"type": "account_balance"}
+                        })
+                    else:
+                        st.info("無餘額資料")
+                except Exception as e:
+                    st.error(f"查詢失敗: {str(e)}")
+
+    elif query_type == "交易額度":
+        st.subheader("📈 交易額度")
+        st.info("查詢可用的交易額度")
+        if st.button("查詢額度", key="trading_limits"):
+            with st.spinner("查詢中..."):
+                try:
+                    result = qw.query_trading_limits()
+                    st.session_state.current_result = result
+                    if result is not None:
+                        display_result(result, "交易額度")
+                        add_history({
+                            "tab": "帳務",
+                            "title": "交易額度",
+                            "params": {"type": "trading_limits"}
+                        })
+                    else:
+                        st.info("無額度資料")
+                except Exception as e:
+                    st.error(f"查詢失敗: {str(e)}")
+
+    elif query_type == "期貨保證金":
+        st.subheader("📊 期貨保證金")
+        st.info("查詢期貨保證金使用情況")
+        if st.button("查詢保證金", key="margin"):
+            with st.spinner("查詢中..."):
+                try:
+                    result = qw.query_margin()
+                    st.session_state.current_result = result
+                    if result is not None:
+                        display_result(result, "期貨保證金")
+                        add_history({
+                            "tab": "帳務",
+                            "title": "期貨保證金",
+                            "params": {"type": "margin"}
+                        })
+                    else:
+                        st.info("無保證金資料")
+                except Exception as e:
+                    st.error(f"查詢失敗: {str(e)}")
+
+    elif query_type == "交割款明細":
+        st.subheader("💸 交割款明細")
+        st.info("查詢交割款繳交情況")
+        if st.button("查詢交割", key="settlements"):
+            with st.spinner("查詢中..."):
+                try:
+                    result = qw.query_settlements()
+                    st.session_state.current_result = result
+                    if not result.empty:
+                        display_result(result, "交割款明細")
+                        add_history({
+                            "tab": "帳務",
+                            "title": "交割款明細",
+                            "params": {"type": "settlements"}
+                        })
+                    else:
+                        st.info("無交割記錄")
+                except Exception as e:
+                    st.error(f"查詢失敗: {str(e)}")
+
+def render_finmind():
+    """FinMind 查詢"""
+    main_logger.info("渲染 FinMind Tab")
+    category = st.selectbox(
+        "選擇資料類型",
+        [
+            "籌碼面",
+            "基本面"
+        ]
+    )
+
+    if category == "籌碼面":
+        query_type = st.selectbox(
+            "選擇查詢",
+            [
+                "三大法人明細",
+                "當沖交易量",
+                "融資融券餘額",
+                "外資持股比例",
+                "借券成交"
+            ]
+        )
+        code = code_input_section()
+        start_date, end_date = date_input_section()
+
+        if query_type == "三大法人明細":
+            if st.button("查詢", key="institutional"):
+                if code:
+                    with st.spinner("查詢中..."):
+                        result = qw.query_institutional_investors(code, start_date, end_date)
+                        st.session_state.current_result = result
+                        display_result(result, f"{code} 三大法人明細")
+                else:
+                    st.warning("請輸入股票代號")
+
+        elif query_type == "當沖交易量":
+            if st.button("查詢", key="day_trading"):
+                if code:
+                    with st.spinner("查詢中..."):
+                        result = qw.query_day_trading_volume(code, start_date, end_date)
+                        st.session_state.current_result = result
+                        display_result(result, f"{code} 當沖交易量")
+                else:
+                    st.warning("請輸入股票代號")
+
+        elif query_type == "融資融券餘額":
+            if st.button("查詢", key="margin_short"):
+                if code:
+                    with st.spinner("查詢中..."):
+                        result = qw.query_margin_short(code, start_date, end_date)
+                        st.session_state.current_result = result
+                        display_result(result, f"{code} 融資融券餘額")
+                else:
+                    st.warning("請輸入股票代號")
+
+        elif query_type == "外資持股比例":
+            if st.button("查詢", key="shareholding"):
+                if code:
+                    with st.spinner("查詢中..."):
+                        result = qw.query_foreign_shareholding(code, start_date, end_date)
+                        st.session_state.current_result = result
+                        display_result(result, f"{code} 外資持股比例")
+                else:
+                    st.warning("請輸入股票代號")
+
+        elif query_type == "借券成交":
+            if st.button("查詢", key="securities_lending"):
+                if code:
+                    with st.spinner("查詢中..."):
+                        result = qw.query_securities_lending(code, start_date, end_date)
+                        st.session_state.current_result = result
+                        display_result(result, f"{code} 借券成交")
+                else:
+                    st.warning("請輸入股票代號")
+
+    elif category == "基本面":
+        query_type = st.selectbox(
+            "選擇查詢",
+            [
+                "月營收",
+                "綜合損益表",
+                "資產負債表",
+                "股利政策"
+            ]
+        )
+        code = code_input_section()
+        start_date, end_date = date_input_section(default_days=365)
+
+        if query_type == "月營收":
+            if st.button("查詢", key="month_revenue"):
+                if code:
+                    with st.spinner("查詢中..."):
+                        result = qw.query_month_revenue(code, start_date, end_date)
+                        st.session_state.current_result = result
+                        display_result(result, f"{code} 月營收")
+                else:
+                    st.warning("請輸入股票代號")
+
+        elif query_type == "綜合損益表":
+            if st.button("查詢", key="financial"):
+                if code:
+                    with st.spinner("查詢中..."):
+                        result = qw.query_financial_statement(code, start_date, end_date)
+                        st.session_state.current_result = result
+                        display_result(result, f"{code} 綜合損益表")
+                else:
+                    st.warning("請輸入股票代號")
+
+        elif query_type == "資產負債表":
+            if st.button("查詢", key="balance"):
+                if code:
+                    with st.spinner("查詢中..."):
+                        result = qw.query_balance_sheet(code, start_date, end_date)
+                        st.session_state.current_result = result
+                        display_result(result, f"{code} 資產負債表")
+                else:
+                    st.warning("請輸入股票代號")
+
+        elif query_type == "股利政策":
+            if st.button("查詢", key="dividend"):
+                if code:
+                    with st.spinner("查詢中..."):
+                        result = qw.query_dividend(code, start_date, end_date)
+                        st.session_state.current_result = result
+                        display_result(result, f"{code} 股利政策")
+                else:
+                    st.warning("請輸入股票代號")
+
+def render_futures_forex():
+    """期貨/匯率"""
+    main_logger.info("渲染期貨/匯率 Tab")
+    st.info("期貨/匯率查詢")
+    if st.button("查詢"):
+        st.info("功能在 Phase 2 實現")
+
+def render_hk_us_stocks():
+    """港美股查詢 (Futu OpenAPI)"""
+    main_logger.info("渲染港美股 Tab")
+    st.info("港美股查詢需要本機運行 FutuOpenD (https://openapi.futunn.com)")
+
+    query_type = st.selectbox(
+        "選擇查詢類型",
+        [
+            "市場開收盤狀態",
+            "港/美股日K",
+            "股票基本資訊",
+            "資金分布",
+            "資金流向",
+            "板塊列表",
+            "板塊成分股",
+            "股票所屬板塊"
+        ]
+    )
+
+    if query_type == "市場開收盤狀態":
+        st.subheader("🌍 全球市場開收盤狀態")
+        if st.button("查詢市場狀態", key="futu_market_state"):
+            with st.spinner("查詢中..."):
+                try:
+                    result = qw.query_futu_market_state()
+                    st.session_state.current_result = result
+                    if result is not None:
+                        display_result(result, "全球市場開收盤狀態")
+                        add_history({
+                            "tab": "港美股",
+                            "title": "市場開收盤狀態",
+                            "params": {"type": "futu_market_state"}
+                        })
+                    else:
+                        st.info("無市場狀態資料")
+                except Exception as e:
+                    st.error(f"查詢失敗: {str(e)}")
+
+    elif query_type == "港/美股日K":
+        st.subheader("📊 港/美股日K")
+        col1, col2 = st.columns([1, 2])
+        with col1:
+            market = st.selectbox("選擇市場", ["HK", "US"], key="futu_market")
+        with col2:
+            code = st.text_input("輸入股票代號", placeholder="例：HK.00700（騰訊）或 US.AAPL", key="futu_kbar_code")
+
+        start_date, end_date = date_input_section(default_days=365)
+
+        if st.button("查詢K線", key="futu_kbar_btn"):
+            if code:
+                with st.spinner("查詢中..."):
+                    try:
+                        result = qw.query_futu_kbar(code, start_date, end_date)
+                        st.session_state.current_result = result
+                        if not result.empty:
+                            display_result(result, f"{code} 日K ({start_date} ~ {end_date})")
+                            add_history({
+                                "tab": "港美股",
+                                "title": f"{code} 日K",
+                                "params": {"type": "futu_kbar", "code": code, "start": str(start_date), "end": str(end_date)}
+                            })
+                        else:
+                            st.info("無K線資料")
+                    except Exception as e:
+                        st.error(f"查詢失敗: {str(e)}")
+            else:
+                st.warning("請輸入股票代號")
+
+    elif query_type == "股票基本資訊":
+        st.subheader("ℹ️ 股票基本資訊")
+        market = st.selectbox("選擇市場", ["HK", "US"], key="futu_basicinfo_market")
+        codes_str = st.text_input("輸入股票代號（逗號分隔）", placeholder="例：HK.00700,HK.09988", key="futu_basicinfo_codes")
+
+        if st.button("查詢基本資訊", key="futu_basicinfo_btn"):
+            codes = [c.strip() for c in codes_str.split(",") if c.strip()]
+            if codes:
+                with st.spinner("查詢中..."):
+                    try:
+                        result = qw.query_futu_basicinfo(market, codes)
+                        st.session_state.current_result = result
+                        if result is not None:
+                            display_result(result, f"股票基本資訊 ({market})")
+                            add_history({
+                                "tab": "港美股",
+                                "title": "股票基本資訊",
+                                "params": {"type": "futu_basicinfo", "market": market, "codes": codes}
+                            })
+                        else:
+                            st.info("無基本資訊")
+                    except Exception as e:
+                        st.error(f"查詢失敗: {str(e)}")
+            else:
+                st.warning("請輸入至少一個股票代號")
+
+    elif query_type == "資金分布":
+        st.subheader("💰 資金分布 (大/中/小戶)")
+        code = st.text_input("輸入股票代號", placeholder="例：HK.00700", key="futu_capital_dist_code")
+
+        if st.button("查詢資金分布", key="futu_capital_dist_btn"):
+            if code:
+                with st.spinner("查詢中..."):
+                    try:
+                        result = qw.query_futu_capital_distribution(code)
+                        st.session_state.current_result = result
+                        if result is not None:
+                            display_result(result, f"{code} 資金分布")
+                            add_history({
+                                "tab": "港美股",
+                                "title": "資金分布",
+                                "params": {"type": "futu_capital_dist", "code": code}
+                            })
+                        else:
+                            st.info("無資金分布資料")
+                    except Exception as e:
+                        st.error(f"查詢失敗: {str(e)}")
+            else:
+                st.warning("請輸入股票代號")
+
+    elif query_type == "資金流向":
+        st.subheader("📈 資金流向（分鐘級）")
+        code = st.text_input("輸入股票代號", placeholder="例：HK.00700", key="futu_capital_flow_code")
+
+        if st.button("查詢資金流向", key="futu_capital_flow_btn"):
+            if code:
+                with st.spinner("查詢中..."):
+                    try:
+                        result = qw.query_futu_capital_flow(code)
+                        st.session_state.current_result = result
+                        if result is not None:
+                            display_result(result, f"{code} 資金流向")
+                            add_history({
+                                "tab": "港美股",
+                                "title": "資金流向",
+                                "params": {"type": "futu_capital_flow", "code": code}
+                            })
+                        else:
+                            st.info("無資金流向資料")
+                    except Exception as e:
+                        st.error(f"查詢失敗: {str(e)}")
+            else:
+                st.warning("請輸入股票代號")
+
+    elif query_type == "板塊列表":
+        st.subheader("📋 板塊列表")
+        market = st.selectbox("選擇市場", ["HK", "US"], key="futu_plate_market")
+
+        if st.button("查詢板塊列表", key="futu_plate_list_btn"):
+            with st.spinner("查詢中..."):
+                try:
+                    result = qw.query_futu_plate_list(market)
+                    st.session_state.current_result = result
+                    if result is not None:
+                        display_result(result, f"板塊列表 ({market})")
+                        add_history({
+                            "tab": "港美股",
+                            "title": "板塊列表",
+                            "params": {"type": "futu_plate_list", "market": market}
+                        })
+                    else:
+                        st.info("無板塊列表")
+                except Exception as e:
+                    st.error(f"查詢失敗: {str(e)}")
+
+    elif query_type == "板塊成分股":
+        st.subheader("📊 板塊成分股")
+        plate_code = st.text_input("輸入板塊代號", placeholder="例：HK.BK1000（藍籌股）", key="futu_plate_stocks_code")
+
+        if st.button("查詢成分股", key="futu_plate_stocks_btn"):
+            if plate_code:
+                with st.spinner("查詢中..."):
+                    try:
+                        result = qw.query_futu_plate_stocks(plate_code)
+                        st.session_state.current_result = result
+                        if result is not None:
+                            display_result(result, f"板塊成分股 ({plate_code})")
+                            add_history({
+                                "tab": "港美股",
+                                "title": "板塊成分股",
+                                "params": {"type": "futu_plate_stocks", "plate_code": plate_code}
+                            })
+                        else:
+                            st.info("無成分股資料")
+                    except Exception as e:
+                        st.error(f"查詢失敗: {str(e)}")
+            else:
+                st.warning("請輸入板塊代號")
+
+    elif query_type == "股票所屬板塊":
+        st.subheader("🏷️ 股票所屬板塊")
+        codes_str = st.text_input("輸入股票代號（逗號分隔）", placeholder="例：HK.00700,HK.09988", key="futu_owner_plate_codes")
+
+        if st.button("查詢所屬板塊", key="futu_owner_plate_btn"):
+            codes = [c.strip() for c in codes_str.split(",") if c.strip()]
+            if codes:
+                with st.spinner("查詢中..."):
+                    try:
+                        result = qw.query_futu_owner_plate(codes)
+                        st.session_state.current_result = result
+                        if result is not None:
+                            display_result(result, "股票所屬板塊")
+                            add_history({
+                                "tab": "港美股",
+                                "title": "股票所屬板塊",
+                                "params": {"type": "futu_owner_plate", "codes": codes}
+                            })
+                        else:
+                            st.info("無板塊資料")
+                    except Exception as e:
+                        st.error(f"查詢失敗: {str(e)}")
+            else:
+                st.warning("請輸入至少一個股票代號")
+
+def render_news():
+    """新聞"""
+    main_logger.info("渲染新聞 Tab")
+    st.info("新聞查詢（Yahoo Finance）")
+    if st.button("查詢"):
+        st.info("功能在 Phase 2 實現")
+
+def render_tools():
+    """工具"""
+    main_logger.info("渲染工具 Tab")
+    st.subheader("🛠️ 工具集合")
+
+    with st.expander("📈 K線圖工具"):
+        code = code_input_section()
+        start_date, end_date = date_input_section()
+        if st.button("繪製 K線圖"):
+            st.info("功能在 Phase 3 實現")
+
+    with st.expander("🔄 對比工具"):
+        st.markdown("並排對比多檔股票")
+
+        compare_type = st.selectbox(
+            "選擇對比方式",
+            ["個股快照對比", "技術面對比", "基本面對比"],
+            key="compare_type"
+        )
+
+        if compare_type == "個股快照對比":
+            st.subheader("📊 個股快照對比")
+            codes_str = st.text_input("輸入股票代號（逗號分隔）", placeholder="例：2330,2412,3008", key="compare_snapshot_codes")
+            use_async = st.checkbox("使用非同步並行查詢（更快）", value=True, key="compare_snapshot_async")
+
+            if st.button("執行對比", key="compare_snapshot_btn"):
+                codes = [c.strip() for c in codes_str.split(",") if c.strip()]
+                if codes:
+                    with st.spinner("查詢中..."):
+                        try:
+                            if use_async and len(codes) > 1:
+                                # 非同步批量查詢
+                                queries = [
+                                    {"func": qw.query_snapshot, "args": ([code],), "name": code}
+                                    for code in codes
+                                ]
+                                results_list = qw.batch_query_sync(queries)
+                                results = [(codes[i], results_list[i]) for i in range(len(codes)) if not results_list[i].empty]
+                            else:
+                                # 同步查詢
+                                results = []
+                                for code in codes:
+                                    result = qw.query_snapshot([code])
+                                    if not result.empty:
+                                        results.append((code, result))
+
+                            if results:
+                                st.subheader("📈 對比結果")
+                                cols = st.columns(len(results))
+                                for idx, (code, result) in enumerate(results):
+                                    with cols[idx]:
+                                        st.markdown(f"### {code}")
+                                        st.dataframe(result.head(5), use_container_width=True)
+                            else:
+                                st.warning("無可用結果")
+                        except Exception as e:
+                            st.error(f"對比失敗: {str(e)}")
+                else:
+                    st.warning("請輸入至少一個股票代號")
+
+        elif compare_type == "技術面對比":
+            st.subheader("📊 技術面對比")
+            st.info("比較多檔股票的籌碼面數據（三大法人、融資融券等）")
+            codes_str = st.text_input("輸入股票代號（逗號分隔）", placeholder="例：2330,2412", key="compare_technical_codes")
+            metric = st.selectbox("選擇比較指標", ["三大法人", "融資融券", "外資持股"], key="compare_metric")
+            use_async = st.checkbox("使用非同步並行查詢（更快）", value=True, key="compare_technical_async")
+
+            start_date, end_date = date_input_section(default_days=60)
+
+            if st.button("執行對比", key="compare_technical_btn"):
+                codes = [c.strip() for c in codes_str.split(",") if c.strip()]
+                if codes:
+                    with st.spinner("查詢中..."):
+                        try:
+                            st.markdown(f"**對比指標**: {metric}")
+
+                            if use_async and len(codes) > 1:
+                                # 非同步批量查詢
+                                if metric == "三大法人":
+                                    func = qw.query_institutional_investors
+                                elif metric == "融資融券":
+                                    func = qw.query_margin_short
+                                else:
+                                    func = qw.query_foreign_shareholding
+
+                                queries = [
+                                    {"func": func, "args": (code, start_date, end_date), "name": code}
+                                    for code in codes
+                                ]
+                                results_list = qw.batch_query_sync(queries)
+
+                                cols = st.columns(len(codes))
+                                for idx, code in enumerate(codes):
+                                    with cols[idx]:
+                                        st.markdown(f"### {code}")
+                                        result = results_list[idx]
+                                        if not result.empty:
+                                            st.dataframe(result.head(10), use_container_width=True)
+                                        else:
+                                            st.warning("無數據")
+                            else:
+                                # 同步查詢
+                                cols = st.columns(len(codes))
+                                for idx, code in enumerate(codes):
+                                    with cols[idx]:
+                                        st.markdown(f"### {code}")
+                                        try:
+                                            if metric == "三大法人":
+                                                result = qw.query_institutional_investors(code, start_date, end_date)
+                                            elif metric == "融資融券":
+                                                result = qw.query_margin_short(code, start_date, end_date)
+                                            else:  # 外資持股
+                                                result = qw.query_foreign_shareholding(code, start_date, end_date)
+
+                                            if not result.empty:
+                                                st.dataframe(result.head(10), use_container_width=True)
+                                            else:
+                                                st.warning("無數據")
+                                        except Exception as e:
+                                            st.error(f"查詢失敗: {str(e)}")
+                        except Exception as e:
+                            st.error(f"對比失敗: {str(e)}")
+                else:
+                    st.warning("請輸入至少一個股票代號")
+
+        elif compare_type == "基本面對比":
+            st.subheader("📊 基本面對比")
+            st.info("比較多檔股票的基本面數據（月營收、財報等）")
+            codes_str = st.text_input("輸入股票代號（逗號分隔）", placeholder="例：2330,2412", key="compare_fundamental_codes")
+            metric = st.selectbox("選擇比較指標", ["月營收", "財務報表"], key="compare_fundamental_metric")
+            use_async = st.checkbox("使用非同步並行查詢（更快）", value=True, key="compare_fundamental_async")
+
+            start_date, end_date = date_input_section(default_days=365)
+
+            if st.button("執行對比", key="compare_fundamental_btn"):
+                codes = [c.strip() for c in codes_str.split(",") if c.strip()]
+                if codes:
+                    with st.spinner("查詢中..."):
+                        try:
+                            st.markdown(f"**對比指標**: {metric}")
+
+                            if use_async and len(codes) > 1:
+                                # 非同步批量查詢
+                                if metric == "月營收":
+                                    func = qw.query_month_revenue
+                                else:
+                                    func = qw.query_financial_statement
+
+                                queries = [
+                                    {"func": func, "args": (code, start_date, end_date), "name": code}
+                                    for code in codes
+                                ]
+                                results_list = qw.batch_query_sync(queries)
+
+                                cols = st.columns(len(codes))
+                                for idx, code in enumerate(codes):
+                                    with cols[idx]:
+                                        st.markdown(f"### {code}")
+                                        result = results_list[idx]
+                                        if not result.empty:
+                                            st.dataframe(result.head(10), use_container_width=True)
+                                        else:
+                                            st.warning("無數據")
+                            else:
+                                # 同步查詢
+                                cols = st.columns(len(codes))
+                                for idx, code in enumerate(codes):
+                                    with cols[idx]:
+                                        st.markdown(f"### {code}")
+                                        try:
+                                            if metric == "月營收":
+                                                result = qw.query_month_revenue(code, start_date, end_date)
+                                            else:  # 財務報表
+                                                result = qw.query_financial_statement(code, start_date, end_date)
+
+                                            if not result.empty:
+                                                st.dataframe(result.head(10), use_container_width=True)
+                                            else:
+                                                st.warning("無數據")
+                                        except Exception as e:
+                                            st.error(f"查詢失敗: {str(e)}")
+                        except Exception as e:
+                            st.error(f"對比失敗: {str(e)}")
+                else:
+                    st.warning("請輸入至少一個股票代號")
+
+    with st.expander("📊 資料匯出"):
+        st.markdown("將查詢結果匯出為 CSV / Excel / PDF")
+        st.info("功能在 Phase 3 實現")
+
+    with st.expander("🔖 書籤管理"):
+        st.markdown("管理常用查詢")
+        bookmark_name = st.text_input("書籤名稱", key="bookmark_input")
+        if st.button("新增書籤", key="add_bookmark_btn"):
+            if bookmark_name and st.session_state.current_result is not None:
+                success = add_bookmark(
+                    bookmark_name,
+                    selected_tab,
+                    {"type": "custom"}
+                )
+                if success:
+                    st.session_state.bookmarks = load_bookmarks()
+                    st.success(f"✅ 書籤 '{bookmark_name}' 已保存")
+                    st.rerun()
+                else:
+                    st.error("❌ 書籤名稱已存在")
+            else:
+                st.warning("⚠️ 請先執行查詢並輸入書籤名稱")
+
+        if bookmarks:
+            st.markdown("**已有書籤：**")
+            for bm in bookmarks:
+                col1, col2 = st.columns([4, 1])
+                with col1:
+                    st.caption(f"⭐ {bm['name']}")
+                with col2:
+                    if st.button("🗑️", key=f"delete_{bm['name']}"):
+                        remove_bookmark(bm['name'])
+                        st.session_state.bookmarks = load_bookmarks()
+                        st.rerun()
+
+# ══════════════════════════════════════════════════════════
+# 結果保存功能（在主內容區）
+# ══════════════════════════════════════════════════════════
+
+if st.session_state.current_result is not None and not st.session_state.current_result.empty:
+    with st.sidebar:
+        st.markdown("---")
+        st.markdown("### 💾 快速保存")
+        quick_bookmark = st.text_input("快速書籤名稱", key="quick_bookmark")
+        if st.button("💾 保存為書籤", key="quick_save"):
+            if quick_bookmark:
+                success = add_bookmark(
+                    quick_bookmark,
+                    selected_tab,
+                    {"type": "quick_save"}
+                )
+                if success:
+                    st.session_state.bookmarks = load_bookmarks()
+                    st.success(f"✅ 書籤已保存")
+                else:
+                    st.error("❌ 書籤名稱已存在")
+            else:
+                st.warning("⚠️ 請輸入書籤名稱")
+
+# ══════════════════════════════════════════════════════════
+# 頁腳
+# ══════════════════════════════════════════════════════════
+
+st.markdown("---")
+st.markdown("""
+<div style="text-align: center; color: #888; font-size: 0.9em;">
+  🚀 永豐金查詢工具 v1.0<br/>
+  ✅ Phase 1-3: 基礎架構、查詢、呈現完成<br/>
+  🟡 Phase 4: 書籤執行、對比工具、設定完成 | Phase 5: 測試與優化
+</div>
+""", unsafe_allow_html=True)
+
+if __name__ == "__main__":
+    pass
