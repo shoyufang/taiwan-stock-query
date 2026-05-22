@@ -1109,6 +1109,39 @@ def render_us_stocks():
     
     if not ticker:
         st.info("💡 提示：輸入「蘋果」、「NVDA」或「特斯拉」開始查詢。")
+        
+        st.markdown("### 📊 美股三大指數 (近兩日概況)")
+        cols = st.columns(3)
+        indices = {"S&P 500": "^GSPC", "那斯達克": "^IXIC", "道瓊工業": "^DJI"}
+        
+        for idx, (name, symbol) in enumerate(indices.items()):
+            with cols[idx]:
+                try:
+                    import yfinance as yf
+                    tkr = yf.Ticker(symbol)
+                    hist = tkr.history(period="2d")
+                    if len(hist) >= 2:
+                        prev_close = hist['Close'].iloc[0]
+                        curr_close = hist['Close'].iloc[1]
+                        change = curr_close - prev_close
+                        pct_change = (change / prev_close) * 100
+                        st.metric(name, f"{curr_close:,.2f}", f"{change:+,.2f} ({pct_change:+,.2f}%)")
+                    elif len(hist) == 1:
+                        st.metric(name, f"{hist['Close'].iloc[0]:,.2f}")
+                except Exception as e:
+                    st.metric(name, "N/A")
+                    
+        st.markdown("### 🗞️ 市場焦點新聞")
+        with st.spinner("載入市場新聞中..."):
+            news = get_us_stock_news("SPY") # 利用 SPY 取得大盤新聞
+            if news:
+                for n in news[:5]:
+                    ts = n.get("providerPublishTime", 0)
+                    import datetime
+                    date_str = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M') if ts else ""
+                    with st.container(border=True):
+                        st.markdown(f"**[{n.get('title', '無標題')}]({n.get('link', '#')})**")
+                        st.caption(f"來源: {n.get('publisher', 'N/A')} | 時間: {date_str}")
         return
         
     st.divider()
