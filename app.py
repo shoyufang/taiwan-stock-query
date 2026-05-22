@@ -569,8 +569,57 @@ def _render_batch_results(state_key: str, label_fn=None):
             st.rerun()
     with c4:
         # 全部導出 Excel（多 sheet）
-        valid = [(it, r) for it, r in results
-                 if isinstance(r, pd.DataFrame) and not r.empty]
+        valid = []
+        for it, r in results:
+            if isinstance(r, pd.DataFrame):
+                if not r.empty:
+                    valid.append((it, r))
+            elif isinstance(r, dict):
+                # 處理美股特規結果字典與其他可能的分級數據
+                rtype = r.get("type")
+                rdata = r.get("data")
+                if rtype == "us_profile" and isinstance(rdata, dict):
+                    df_profile = pd.DataFrame(list(rdata.items()), columns=["欄位名稱", "內容"])
+                    valid.append((f"{it}_基本資料", df_profile))
+                elif rtype == "us_financials" and isinstance(rdata, dict):
+                    name_map = {
+                        "income_annual": "年度損益表",
+                        "income_quarterly": "季度損益表",
+                        "balance_annual": "年度資產負債表",
+                        "balance_quarterly": "季度資產負債表",
+                        "cashflow_annual": "年度現金流量表",
+                        "cashflow_quarterly": "季度現金流量表"
+                    }
+                    for fk, fdf in rdata.items():
+                        if isinstance(fdf, pd.DataFrame) and not fdf.empty:
+                            fdf_with_index = fdf.copy()
+                            idx_name = fdf_with_index.index.name or "財務項目"
+                            fdf_with_index.reset_index(inplace=True)
+                            if "index" in fdf_with_index.columns:
+                                fdf_with_index.rename(columns={"index": idx_name}, inplace=True)
+                            lbl = name_map.get(fk, fk)
+                            valid.append((f"財報_{lbl}", fdf_with_index))
+                elif rtype == "us_holders" and isinstance(rdata, dict):
+                    for hk, hdf in rdata.items():
+                        if isinstance(hdf, pd.DataFrame) and not hdf.empty:
+                            lbl = "機構持股" if hk == "institutional" else "共同基金持股"
+                            valid.append((f"股東_{lbl}", hdf))
+                elif rtype == "us_analyst_info" and isinstance(rdata, dict):
+                    df_analyst = pd.DataFrame(list(rdata.items()), columns=["評等指標", "數值"])
+                    valid.append((f"{it}_分析師評等", df_analyst))
+                elif rtype == "us_news" and isinstance(rdata, list):
+                    news_list = []
+                    for n in rdata:
+                        news_list.append({
+                            "標題": n.get("title", ""),
+                            "媒體": n.get("publisher", ""),
+                            "連結": n.get("link", ""),
+                            "發布時間戳": n.get("providerPublishTime", 0)
+                        })
+                    if news_list:
+                        df_news = pd.DataFrame(news_list)
+                        valid.append((f"{it}_相關新聞", df_news))
+
         if valid:
             from io import BytesIO
             try:
@@ -584,8 +633,29 @@ def _render_batch_results(state_key: str, label_fn=None):
                         while sheet in used:
                             sheet = f"{base[:25]}_{i}"; i += 1
                         used.add(sheet)
-                        dfx.to_excel(writer, sheet_name=sheet, index=False)
-                ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+                        
+                        # 複製 DataFrame 並清除時區資訊，避免 openpyxl 導出失敗
+                        df_clean = dfx.copy()
+                        # 確保欄位名稱全部為字串，防止 openpyxl 因 DatetimeIndex 欄位而崩潰
+                        df_clean.columns = [str(c) for c in df_clean.columns]
+                        
+                        for col in df_clean.columns:
+                            try:
+                                if pd.api.types.is_datetime64_any_dtype(df_clean[col]):
+                                    if getattr(df_clean[col], "dt", None) is not None and df_clean[col].dt.tz is not None:
+                                        df_clean[col] = df_clean[col].dt.tz_localize(None)
+                                else:
+                                    # 處理可能含有時區的 object 類型日期
+                                    df_clean[col] = df_clean[col].apply(
+                                        lambda val: val.tz_localize(None) if hasattr(val, "tz_localize") and getattr(val, "tz", None) is not None else val
+                                    )
+                            except Exception:
+                                pass
+                        df_clean.to_excel(writer, sheet_name=sheet, index=False)
+                
+                # 確保 local 範圍內使用正確的 datetime
+                from datetime import datetime as dt_local
+                ts = dt_local.now().strftime("%Y%m%d_%H%M%S")
                 st.download_button(
                     "📥 全部匯出 Excel",
                     data=buf.getvalue(),
@@ -1094,14 +1164,22 @@ def _hkus_dispatch(qt, market, codes, plate_code, start_date, end_date):
 
 
 
-import datetime
 
 def render_us_stocks():
     """美股專區 — 整合 yfinance 與 FinMind (批次查詢模式)"""
     main_logger.info("渲染美股專區 Tab")
     st.markdown("## 🇺🇸 美股專區")
     
-    NO_DATE_ITEMS = ["大盤指數快照", "個股基本資料", "最新相關新聞", "美股代號總表 (FinMind)"]
+    NO_DATE_ITEMS = [
+        "大盤指數快照", 
+        "個股基本資料", 
+        "最新相關新聞", 
+        "個股財務報表", 
+        "大股東與機構持股", 
+        "分析師評等與目標價", 
+        "美股板塊與大盤表現",
+        "美股代號總表 (FinMind)"
+    ]
     DATE_ITEMS    = ["個股歷史K線", "個股歷史K線 (FinMind)"]
     
     # ── 上半：複選區 ─────────────
@@ -1126,8 +1204,11 @@ def render_us_stocks():
     has_kbar     = "個股歷史K線" in selected
     has_list     = "美股代號總表 (FinMind)" in selected
     has_fm_kbar  = "個股歷史K線 (FinMind)" in selected
+    has_fin      = "個股財務報表" in selected
+    has_holders  = "大股東與機構持股" in selected
+    has_analyst  = "分析師評等與目標價" in selected
     
-    needs_code   = has_profile or has_news or has_kbar or has_fm_kbar
+    needs_code   = has_profile or has_news or has_kbar or has_fm_kbar or has_fin or has_holders or has_analyst
     
     ticker = ""
     if needs_code:
@@ -1135,7 +1216,7 @@ def render_us_stocks():
         ticker = us_code_input_section("搜尋美股 (支援中文名稱、代號)", single=True)
         
     start_date, end_date = None, None
-    if has_kbar:
+    if has_kbar or has_fm_kbar:
         from ui_components import date_input_section
         start_date, end_date = date_input_section(default_days=180)
         
@@ -1187,11 +1268,30 @@ def _us_stock_dispatch(item: str, ticker: str, start_date, end_date):
         import pandas as pd
         return pd.DataFrame(res)
 
-    from us_stock_query import get_us_stock_info, get_us_stock_history, get_us_stock_news
+    from us_stock_query import (
+        get_us_stock_info, get_us_stock_history, get_us_stock_news,
+        get_us_financials, get_us_holders, get_us_analyst_info, get_us_sector_performance
+    )
     
     if item == "個股基本資料":
         info = get_us_stock_info(ticker)
         return {"type": "us_profile", "data": info} if info else {"error": "無法獲取基本資料"}
+
+    if item == "個股財務報表":
+        fin = get_us_financials(ticker)
+        return {"type": "us_financials", "data": fin} if fin else {"error": "無法獲取財務報表"}
+
+    if item == "大股東與機構持股":
+        holders = get_us_holders(ticker)
+        return {"type": "us_holders", "data": holders} if holders else {"error": "無法獲取股東結構"}
+
+    if item == "分析師評等與目標價":
+        analyst = get_us_analyst_info(ticker)
+        return {"type": "us_analyst_info", "data": analyst} if analyst else {"error": "無法獲取分析師評等"}
+
+    if item == "美股板塊與大盤表現":
+        perf = get_us_sector_performance()
+        return perf if not perf.empty else {"error": "無法獲取板塊表現"}
         
     if item == "最新相關新聞":
         news = get_us_stock_news(ticker)
