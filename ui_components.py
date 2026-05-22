@@ -16,10 +16,23 @@ def display_result(df, query_type: str = "", enable_export: bool = True):
     df 通常是 pd.DataFrame；若 dispatch 失敗，會收到 dict {"error": "..."}，
     本函式優先處理錯誤 dict 與 None，再做型別判斷。
     """
-    # 錯誤 dict（dispatch helper 失敗時回傳）
+    # 錯誤 dict（dispatch helper 失敗時回傳）或美股特規 dict
     if isinstance(df, dict):
         if "error" in df:
             st.error(df["error"])
+            return
+        if df.get("type") == "us_profile":
+            render_us_company_profile(df.get("data", {}))
+            return
+        if df.get("type") == "us_news":
+            import datetime
+            news = df.get("data", [])
+            for n in news[:5]:
+                ts = n.get("providerPublishTime", 0)
+                date_str = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M') if ts else ""
+                with st.container(border=True):
+                    st.markdown(f"**[{n.get('title', '無標題')}]({n.get('link', '#')})**")
+                    st.caption(f"來源: {n.get('publisher', 'N/A')} | 時間: {date_str}")
             return
         st.json(df)
         return
