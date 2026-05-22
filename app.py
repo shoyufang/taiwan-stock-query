@@ -1097,93 +1097,133 @@ def _hkus_dispatch(qt, market, codes, plate_code, start_date, end_date):
 import datetime
 
 def render_us_stocks():
-    """美股專區 — 整合 yfinance 與 FinMind"""
+    """美股專區 — 整合 yfinance 與 FinMind (批次查詢模式)"""
     main_logger.info("渲染美股專區 Tab")
     st.markdown("## 🇺🇸 美股專區")
     
-    # 搜尋區塊
-    from ui_components import us_code_input_section, render_us_company_profile
-    from us_stock_query import get_us_stock_info, get_us_stock_history, get_us_stock_news
+    NO_DATE_ITEMS = ["大盤指數快照", "個股基本資料", "最新相關新聞"]
+    DATE_ITEMS    = ["個股歷史K線"]
     
-    ticker = us_code_input_section("搜尋美股 (支援中文名稱、代號)", single=True)
+    # ── 上半：複選區 ─────────────
+    with st.container(border=True):
+        col_left, col_right = st.columns(2)
+        with col_left:
+            st.caption("📊 綜合資訊 (不需選擇日期)")
+            for i, opt in enumerate(NO_DATE_ITEMS):
+                st.checkbox(opt, key=f"us_cb_nd_{i}")
+        with col_right:
+            st.caption("📅 歷史行情 (需選擇日期範圍)")
+            for i, opt in enumerate(DATE_ITEMS):
+                st.checkbox(opt, key=f"us_cb_d_{i}")
+
+    selected_nd = [opt for i, opt in enumerate(NO_DATE_ITEMS) if st.session_state.get(f"us_cb_nd_{i}", False)]
+    selected_d  = [opt for i, opt in enumerate(DATE_ITEMS)    if st.session_state.get(f"us_cb_d_{i}",  False)]
+    selected    = selected_nd + selected_d
+
+    has_snapshot = "大盤指數快照" in selected
+    has_profile  = "個股基本資料" in selected
+    has_news     = "最新相關新聞" in selected
+    has_kbar     = "個股歷史K線" in selected
     
-    if not ticker:
-        st.info("💡 提示：輸入「蘋果」、「NVDA」或「特斯拉」開始查詢。")
+    needs_code   = has_profile or has_news or has_kbar
+    
+    ticker = ""
+    if needs_code:
+        from ui_components import us_code_input_section
+        ticker = us_code_input_section("搜尋美股 (支援中文名稱、代號)", single=True)
         
-        st.markdown("### 📊 美股三大指數 (近兩日概況)")
-        cols = st.columns(3)
-        indices = {"S&P 500": "^GSPC", "那斯達克": "^IXIC", "道瓊工業": "^DJI"}
+    start_date, end_date = None, None
+    if has_kbar:
+        from ui_components import date_input_section
+        start_date, end_date = date_input_section(default_days=180)
         
-        for idx, (name, symbol) in enumerate(indices.items()):
-            with cols[idx]:
-                try:
-                    import yfinance as yf
-                    tkr = yf.Ticker(symbol)
-                    hist = tkr.history(period="2d")
-                    if len(hist) >= 2:
-                        prev_close = hist['Close'].iloc[0]
-                        curr_close = hist['Close'].iloc[1]
-                        change = curr_close - prev_close
-                        pct_change = (change / prev_close) * 100
-                        st.metric(name, f"{curr_close:,.2f}", f"{change:+,.2f} ({pct_change:+,.2f}%)")
-                    elif len(hist) == 1:
-                        st.metric(name, f"{hist['Close'].iloc[0]:,.2f}")
-                except Exception as e:
-                    st.metric(name, "N/A")
-                    
-        st.markdown("### 🗞️ 市場焦點新聞")
-        with st.spinner("載入市場新聞中..."):
-            news = get_us_stock_news("SPY") # 利用 SPY 取得大盤新聞
-            if news:
-                for n in news[:5]:
-                    ts = n.get("providerPublishTime", 0)
-                    import datetime
-                    date_str = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M') if ts else ""
-                    with st.container(border=True):
-                        st.markdown(f"**[{n.get('title', '無標題')}]({n.get('link', '#')})**")
-                        st.caption(f"來源: {n.get('publisher', 'N/A')} | 時間: {date_str}")
-        return
+    if selected:
+        st.caption(f"已勾選 {len(selected)} 項：{' · '.join(selected)}")
         
+    run_batch = st.button("🔍 確認查詢", type="primary", use_container_width=True, key="us_run_batch")
+    
     st.divider()
     
-    # 獲取資料
-    with st.spinner(f"正在獲取 {ticker} 的最新美股資料..."):
+    if run_batch:
+        if not selected:
+            st.warning("請至少勾選一個項目")
+        elif needs_code and not ticker:
+            st.warning("請輸入代號才能查詢個股資料")
+        else:
+            results = []
+            bar = st.progress(0, text="查詢中...")
+            for idx, item in enumerate(selected):
+                bar.progress((idx + 1) / len(selected), text=f"查詢：{item}")
+                try:
+                    result = _us_stock_dispatch(item, ticker, start_date, end_date)
+                except Exception as e:
+                    result = {"error": str(e)}
+                results.append((item, result))
+            bar.empty()
+            st.session_state["us_batch_results"] = results
+
+    _render_batch_results("us_batch_results")
+
+def _us_stock_dispatch(item: str, ticker: str, start_date, end_date):
+    """分派美股市場查詢。"""
+    if item == "大盤指數快照":
+        import yfinance as yf
+        indices = {"S&P 500": "^GSPC", "那斯達克": "^IXIC", "道瓊工業": "^DJI"}
+        res = []
+        for name, symbol in indices.items():
+            try:
+                tkr = yf.Ticker(symbol)
+                hist = tkr.history(period="2d")
+                if len(hist) >= 2:
+                    prev_c = hist['Close'].iloc[0]
+                    curr_c = hist['Close'].iloc[1]
+                    res.append({"指數名稱": name, "最新報價": curr_c, "漲跌": curr_c - prev_c, "漲跌幅(%)": (curr_c - prev_c)/prev_c*100})
+                elif len(hist) == 1:
+                    res.append({"指數名稱": name, "最新報價": hist['Close'].iloc[0], "漲跌": 0.0, "漲跌幅(%)": 0.0})
+            except Exception:
+                pass
+        import pandas as pd
+        return pd.DataFrame(res)
+
+    from us_stock_query import get_us_stock_info, get_us_stock_history, get_us_stock_news
+    
+    if item == "個股基本資料":
         info = get_us_stock_info(ticker)
-        df_history = get_us_stock_history(ticker, period="1y")
+        return {"type": "us_profile", "data": info} if info else {"error": "無法獲取基本資料"}
+        
+    if item == "最新相關新聞":
         news = get_us_stock_news(ticker)
+        return {"type": "us_news", "data": news} if news else {"error": "無法獲取相關新聞"}
         
-    # 上半部：基本資料卡片
-    if info:
-        render_us_company_profile(info)
-    else:
-        st.error(f"無法獲取 {ticker} 的基本資料。請確認代號是否正確。")
+    if item == "個股歷史K線":
+        # 如果需要日期範圍，yfinance 的 history(start, end) 支援
+        # 若是 start_date 和 end_date 有值，使用之。
+        if start_date and end_date:
+            try:
+                import yfinance as yf
+                import pandas as pd
+                tkr = yf.Ticker(ticker)
+                # end_date 要加一天才能包含 end_date 當天
+                from datetime import timedelta
+                ed = (end_date + timedelta(days=1)).strftime('%Y-%m-%d')
+                sd = start_date.strftime('%Y-%m-%d')
+                df_history = tkr.history(start=sd, end=ed)
+                if df_history is not None and not df_history.empty:
+                    df_history.reset_index(inplace=True)
+                    # 確保日期欄位名稱正確
+                    if 'Date' in df_history.columns:
+                        df_history['Date'] = pd.to_datetime(df_history['Date']).dt.date
+                    return df_history
+            except Exception as e:
+                return {"error": f"獲取 K 線資料失敗：{e}"}
         
-    # 中間：K 線圖
-    if df_history is not None and not df_history.empty:
-        st.markdown(f"### 📈 歷史行情 (近一年)")
-        # 準備欄位給 plot_kline
-        df_chart = df_history.copy()
-        date_col = 'Date' if 'Date' in df_chart.columns else 'Datetime'
+        # 預設
+        df_history = get_us_stock_history(ticker, period="1y")
+        if df_history is not None and not df_history.empty:
+            return df_history
+        return {"error": "無法獲取 K 線資料"}
         
-        # 使用現有的 plot_kline，但可能沒有漲跌幅限制
-        from ui_components import plot_kline
-        try:
-            plot_kline(df_chart, date_col=date_col)
-        except Exception as e:
-            st.error(f"繪製 K 線圖失敗: {e}")
-            st.dataframe(df_chart.tail())
-    else:
-        st.warning(f"無法獲取 {ticker} 的 K 線資料。")
-        
-    # 下半部：新聞
-    if news:
-        st.markdown("### 📰 最新相關新聞")
-        for n in news[:5]: # 顯示最新 5 則
-            ts = n.get("providerPublishTime", 0)
-            date_str = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M') if ts else ""
-            with st.container(border=True):
-                st.markdown(f"**[{n.get('title', '無標題')}]({n.get('link', '#')})**")
-                st.caption(f"來源: {n.get('publisher', 'N/A')} | 時間: {date_str}")
+    return {"error": f"未知項目：{item}"}
 
 def render_hk_us_stocks():
     """港美股查詢 (Futu OpenAPI) —— 複選批次模式"""
