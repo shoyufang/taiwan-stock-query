@@ -244,10 +244,6 @@ def resolve_us_stock(raw: str) -> str:
     
     s = raw.strip()
     
-    # 英文代號直接回傳 (若只包含英數字及小數點)
-    if re.fullmatch(r"[A-Za-z0-9]+(\.[A-Za-z]+)?", s):
-        return s.upper()
-
     s_lower = s.lower()
     
     # 本地字典精確匹配
@@ -256,10 +252,15 @@ def resolve_us_stock(raw: str) -> str:
     if s in US_STOCK_ALIASES:
         return US_STOCK_ALIASES[s]
         
-    # 本地字典模糊匹配
-    for alias, ticker in US_STOCK_ALIASES.items():
-        if s_lower in alias or alias in s_lower:
-            return ticker
+    # 英文代號直接回傳 (限制長度 1-5 碼，避免把長英文名稱當成代號)
+    if re.fullmatch(r"[A-Za-z0-9]{1,5}(\.[A-Za-z]{1,2})?", s):
+        return s.upper()
+        
+    # 本地字典模糊匹配 (避免過短的字串引發誤判)
+    if len(s_lower) >= 2:
+        for alias, ticker in US_STOCK_ALIASES.items():
+            if s_lower in alias or alias in s_lower:
+                return ticker
             
     # AI Fallback: 呼叫 DeepSeek
     try:
