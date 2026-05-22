@@ -541,9 +541,9 @@ streamlit run app.py
         - ⚠️ ASUSTOR 使用 `sh`（busybox），shebang 需為 `#!/bin/sh`，不可用 `bash`
     - crontab（`sudo crontab -e`）加入：
       ```
-      0 12 * * 1-5 /bin/sh /volume1/docker/sinopac/run_daily.sh >> /volume1/docker/sinopac/run_daily.log 2>&1
+      0 20 * * 1-5 /bin/sh /volume1/docker/sinopac/run_daily.sh >> /volume1/docker/sinopac/run_daily.log 2>&1
       ```
-      UTC 12:00 = 台灣時間 20:00，週一至五
+      ⚠️ 注意：由於您的 NAS 系統時區已設定為 CST (台灣時間 UTC+8)，因此 crontab 應直接設定為 `0 20` (晚間 20:00)。如果設定為 `0 12` 會在中午 12 點執行。
 - **安全事項**：✅ Git PAT token 曾外洩於對話中，已在 GitHub 撤銷並更新 NAS remote URL（token 名稱：`NAS-sinopac`）
 
 ### 2026-05-20 Gemini Session（測試套件全面修復與 Notion 排程解耦）
@@ -668,3 +668,11 @@ NAS (台灣 IP, 20:00)
 ```bash
 pip install shioaji pandas yfinance FinMind requests futu-api mplfinance streamlit streamlit-option-menu plotly openpyxl reportlab
 ```
+
+ -   [ x ]   * * A I   _�dhQb��f�c  ( 2 0 2 6 - 0 5 - 2 2 ) * * �
+         -   [ x ]   �yd�  ` g o o g l e - g e n a i `   �  G e m i n i   �O�0
+         -   [ x ]   �e�X  ` d e e p s e e k _ e n g i n e . p y `   teT  O p e n A I   �v�[<h_0
+         -   [ x ]   /e�c  D e e p S e e k   V 3 / V 4   �v  F u n c t i o n   C a l l i n g   ( 1 2   ��S��,g0W�]wQ!q+~w��y) 0
+         -   [ x ]   U I   �Ss�,g-��[�Sxe1u  ` g e m i n i _ * `   hQb�9e�p  ` d e e p s e e k _ * ` 0
+  
+ 
