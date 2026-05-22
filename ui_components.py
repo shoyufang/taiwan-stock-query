@@ -460,3 +460,65 @@ def code_input_section(label: str = "輸入股票代號", single: bool = True) -
                 st.caption("✅ 已解析：" + "，".join(hints))
             return resolved_list
         return [c.strip() for c in codes_str.split(",") if c.strip()]
+
+def us_code_input_section(label: str = "輸入美股代號或名稱", single: bool = True) -> str | list:
+    """美股代號輸入區域（支援中文名稱輸入，如：蘋果、微軟）"""
+    try:
+        from stock_lookup import resolve_us_stock, get_us_name_hint
+        _lookup_ok = True
+    except ImportError:
+        _lookup_ok = False
+
+    if single:
+        raw = st.text_input(label, placeholder="例：AAPL、蘋果、微軟、NVDA").strip()
+        if raw and _lookup_ok:
+            resolved = resolve_us_stock(raw)
+            hint = get_us_name_hint(raw)
+            if hint:
+                st.caption(f"🤖 AI 解析：{hint}")
+            return resolved
+        return raw
+    else:
+        codes_str = st.text_input(label, placeholder="例：AAPL,微軟,TSLA，用逗號分隔")
+        if not codes_str:
+            return []
+        if _lookup_ok:
+            parts = [p.strip() for p in codes_str.split(",") if p.strip()]
+            resolved_list = [resolve_us_stock(p) for p in parts]
+            hints = []
+            for raw_p, res_p in zip(parts, resolved_list):
+                if res_p.upper() != raw_p.upper() and res_p != raw_p:
+                    hints.append(f"{raw_p}→{res_p}")
+            if hints:
+                st.caption("🤖 AI 解析：" + "，".join(hints))
+            return resolved_list
+        return [c.strip() for c in codes_str.split(",") if c.strip()]
+
+def render_us_company_profile(info: dict):
+    """渲染美股基本資料卡片"""
+    if not info:
+        st.warning("無基本資料")
+        return
+        
+    st.markdown(f"### {info.get('name', 'N/A')}")
+    st.caption(f"{info.get('sector', 'N/A')} | {info.get('industry', 'N/A')}")
+    
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        cap = info.get('market_cap', 0)
+        if isinstance(cap, (int, float)) and cap > 0:
+            cap_str = f"{cap / 1e9:.2f} B" if cap >= 1e9 else f"{cap / 1e6:.2f} M"
+        else:
+            cap_str = "N/A"
+        st.metric("市值 (Market Cap)", f"{cap_str} {info.get('currency', '')}")
+    with col2:
+        st.metric("本益比 (PE)", info.get('pe_ratio', 'N/A'))
+    with col3:
+        st.metric("每股盈餘 (EPS)", info.get('eps', 'N/A'))
+    with col4:
+        dy = info.get('dividend_yield', 0)
+        dy_str = f"{dy * 100:.2f}%" if isinstance(dy, (int, float)) and dy > 0 else "N/A"
+        st.metric("殖利率 (Yield)", dy_str)
+        
+    with st.expander("公司簡介 (Business Summary)", expanded=False):
+        st.write(info.get('summary', '無公司簡介。'))

@@ -1093,6 +1093,65 @@ def _hkus_dispatch(qt, market, codes, plate_code, start_date, end_date):
     return {"error": f"未知項目：{qt}"}
 
 
+
+import datetime
+
+def render_us_stocks():
+    """美股專區 — 整合 yfinance 與 FinMind"""
+    main_logger.info("渲染美股專區 Tab")
+    st.markdown("## 🇺🇸 美股專區")
+    
+    # 搜尋區塊
+    from ui_components import us_code_input_section, render_us_company_profile
+    from us_stock_query import get_us_stock_info, get_us_stock_history, get_us_stock_news
+    
+    ticker = us_code_input_section("搜尋美股 (支援中文名稱、代號)", single=True)
+    
+    if not ticker:
+        st.info("💡 提示：輸入「蘋果」、「NVDA」或「特斯拉」開始查詢。")
+        return
+        
+    st.divider()
+    
+    # 獲取資料
+    with st.spinner(f"正在獲取 {ticker} 的最新美股資料..."):
+        info = get_us_stock_info(ticker)
+        df_history = get_us_stock_history(ticker, period="1y")
+        news = get_us_stock_news(ticker)
+        
+    # 上半部：基本資料卡片
+    if info:
+        render_us_company_profile(info)
+    else:
+        st.error(f"無法獲取 {ticker} 的基本資料。請確認代號是否正確。")
+        
+    # 中間：K 線圖
+    if df_history is not None and not df_history.empty:
+        st.markdown(f"### 📈 歷史行情 (近一年)")
+        # 準備欄位給 plot_kline
+        df_chart = df_history.copy()
+        date_col = 'Date' if 'Date' in df_chart.columns else 'Datetime'
+        
+        # 使用現有的 plot_kline，但可能沒有漲跌幅限制
+        from ui_components import plot_kline
+        try:
+            plot_kline(df_chart, date_col=date_col)
+        except Exception as e:
+            st.error(f"繪製 K 線圖失敗: {e}")
+            st.dataframe(df_chart.tail())
+    else:
+        st.warning(f"無法獲取 {ticker} 的 K 線資料。")
+        
+    # 下半部：新聞
+    if news:
+        st.markdown("### 📰 最新相關新聞")
+        for n in news[:5]: # 顯示最新 5 則
+            ts = n.get("providerPublishTime", 0)
+            date_str = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M') if ts else ""
+            with st.container(border=True):
+                st.markdown(f"**[{n.get('title', '無標題')}]({n.get('link', '#')})**")
+                st.caption(f"來源: {n.get('publisher', 'N/A')} | 時間: {date_str}")
+
 def render_hk_us_stocks():
     """港美股查詢 (Futu OpenAPI) —— 複選批次模式"""
     main_logger.info("渲染港美股 Tab")
@@ -2083,7 +2142,7 @@ def render_technical_analysis():
 # 三組導航按鈕（永豐金 / TWSE / 其他）
 SINOPAC_TABS = ["儀表板", "技術分析"]
 TWSE_TABS    = ["TWSE"]
-OTHER_TABS   = ["DeepSeek AI", "FinMind", "期貨/匯率", "選股", "新聞", "工具"]
+OTHER_TABS   = ["DeepSeek AI", "🇺🇸 美股專區", "FinMind", "期貨/匯率", "選股", "新聞", "工具"]
 
 def _nav_btn(label: str, icon: str = ""):
     """渲染一個導航按鈕，當前選中顯示 primary 樣式"""
@@ -2202,6 +2261,8 @@ elif st.session_state.execute_history:
 
 if selected_tab == "DeepSeek AI":
     render_deepseek_chat()
+elif selected_tab == "🇺🇸 美股專區":
+    render_us_stocks()
 else:
     st.title(f"📊 {selected_tab}")
     st.markdown("---")

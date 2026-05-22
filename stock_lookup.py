@@ -232,3 +232,66 @@ def get_name_hint(raw: str) -> Optional[str]:
     if resolved.upper() != raw.strip().upper() and resolved != raw.strip():
         return f"{raw.strip()} → **{resolved}**"
     return None
+
+
+def resolve_us_stock(raw: str) -> str:
+    """
+    將使用者輸入（中文/英文名稱或代號）解析為美股標準代號。
+    如果本地字典沒有，則背景呼叫 DeepSeek AI 自動翻譯。
+    """
+    if not raw:
+        return ""
+    
+    s = raw.strip()
+    
+    # 英文代號直接回傳 (若只包含英數字及小數點)
+    if re.fullmatch(r"[A-Za-z0-9]+(\.[A-Za-z]+)?", s):
+        return s.upper()
+
+    s_lower = s.lower()
+    
+    # 本地字典精確匹配
+    if s_lower in US_STOCK_ALIASES:
+        return US_STOCK_ALIASES[s_lower]
+    if s in US_STOCK_ALIASES:
+        return US_STOCK_ALIASES[s]
+        
+    # 本地字典模糊匹配
+    for alias, ticker in US_STOCK_ALIASES.items():
+        if s_lower in alias or alias in s_lower:
+            return ticker
+            
+    # AI Fallback: 呼叫 DeepSeek
+    try:
+        from deepseek_engine import get_deepseek_engine
+        engine = get_deepseek_engine()
+        if engine and engine.client:
+            prompt = f"使用者想查詢美股「{s}」，請你判斷它對應的美股股票代號 (Ticker) 是什麼？請只回答純大寫英文代號字串，不要加任何其他廢話或解釋。如果找不到或不確定，請回答 UNKNOWN。"
+            response = engine.client.chat.completions.create(
+                model=engine.model_name,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.0,
+                max_tokens=10
+            )
+            ai_result = response.choices[0].message.content.strip().upper()
+            
+            # 去除可能包含的多餘符號 (如句號)
+            ai_result = re.sub(r"[^A-Z0-9\.]", "", ai_result)
+            
+            if ai_result and ai_result != "UNKNOWN":
+                # 把結果快取起來避免重複打 API
+                US_STOCK_ALIASES[s_lower] = ai_result
+                return ai_result
+    except Exception as e:
+        import logging
+        logging.warning(f"AI 解析美股代號失敗: {e}")
+        
+    return s
+
+def get_us_name_hint(raw: str) -> Optional[str]:
+    if not raw:
+        return None
+    resolved = resolve_us_stock(raw.strip())
+    if resolved.upper() != raw.strip().upper() and resolved != raw.strip():
+        return f"{raw.strip()} → **{resolved}** (US)"
+    return None
