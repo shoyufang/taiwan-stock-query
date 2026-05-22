@@ -1101,8 +1101,8 @@ def render_us_stocks():
     main_logger.info("渲染美股專區 Tab")
     st.markdown("## 🇺🇸 美股專區")
     
-    NO_DATE_ITEMS = ["大盤指數快照", "個股基本資料", "最新相關新聞"]
-    DATE_ITEMS    = ["個股歷史K線"]
+    NO_DATE_ITEMS = ["大盤指數快照", "個股基本資料", "最新相關新聞", "美股代號總表 (FinMind)"]
+    DATE_ITEMS    = ["個股歷史K線", "個股歷史K線 (FinMind)"]
     
     # ── 上半：複選區 ─────────────
     with st.container(border=True):
@@ -1124,8 +1124,10 @@ def render_us_stocks():
     has_profile  = "個股基本資料" in selected
     has_news     = "最新相關新聞" in selected
     has_kbar     = "個股歷史K線" in selected
+    has_list     = "美股代號總表 (FinMind)" in selected
+    has_fm_kbar  = "個股歷史K線 (FinMind)" in selected
     
-    needs_code   = has_profile or has_news or has_kbar
+    needs_code   = has_profile or has_news or has_kbar or has_fm_kbar
     
     ticker = ""
     if needs_code:
@@ -1222,6 +1224,40 @@ def _us_stock_dispatch(item: str, ticker: str, start_date, end_date):
         if df_history is not None and not df_history.empty:
             return df_history
         return {"error": "無法獲取 K 線資料"}
+        
+    if item == "美股代號總表 (FinMind)":
+        try:
+            from FinMind.data import DataLoader
+            dl = DataLoader()
+            df = dl.us_stock_info()
+            if df is not None and not df.empty:
+                return df
+            return {"error": "無法獲取 FinMind 美股代號表"}
+        except Exception as e:
+            return {"error": f"FinMind 查詢失敗: {e}"}
+
+    if item == "個股歷史K線 (FinMind)":
+        try:
+            from FinMind.data import DataLoader
+            import pandas as pd
+            dl = DataLoader()
+            sd = start_date.strftime('%Y-%m-%d') if start_date else "2023-01-01"
+            df = dl.us_stock_price(stock_id=ticker, start_date=sd)
+            if df is not None and not df.empty:
+                # 欄位整理成 display_kbar() 喜歡的格式 (首字大寫)
+                df = df.rename(columns={
+                    "date": "Date",
+                    "open": "Open",
+                    "high": "High",
+                    "low": "Low",
+                    "close": "Close",
+                    "volume": "Volume"
+                })
+                df['Date'] = pd.to_datetime(df['Date']).dt.date
+                return df
+            return {"error": "無 K 線資料 (FinMind)"}
+        except Exception as e:
+            return {"error": f"FinMind K線查詢失敗: {e}"}
         
     return {"error": f"未知項目：{item}"}
 
