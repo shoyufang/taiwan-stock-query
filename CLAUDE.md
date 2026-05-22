@@ -676,3 +676,8 @@ pip install shioaji pandas yfinance FinMind requests futu-api mplfinance streaml
          -   [ x ]   U I   ÊSs,g-Šš[ÃSxe1u  ` g e m i n i _ * `   hQb—9eºp  ` d e e p s e e k _ * ` 0
   
  
+ -   [ x ]   * * A I   _ÎdGS}Œ[b  ( 2 0 2 6 - 0 5 - 2 2 ) * * ÿ
+         -   [ x ]   bŸR\û|q}hQb—IÛcºp  D e e p S e e k   A I   _Îd  ( v 4 - f l a s h ) 0
+         -   [ x ]   Œ[b  N A S   èrs,g‚øvÜ•‡eöN„v`ïzTek‚îO©_0
+  
+ 
