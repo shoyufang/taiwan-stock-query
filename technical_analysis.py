@@ -569,11 +569,19 @@ def render_tradingview_chart(
     candle_json = json.dumps(candle_data)
     volume_json = json.dumps(volume_data)
 
-    # 計算移動平均線 (MA5, MA20 等)，並以線條形式加入 JS 中
+    # ═══════════════════════════════════════════════════════
+    # 技術指標數據計算與 JSON 化
+    # ═══════════════════════════════════════════════════════
     ma_json_data = {}
+    ema_json_data = {}
+    bb_json_data = {}
+    rsi_json_data = []
+    macd_json_data = {}
+    atr_json_data = []
+
     if indicators:
         for ind in indicators:
-            if ind.startswith("MA"):
+            if ind.startswith("MA") and ind not in ("MACD",):
                 w_str = ind[2:]
                 if w_str.isdigit():
                     window = int(w_str)
@@ -582,18 +590,43 @@ def render_tradingview_chart(
                     for ts, val in ma_series.items():
                         if pd.isna(val):
                             continue
-                        if isinstance(ts, pd.Timestamp):
-                            date_str = ts.strftime("%Y-%m-%d")
-                        else:
-                            date_str = str(ts)
-                        ma_list.append({
-                            "time": date_str,
-                            "value": float(val)
-                        })
+                        date_str = ts.strftime("%Y-%m-%d") if isinstance(ts, pd.Timestamp) else str(ts)
+                        ma_list.append({"time": date_str, "value": float(val)})
                     ma_json_data[ind] = ma_list
+            elif ind.startswith("EMA"):
+                w_str = ind[3:]
+                if w_str.isdigit():
+                    window = int(w_str)
+                    ema_series = calc_ema(df, window)
+                    ema_list = []
+                    for ts, val in ema_series.items():
+                        if pd.isna(val):
+                            continue
+                        date_str = ts.strftime("%Y-%m-%d") if isinstance(ts, pd.Timestamp) else str(ts)
+                        ema_list.append({"time": date_str, "value": float(val)})
+                    ema_json_data[ind] = ema_list
+            elif ind == "BB":
+                middle, upper, lower = calc_bollinger_bands(df)
+                bb_json_data["BB_Middle"] = [{"time": ts.strftime("%Y-%m-%d") if isinstance(ts, pd.Timestamp) else str(ts), "value": float(val)} for ts, val in middle.items() if not pd.isna(val)]
+                bb_json_data["BB_Upper"] = [{"time": ts.strftime("%Y-%m-%d") if isinstance(ts, pd.Timestamp) else str(ts), "value": float(val)} for ts, val in upper.items() if not pd.isna(val)]
+                bb_json_data["BB_Lower"] = [{"time": ts.strftime("%Y-%m-%d") if isinstance(ts, pd.Timestamp) else str(ts), "value": float(val)} for ts, val in lower.items() if not pd.isna(val)]
+            elif ind == "RSI":
+                rsi_series = calc_rsi(df)
+                rsi_json_data = [{"time": ts.strftime("%Y-%m-%d") if isinstance(ts, pd.Timestamp) else str(ts), "value": float(val)} for ts, val in rsi_series.items() if not pd.isna(val)]
+            elif ind == "MACD":
+                macd_line, signal_line, histogram = calc_macd(df)
+                macd_json_data["macd"] = [{"time": ts.strftime("%Y-%m-%d") if isinstance(ts, pd.Timestamp) else str(ts), "value": float(val)} for ts, val in macd_line.items() if not pd.isna(val)]
+                macd_json_data["signal"] = [{"time": ts.strftime("%Y-%m-%d") if isinstance(ts, pd.Timestamp) else str(ts), "value": float(val)} for ts, val in signal_line.items() if not pd.isna(val)]
+                macd_json_data["hist"] = [{"time": ts.strftime("%Y-%m-%d") if isinstance(ts, pd.Timestamp) else str(ts), "value": float(val)} for ts, val in histogram.items() if not pd.isna(val)]
+            elif ind == "ATR":
+                atr_series = calc_atr(df)
+                atr_json_data = [{"time": ts.strftime("%Y-%m-%d") if isinstance(ts, pd.Timestamp) else str(ts), "value": float(val)} for ts, val in atr_series.items() if not pd.isna(val)]
 
     ma_colors = {
-        "MA5": "#ff9800", "MA10": "#00bcd4", "MA20": "#8b5cf6", "MA60": "#e53935"
+        "MA5": "#ff9800", "MA10": "#00bcd4", "MA20": "#8b5cf6", "MA60": "#e53935", "MA120": "#546e7a"
+    }
+    ema_colors = {
+        "EMA5": "#ffeb3b", "EMA10": "#26c6da", "EMA12": "#ef5350", "EMA26": "#ab47bc"
     }
 
     # 構造 HTML 模版
@@ -621,6 +654,21 @@ def render_tradingview_chart(
         <script>
             document.addEventListener("DOMContentLoaded", function() {{
                 const container = document.getElementById('chart-container');
+                
+                // 動態判斷與分派副圖的 pane 序號
+                let totalPanes = 1;
+                const hasRsi = {json.dumps(len(rsi_json_data) > 0)};
+                const hasMacd = {json.dumps(bool(macd_json_data))};
+                const hasAtr = {json.dumps(len(atr_json_data) > 0)};
+                
+                let rsiPane = -1;
+                let macdPane = -1;
+                let atrPane = -1;
+                
+                if (hasRsi) rsiPane = totalPanes++;
+                if (hasMacd) macdPane = totalPanes++;
+                if (hasAtr) atrPane = totalPanes++;
+
                 const chart = LightweightCharts.createChart(container, {{
                     width: container.clientWidth,
                     height: {height},
@@ -656,7 +704,7 @@ def render_tradingview_chart(
                     }},
                 }});
 
-                // 1. K 線圖系列
+                // 1. K 線圖系列 (主 pane: 0)
                 const candlestickSeries = chart.addCandlestickSeries({{
                     upColor: '{up_color}',
                     downColor: '{down_color}',
@@ -664,10 +712,11 @@ def render_tradingview_chart(
                     borderUpColor: '{up_color}',
                     wickDownColor: '{down_color}',
                     wickUpColor: '{up_color}',
+                    pane: 0,
                 }});
                 candlestickSeries.setData({candle_json});
 
-                // 2. 成交量系列
+                // 2. 成交量系列 (主 pane: 0)
                 const volumeSeries = chart.addHistogramSeries({{
                     priceFormat: {{
                         type: 'volume',
@@ -677,10 +726,11 @@ def render_tradingview_chart(
                         top: 0.75, // 置於圖表最下方 25% 區間
                         bottom: 0,
                     }},
+                    pane: 0,
                 }});
                 volumeSeries.setData({volume_json});
 
-                // 3. MA 移動平均線系列
+                // 3. MA 移動平均線系列 (主 pane: 0)
                 const maData = {json.dumps(ma_json_data)};
                 const maColors = {json.dumps(ma_colors)};
                 
@@ -690,9 +740,154 @@ def render_tradingview_chart(
                         lineWidth: 1.5,
                         title: maKey,
                         priceScaleId: 'right',
+                        pane: 0,
                     }});
                     lineSeries.setData(maData[maKey]);
                 }});
+
+                // 4. EMA 指數移動平均線系列 (主 pane: 0，畫點/虛線以示區隔)
+                const emaData = {json.dumps(ema_json_data)};
+                const emaColors = {json.dumps(ema_colors)};
+                
+                Object.keys(emaData).forEach(emaKey => {{
+                    const lineSeries = chart.addLineSeries({{
+                        color: emaColors[emaKey] || '#80cbc4',
+                        lineWidth: 1.5,
+                        lineStyle: 1, // LightweightCharts.LineStyle.Dashed = 1
+                        title: emaKey,
+                        priceScaleId: 'right',
+                        pane: 0,
+                    }});
+                    lineSeries.setData(emaData[emaKey]);
+                }});
+
+                // 5. 布林帶 BB (主 pane: 0)
+                const bbData = {json.dumps(bb_json_data)};
+                if (bbData && bbData.BB_Upper && bbData.BB_Upper.length > 0) {{
+                    // 上軌
+                    const bbUpperSeries = chart.addLineSeries({{
+                        color: 'rgba(255, 152, 0, 0.6)',
+                        lineWidth: 1,
+                        lineStyle: 1, // Dashed
+                        title: 'BB Upper',
+                        pane: 0,
+                    }});
+                    bbUpperSeries.setData(bbData.BB_Upper);
+                    
+                    // 下軌
+                    const bbLowerSeries = chart.addLineSeries({{
+                        color: 'rgba(255, 152, 0, 0.6)',
+                        lineWidth: 1,
+                        lineStyle: 1, // Dashed
+                        title: 'BB Lower',
+                        pane: 0,
+                    }});
+                    bbLowerSeries.setData(bbData.BB_Lower);
+                    
+                    // 中軌
+                    const bbMiddleSeries = chart.addLineSeries({{
+                        color: 'rgba(255, 152, 0, 0.8)',
+                        lineWidth: 1.2,
+                        title: 'BB Middle',
+                        pane: 0,
+                    }});
+                    bbMiddleSeries.setData(bbData.BB_Middle);
+                }}
+
+                // 6. RSI 副圖 (pane: rsiPane)
+                if (hasRsi) {{
+                    const rsiSeries = chart.addLineSeries({{
+                        color: '#7e57c2',
+                        lineWidth: 1.5,
+                        title: 'RSI(14)',
+                        pane: rsiPane,
+                    }});
+                    rsiSeries.setData({json.dumps(rsi_json_data)});
+                    
+                    // 超買/超賣基準線 (createPriceLine)
+                    rsiSeries.createPriceLine({{
+                        price: 70,
+                        color: 'rgba(211, 47, 47, 0.4)',
+                        lineWidth: 1,
+                        lineStyle: 1, // Dashed
+                        axisLabelVisible: true,
+                        title: '超買(70)',
+                    }});
+                    rsiSeries.createPriceLine({{
+                        price: 30,
+                        color: 'rgba(25, 118, 210, 0.4)',
+                        lineWidth: 1,
+                        lineStyle: 1, // Dashed
+                        axisLabelVisible: true,
+                        title: '超賣(30)',
+                    }});
+                    rsiSeries.createPriceLine({{
+                        price: 50,
+                        color: 'rgba(128, 128, 128, 0.3)',
+                        lineWidth: 1,
+                        lineStyle: 2, // Dotted
+                        axisLabelVisible: true,
+                    }});
+                }}
+
+                // 7. MACD 副圖 (pane: macdPane)
+                if (hasMacd) {{
+                    const macdData = {json.dumps(macd_json_data)};
+                    
+                    // MACD Line
+                    const macdLineSeries = chart.addLineSeries({{
+                        color: '#2196f3',
+                        lineWidth: 1.2,
+                        title: 'MACD',
+                        pane: macdPane,
+                    }});
+                    macdLineSeries.setData(macdData.macd);
+                    
+                    // Signal Line
+                    const signalLineSeries = chart.addLineSeries({{
+                        color: '#f44336',
+                        lineWidth: 1.2,
+                        title: 'Signal',
+                        pane: macdPane,
+                    }});
+                    signalLineSeries.setData(macdData.signal);
+                    
+                    // Histogram 能量柱狀
+                    const histSeries = chart.addHistogramSeries({{
+                        pane: macdPane,
+                        title: 'Histogram',
+                    }});
+                    
+                    // 將直方圖色彩轉換為上漲綠、下跌紅
+                    const rawHist = macdData.hist;
+                    const histWithColors = rawHist.map(item => ({{
+                        time: item.time,
+                        value: item.value,
+                        color: item.value >= 0 ? '{up_color}' : '{down_color}'
+                    }}));
+                    histSeries.setData(histWithColors);
+                    
+                    // 零軸
+                    macdLineSeries.createPriceLine({{
+                        price: 0,
+                        color: 'rgba(128, 128, 128, 0.4)',
+                        lineWidth: 1,
+                        lineStyle: 2, // Dotted
+                    }});
+                }}
+
+                // 8. ATR 副圖 (pane: atrPane)
+                if (hasAtr) {{
+                    const atrSeries = chart.addAreaSeries({{
+                        topColor: 'rgba(255, 112, 67, 0.3)',
+                        bottomColor: 'rgba(255, 112, 67, 0.02)',
+                        lineColor: '#ff7043',
+                        lineWidth: 1.5,
+                        title: 'ATR(14)',
+                        pane: atrPane,
+                    }});
+                    atrSeries.setData({json.dumps(atr_json_data)});
+                }}
 
                 // 自動調整尺寸自適應
                 window.addEventListener('resize', () => {{
