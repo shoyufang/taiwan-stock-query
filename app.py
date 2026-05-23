@@ -414,10 +414,13 @@ hr {{ border: none !important; border-top: 1px solid var(--claude-border) !impor
     border: 1px solid {border} !important;
     background-color: transparent !important;
 }}
-[data-testid="stChatInput"] > div {{
+/* 暴力強制 stChatInput 內的所有 div 容器背景為主題表面色，消除米白色背景殘留 */
+[data-testid="stChatInput"] div,
+[data-testid="stChatInput"] label,
+.stChatInput div {{
     background-color: {surface} !important;
-    border: 1px solid {border} !important;
-    border-radius: 12px !important;
+    color: {text} !important;
+    border-color: {border} !important;
 }}
 [data-testid="stChatInput"] textarea {{
     font-size: 0.95rem !important;
@@ -425,9 +428,12 @@ hr {{ border: none !important; border-top: 1px solid var(--claude-border) !impor
     color: {text} !important;
     -webkit-text-fill-color: {text} !important;
 }}
-[data-testid="stChatInput"] textarea::placeholder {{
+/* 占位符文字加強 */
+[data-testid="stChatInput"] textarea::placeholder,
+[data-testid="stChatInput"] textarea::-webkit-input-placeholder {{
     color: {text2} !important;
-    opacity: 0.6 !important;
+    opacity: 0.8 !important;
+    -webkit-text-fill-color: {text2} !important;
 }}
 [data-testid="stChatInput"] button {{
     color: {primary} !important;
