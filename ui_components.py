@@ -10,12 +10,18 @@ from datetime import datetime, date, timedelta
 from typing import Dict, Any, Optional, Callable
 from utils import ResultType, detect_result_type, format_number, truncate_dataframe
 
-def display_result(df, query_type: str = "", enable_export: bool = True):
+def display_result(df, query_type: str = "", enable_export: bool = True, code: str = ""):
     """智能呈現結果 — 根據類型自動選擇表格 / 圖表。
 
     df 通常是 pd.DataFrame；若 dispatch 失敗，會收到 dict {"error": "..."}，
     本函式優先處理錯誤 dict 與 None，再做型別判斷。
+    code: 股票代號（傳入時用於 K線圖配色與格式，否則自 query_type 萃取）
     """
+    # 若 code 未傳入，嘗試從 query_type 萃取（例如 "2330 日K" → "2330"）
+    if not code and query_type:
+        first_token = query_type.strip().split()[0] if query_type.strip() else ""
+        if first_token and not any(kw in first_token for kw in ["個股", "港/", "盤中", "逐筆", "歷史"]):
+            code = first_token
     # 錯誤 dict（dispatch helper 失敗時回傳）或美股特規 dict
     if isinstance(df, dict):
         if "error" in df:
@@ -78,7 +84,7 @@ def display_result(df, query_type: str = "", enable_export: bool = True):
 
     # 根據類型呈現
     if result_type == ResultType.KBAR:
-        display_kbar(df_display)
+        display_kbar(df_display, code=code)
     elif result_type == ResultType.RANKING:
         display_ranking(df_display)
     elif result_type == ResultType.FINANCIAL:
@@ -140,81 +146,138 @@ def display_table(df: pd.DataFrame):
     st.subheader("📊 查詢結果")
     st.dataframe(df, use_container_width=True, height=400)
 
-def display_kbar(df: pd.DataFrame):
-    """顯示 K線圖 + OHLC 表"""
+def display_kbar(df: pd.DataFrame, code: str = ""):
+    """顯示 K線圖 + OHLC 表 — TradingView Canvas + Plotly 雙 Tab"""
     st.subheader("📈 K線圖")
 
-    # 確定日期和 OHLC 欄位名稱
+    # ── 確定欄位名稱 ──────────────────────────────────────
     date_col = None
-    open_col, high_col, low_col, close_col = None, None, None, None
-
-    col_lower = {c.lower(): c for c in df.columns}
+    open_col = high_col = low_col = close_col = vol_col = None
 
     for col in df.columns:
-        col_lower_val = col.lower()
-        if col_lower_val in ['date', '日期']:
+        cl = col.lower()
+        if cl in ['date', '日期', 'ts']:
             date_col = col
-        if col_lower_val in ['open', '開盤']:
+        if cl in ['open', '開盤']:
             open_col = col
-        if col_lower_val in ['high', '最高']:
+        if cl in ['high', '最高']:
             high_col = col
-        if col_lower_val in ['low', '最低']:
+        if cl in ['low', '最低']:
             low_col = col
-        if col_lower_val in ['close', '收盤']:
+        if cl in ['close', '收盤']:
             close_col = col
+        if cl in ['volume', '成交量', '成交量(股)']:
+            vol_col = col
 
     if not all([open_col, high_col, low_col, close_col]):
         st.warning("K線資料不完整")
         display_table(df)
         return
 
-    # 使用 Plotly 繪製 K線圖
+    # ── 建立標準化 chart_df（index = DatetimeIndex）───────
+    chart_df = df.copy()
+
     if date_col:
         try:
-            df['Date'] = pd.to_datetime(df[date_col], utc=True).dt.tz_localize(None)
+            idx = pd.to_datetime(chart_df[date_col])
+            if hasattr(idx, "dt") and idx.dt.tz is not None:
+                idx = idx.dt.tz_localize(None)
+            chart_df.index = idx
         except Exception:
-            try:
-                df['Date'] = pd.to_datetime(df[date_col])
-            except Exception:
-                df['Date'] = range(len(df))
+            pass
+    elif isinstance(chart_df.index, pd.DatetimeIndex):
+        if hasattr(chart_df.index, "tz") and chart_df.index.tz is not None:
+            chart_df.index = chart_df.index.tz_localize(None)
     else:
-        df['Date'] = range(len(df))
+        try:
+            chart_df.index = pd.to_datetime(chart_df.index)
+        except Exception:
+            pass
 
-    fig = go.Figure(data=[go.Candlestick(
-        x=df['Date'],
-        open=df[open_col],
-        high=df[high_col],
-        low=df[low_col],
-        close=df[close_col],
-        name="K線"
-    )])
+    # 統一欄位名為 open/high/low/close/volume
+    remap = {}
+    for src, dst in [(open_col, "open"), (high_col, "high"), (low_col, "low"),
+                     (close_col, "close"), (vol_col, "volume")]:
+        if src and src != dst:
+            remap[src] = dst
+    if remap:
+        chart_df = chart_df.rename(columns=remap)
 
-    # 計算 MA5 / MA20 / MA60 並添加至 Plotly 圖表中
+    # ── 取得主題設定（從 session_state 快取，無則預設暗色）──
+    theme_cfg = st.session_state.get("_theme_cfg", None)
+
+    # ── 嘗試載入技術分析模組 ──────────────────────────────
     try:
-        df_sorted = df.sort_values('Date')
-        ma5 = df_sorted[close_col].rolling(5).mean()
-        ma20 = df_sorted[close_col].rolling(20).mean()
-        ma60 = df_sorted[close_col].rolling(60).mean()
-        
-        fig.add_trace(go.Scatter(x=df_sorted['Date'], y=ma5, name="MA5", line=dict(color='orange', width=1.2)))
-        fig.add_trace(go.Scatter(x=df_sorted['Date'], y=ma20, name="MA20", line=dict(color='dodgerblue', width=1.2)))
-        fig.add_trace(go.Scatter(x=df_sorted['Date'], y=ma60, name="MA60", line=dict(color='purple', width=1.5)))
-    except Exception:
-        pass
+        import technical_analysis as ta
+        has_ta = True
+    except ImportError:
+        has_ta = False
 
-    fig.update_layout(
-        title="K線圖 (MA5/MA20/MA60)",
-        yaxis_title="價格",
-        template="plotly_white",
-        xaxis_rangeslider_visible=False,
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        height=500
-    )
-    st.plotly_chart(fig, use_container_width=True)
+    if has_ta and isinstance(chart_df.index, pd.DatetimeIndex):
+        # ── TradingView + Plotly 雙 Tab ──────────────────
+        tab_tv, tab_plotly = st.tabs([
+            "📊 TradingView 專業 Canvas 終端 (推薦)",
+            "📈 Plotly 綜合指標圖 (含 RSI/MACD/BB)"
+        ])
 
-    # 下方顯示表格
-    st.subheader("OHLC 詳細資料")
-    display_table(df[[date_col or '日期', open_col, high_col, low_col, close_col]] if date_col else df)
+        with tab_tv:
+            try:
+                tv_html = ta.render_tradingview_chart(
+                    chart_df, code, theme_cfg=theme_cfg,
+                    indicators=["MA5", "MA20", "MA60"], height=500
+                )
+                st.components.v1.html(tv_html, height=520)
+                st.caption("💡 使用滑鼠滾輪縮放，拖曳平移，十字游標顯示精確價格與成交量。")
+            except Exception as e:
+                st.warning(f"TradingView Canvas 渲染失敗，請切換至 Plotly 圖表：{e}")
+
+        with tab_plotly:
+            try:
+                fig = ta.plot_kbar_with_indicators(
+                    chart_df, code,
+                    indicators=["MA5", "MA20", "MA60"],
+                    theme_cfg=theme_cfg, height=600
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            except Exception as e:
+                st.warning(f"指標圖渲染失敗，顯示純K線圖：{e}")
+                fig = go.Figure(data=[go.Candlestick(
+                    x=chart_df.index,
+                    open=chart_df["open"], high=chart_df["high"],
+                    low=chart_df["low"], close=chart_df["close"],
+                    name="K線"
+                )])
+                fig.update_layout(xaxis_rangeslider_visible=False, height=500)
+                st.plotly_chart(fig, use_container_width=True)
+    else:
+        # ── 無 technical_analysis 模組時的基礎 Plotly fallback ──
+        chart_df['_date'] = chart_df.index if isinstance(chart_df.index, pd.DatetimeIndex) else range(len(chart_df))
+        fig = go.Figure(data=[go.Candlestick(
+            x=chart_df['_date'],
+            open=chart_df["open"], high=chart_df["high"],
+            low=chart_df["low"], close=chart_df["close"],
+            name="K線"
+        )])
+        try:
+            for w, clr in [(5, 'orange'), (20, 'dodgerblue'), (60, 'purple')]:
+                ma = chart_df["close"].rolling(w).mean()
+                fig.add_trace(go.Scatter(x=chart_df['_date'], y=ma,
+                                         name=f"MA{w}", line=dict(color=clr, width=1.2)))
+        except Exception:
+            pass
+        fig.update_layout(
+            title="K線圖 (MA5/MA20/MA60)", yaxis_title="價格",
+            template="plotly_white", xaxis_rangeslider_visible=False,
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+            height=500
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+    # ── 下方 OHLC 數據表 ──────────────────────────────────
+    with st.expander("📋 OHLC 詳細資料", expanded=False):
+        orig_cols = [c for c in [date_col, open_col, high_col, low_col, close_col, vol_col]
+                     if c is not None and c in df.columns]
+        display_table(df[orig_cols] if orig_cols else df)
 
 def display_ranking(df: pd.DataFrame):
     """顯示排行榜 — 表格 + 柱狀圖"""
