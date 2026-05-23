@@ -543,6 +543,8 @@ if "theme" not in st.session_state:
 
 # ── 注入當前主題的 CSS ──
 _inject_theme_css(st.session_state["theme"])
+# 將主題色彩設定寫入 session_state，讓 ui_components.display_kbar 可取用
+st.session_state["_theme_cfg"] = THEMES.get(st.session_state["theme"], THEMES["🌅 Claude 暖橘"])
 
 # ══════════════════════════════════════════════════════════
 
@@ -1165,6 +1167,8 @@ def _render_batch_results(state_key: str, label_fn=None):
                       help="目前沒有可匯出的表格結果")
 
     # ── 結果列表 ────────────────────────────────────────
+    # extra 若為字串（股票代號），傳入 display_result 供 K線圖使用
+    batch_code = extra if isinstance(extra, str) else ""
     expand_state = st.session_state.get(expand_key)
     for idx, (item, result) in enumerate(results):
         if expand_state is True:
@@ -1175,7 +1179,7 @@ def _render_batch_results(state_key: str, label_fn=None):
             expanded = (idx == 0)  # 預設只展開首項
         label = label_fn(item, extra) if label_fn else f"📋 {item}"
         with st.expander(label, expanded=expanded):
-            display_result(result, item, enable_export=False)
+            display_result(result, item, enable_export=False, code=batch_code)
 
 
 def _taistock_dispatch(qt, code, codes, start_date, end_date, query_date, count, **kwargs):
@@ -1349,7 +1353,7 @@ def render_taistock_market():
                     result = {"error": str(e)}
                 results.append((item, result))
             bar.empty()
-            st.session_state["ts_batch_results"] = results
+            st.session_state["ts_batch_results"] = (results, code)
 
             # 保存當前查詢參數供一鍵釘選
             st.session_state.last_query = {
@@ -1854,7 +1858,7 @@ def render_us_stocks():
                     result = {"error": str(e)}
                 results.append((item, result))
             bar.empty()
-            st.session_state["us_batch_results"] = results
+            st.session_state["us_batch_results"] = (results, ticker)
 
             # 保存當前查詢參數供一鍵釘選
             st.session_state.last_query = {
@@ -2109,7 +2113,7 @@ def render_hk_us_stocks():
                     result = {"error": str(e)}
                 results.append((item, result))
             bar.empty()
-            st.session_state["hk_batch_results"] = results
+            st.session_state["hk_batch_results"] = (results, codes[0] if codes else "")
 
     _render_batch_results("hk_batch_results")
 
