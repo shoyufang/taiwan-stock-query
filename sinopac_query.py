@@ -952,22 +952,60 @@ def query_futures_institutional(code: str = "TX", start_date: str = None, end_da
 
 
 def query_exchange_rate(currency: str = "USD", start_date: str = None, end_date: str = None) -> pd.DataFrame:
-    """台灣銀行匯率（免費）。
+    """台灣銀行匯率（免費）。若 FinMind 失效則自動 Fallback 到 yfinance 國際外匯歷史數據。
     currency 選項：USD, JPY, EUR, CNY, HKD, GBP, AUD, KRW, SGD, CHF 等
     """
     if start_date is None: start_date = str(date.today() - timedelta(days=30))
     if end_date   is None: end_date   = str(date.today())
-    df = _finmind_api("TaiwanExchangeRate", currency, start_date, end_date)
-    df = df.rename(columns={
-        "date":     "日期",
-        "currency": "幣別",
-        "cash_buy": "現金買入",
-        "cash_sell":"現金賣出",
-        "spot_buy": "即期買入",
-        "spot_sell":"即期賣出",
-    })
-    cols = ["日期", "幣別", "現金買入", "現金賣出", "即期買入", "即期賣出"]
-    return df[[c for c in cols if c in df.columns]]
+    
+    try:
+        df = _finmind_api("TaiwanExchangeRate", currency, start_date, end_date)
+        if df is None or df.empty:
+            raise ValueError("FinMind 回傳空數據")
+            
+        df = df.rename(columns={
+            "date":     "日期",
+            "currency": "幣別",
+            "cash_buy": "現金買入",
+            "cash_sell":"現金賣出",
+            "spot_buy": "即期買入",
+            "spot_sell":"即期賣出",
+        })
+        cols = ["日期", "幣別", "現金買入", "現金賣出", "即期買入", "即期賣出"]
+        return df[[c for c in cols if c in df.columns]]
+        
+    except Exception as e:
+        main_logger.warning(f"從 FinMind 獲取匯率失敗 ({str(e)})，啟動 yfinance Fallback 備用防線...")
+        try:
+            # 依據幣別定義 yfinance 代號
+            cur_upper = currency.upper()
+            ticker_symbol = "TWD=X" if cur_upper == "USD" else f"{cur_upper}TWD=X"
+            
+            ticker = yf.Ticker(ticker_symbol)
+            # 抓取歷史數據
+            hist = ticker.history(start=start_date, end=end_date)
+            if not hist.empty:
+                rows = []
+                for ts, row in hist.iterrows():
+                    # 格式化日期與價格
+                    date_str = ts.strftime("%Y-%m-%d")
+                    close_val = round(float(row["Close"]), 4)
+                    rows.append({
+                        "日期": date_str,
+                        "幣別": cur_upper,
+                        "現金買入": close_val,
+                        "現金賣出": close_val,
+                        "即期買入": close_val,
+                        "即期賣出": close_val
+                    })
+                df_fallback = pd.DataFrame(rows)
+                main_logger.info(f"yfinance Fallback 匯率抓取成功！共 {len(df_fallback)} 筆數據")
+                return df_fallback
+        except Exception as yf_err:
+            main_logger.error(f"yfinance Fallback 匯率抓取也失敗: {str(yf_err)}")
+            
+        # 若全部失敗，回傳空 DataFrame 以防崩潰
+        return pd.DataFrame(columns=["日期", "幣別", "現金買入", "現金賣出", "即期買入", "即期賣出"])
 
 
 # ══════════════════════════════════════════════════════════
