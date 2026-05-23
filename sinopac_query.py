@@ -287,6 +287,235 @@ def query_ticks(
         return pd.DataFrame({"說明": [f"❌ 逐筆成交查詢失敗: {e}"]})
 
 
+def query_shioaji_snapshot(codes: list) -> pd.DataFrame:
+    """即時快照與最佳五檔（動態支援永豐金 Shioaji API）"""
+    if not HAS_SHIOAJI:
+        return pd.DataFrame({"說明": ["環境中未安裝 Shioaji 庫，不支援即時快照。請在本地/NAS端安裝：pip install shioaji"]})
+    try:
+        api = login(fetch_contract=True)
+        contracts = []
+        for code in codes:
+            code = code.strip()
+            if not code:
+                continue
+            if code in api.Contracts.Stocks:
+                contracts.append(api.Contracts.Stocks[code])
+        
+        if not contracts:
+            return pd.DataFrame({"說明": ["查無對應的股票合約資訊，請檢查股票代號。"]})
+            
+        snapshots = api.snapshots(contracts)
+        if not snapshots:
+            return pd.DataFrame()
+            
+        data = []
+        for s in snapshots:
+            bid_p = getattr(s, "buy_price", getattr(s, "bid_price", []))
+            bid_v = getattr(s, "buy_volume", getattr(s, "bid_volume", []))
+            ask_p = getattr(s, "ask_price", getattr(s, "sell_price", []))
+            ask_v = getattr(s, "ask_volume", getattr(s, "sell_volume", []))
+            
+            row = {
+                "代號": s.code,
+                "名稱": api.Contracts.Stocks[s.code].name if s.code in api.Contracts.Stocks else s.code,
+                "開盤": s.open,
+                "最高": s.high,
+                "最低": s.low,
+                "收盤": s.close,
+                "昨收": s.yesterday_close,
+                "漲跌": s.change,
+                "漲跌幅(%)": round(s.change_rate * 100, 2) if hasattr(s, "change_rate") else 0.0,
+                "單量": s.volume,
+                "總量": s.total_volume,
+                "委買價": bid_p,
+                "委買量": bid_v,
+                "委賣價": ask_p,
+                "委賣量": ask_v,
+            }
+            data.append(row)
+            
+        return pd.DataFrame(data)
+    except Exception as e:
+        return pd.DataFrame({"說明": [f"❌ 快照查詢失敗: {e}"]})
+
+
+def query_shioaji_kbars(
+    code: str,
+    start_date: str,
+    end_date: str = None,
+    resolution: str = "1min",
+) -> pd.DataFrame:
+    """多週期盤中/歷史 K 線（動態支援永豐金 Shioaji API）"""
+    if not HAS_SHIOAJI:
+        return pd.DataFrame({"說明": ["環境中未安裝 Shioaji 庫，不支援分K線。請在本地/NAS端安裝：pip install shioaji"]})
+    try:
+        api = login(fetch_contract=True)
+        if code not in api.Contracts.Stocks:
+            return pd.DataFrame({"說明": [f"查無股票代號 {code} 的合約資訊"]})
+        contract = api.Contracts.Stocks[code]
+        
+        import shioaji as sj
+        res_map = {
+            "1min": sj.constant.KBarTimeResolution.Min1,
+            "5min": sj.constant.KBarTimeResolution.Min5,
+            "15min": sj.constant.KBarTimeResolution.Min15,
+            "30min": sj.constant.KBarTimeResolution.Min30,
+            "60min": sj.constant.KBarTimeResolution.Min60,
+            "1d": sj.constant.KBarTimeResolution.Day,
+        }
+        sj_res = res_map.get(resolution, sj.constant.KBarTimeResolution.Min1)
+        
+        if not end_date:
+            end_date = str(date.today())
+            
+        kbars = api.kbars(
+            contract=contract,
+            start_date=start_date,
+            end_date=end_date,
+            resolution=sj_res
+        )
+        if not kbars or not kbars.close:
+            return pd.DataFrame()
+            
+        df = pd.DataFrame({**kbars})
+        df.index = pd.to_datetime(df["ts"])
+        df.index.name = "ts"
+        df = df.drop(columns=["ts"])
+        
+        col_map = {
+            "open": "開盤",
+            "high": "最高",
+            "low": "最低",
+            "close": "收盤",
+            "volume": "成交量"
+        }
+        df = df.rename(columns=col_map)
+        return df
+    except Exception as e:
+        return pd.DataFrame({"說明": [f"❌ 分K線查詢失敗: {e}"]})
+
+
+def query_shioaji_contract_info(code: str) -> pd.DataFrame:
+    """商品官方合約與交易限制（動態支援永豐金 Shioaji API）"""
+    if not HAS_SHIOAJI:
+        return pd.DataFrame({"說明": ["環境中未安裝 Shioaji 庫，不支援合約查詢。請在本地/NAS端安裝：pip install shioaji"]})
+    try:
+        api = login(fetch_contract=True)
+        if code not in api.Contracts.Stocks:
+            return pd.DataFrame({"說明": [f"查無股票代號 {code} 的官方合約資訊。"]})
+        c = api.Contracts.Stocks[code]
+        
+        day_trade_val = getattr(c, "day_trade", "N/A")
+        day_trade_str = "可現股當沖 (資券互抵)" if str(day_trade_val) in ["Yes", "DayTrade.Yes", "1"] else "不可當沖"
+        
+        info = {
+            "屬性": [
+                "股票代號", "股票名稱", "交易所", "產業類別", 
+                "是否可信用融資", "是否可信用融券", "融資成數/比率", "融券保證金成數",
+                "現股當沖/資券互抵", "今日參考價", "今日漲停價", "今日跌停價"
+            ],
+            "官方設定值": [
+                getattr(c, "code", code),
+                getattr(c, "name", "N/A"),
+                getattr(c, "exchange", "N/A"),
+                getattr(c, "category", "N/A"),
+                "是" if getattr(c, "margin", False) else "否",
+                "是" if getattr(c, "short_selling", False) else "否",
+                f"{int(getattr(c, 'margin_rate', 0.0) * 100)}%" if getattr(c, 'margin_rate', 0.0) else "N/A",
+                f"{int(getattr(c, 'short_selling_rate', 0.0) * 100)}%" if getattr(c, 'short_selling_rate', 0.0) else "N/A",
+                day_trade_str,
+                getattr(c, "reference", "N/A"),
+                getattr(c, "limit_up", "N/A"),
+                getattr(c, "limit_down", "N/A")
+            ]
+        }
+        return pd.DataFrame(info)
+    except Exception as e:
+        return pd.DataFrame({"說明": [f"❌ 合約查詢失敗: {e}"]})
+
+
+def analyze_shioaji_big_orders(
+    code: str,
+    query_date: str,
+    threshold_volume: int = 50,
+    threshold_amount: float = 5000000.0
+) -> dict:
+    """逐筆成交 ticks 大單分析（動態支援永豐金 Shioaji API）"""
+    if not HAS_SHIOAJI:
+        err_df = pd.DataFrame({"說明": ["環境中未安裝 Shioaji 庫，不支援大單分析。請在本地/NAS端安裝：pip install shioaji"]})
+        return {"summary": pd.DataFrame(), "detail": err_df}
+    try:
+        api = login(fetch_contract=True)
+        if code not in api.Contracts.Stocks:
+            err_df = pd.DataFrame({"說明": [f"查無股票代號 {code} 的合約資訊。"]})
+            return {"summary": pd.DataFrame(), "detail": err_df}
+        contract = api.Contracts.Stocks[code]
+        
+        ticks = api.ticks(contract=contract, date=query_date)
+        if not ticks or not ticks.close:
+            err_df = pd.DataFrame({"說明": [f"📅 {query_date} 該股票無逐筆成交資料。"]})
+            return {"summary": pd.DataFrame(), "detail": err_df}
+            
+        df = pd.DataFrame({**ticks})
+        df["ts"] = pd.to_datetime(df["ts"])
+        df["金額"] = df["close"] * df["volume"] * 1000
+        
+        df_big = df[(df["volume"] >= threshold_volume) | (df["金額"] >= threshold_amount)].copy()
+        
+        total_ticks = len(df)
+        total_volume = df["volume"].sum()
+        total_amount = df["金額"].sum()
+        
+        big_buy = df_big[df_big["tick_type"] == 1]
+        big_sell = df_big[df_big["tick_type"] == 2]
+        
+        big_buy_cnt = len(big_buy)
+        big_buy_vol = big_buy["volume"].sum()
+        big_buy_amt = big_buy["金額"].sum()
+        
+        big_sell_cnt = len(big_sell)
+        big_sell_vol = big_sell["volume"].sum()
+        big_sell_amt = big_sell["金額"].sum()
+        
+        net_buy_amt = big_buy_amt - big_sell_amt
+        
+        summary_info = {
+            "指標項目": [
+                "總成交筆數", "總成交張數", "總成交金額 (元)",
+                "主力大單買入筆數", "主力大單買入張數", "主力大單買入金額 (元)",
+                "主力大單賣出筆數", "主力大單賣出張數", "主力大單賣出金額 (元)",
+                "主力大單淨流入金額 (元)", "大單佔總成交金額比例(%)"
+            ],
+            "數值": [
+                total_ticks, total_volume, round(total_amount, 2),
+                big_buy_cnt, big_buy_vol, round(big_buy_amt, 2),
+                big_sell_cnt, big_sell_vol, round(big_sell_amt, 2),
+                round(net_buy_amt, 2),
+                round(((big_buy_amt + big_sell_amt) / total_amount * 100), 2) if total_amount > 0 else 0.0
+            ]
+        }
+        
+        df_big_show = df_big.sort_values("ts", ascending=False).head(50).copy()
+        if not df_big_show.empty:
+            df_big_show["時間"] = df_big_show["ts"].dt.strftime("%H:%M:%S")
+            df_big_show["買賣方向"] = df_big_show["tick_type"].map({1: "🔴 主動買入(外盤)", 2: "🟢 主動賣出(內盤)"}).fillna("⚪ 中性/盤後")
+            df_big_show = df_big_show.rename(columns={
+                "close": "成交價",
+                "volume": "成交張數"
+            })
+            df_result = df_big_show[["時間", "成交價", "成交張數", "金額", "買賣方向"]].reset_index(drop=True)
+        else:
+            df_result = pd.DataFrame(columns=["時間", "成交價", "成交張數", "金額", "買賣方向"])
+            
+        return {
+            "summary": pd.DataFrame(summary_info),
+            "detail": df_result
+        }
+    except Exception as e:
+        err_df = pd.DataFrame({"說明": [f"❌ 大單分析失敗: {e}"]})
+        return {"summary": pd.DataFrame(), "detail": err_df}
+
+
 # ══════════════════════════════════════════════════════════
 # 四、帳務查詢（動態支援永豐金 Shioaji API，需憑證與金鑰）
 # ══════════════════════════════════════════════════════════
