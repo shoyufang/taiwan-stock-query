@@ -1302,7 +1302,7 @@ def render_taistock_market():
 
     start_date = end_date = date.today()
     if has_kbar or has_shioaji_kbar:
-        start_date, end_date = date_input_section()
+        start_date, end_date = date_input_section(key_prefix="ts_")
 
     query_date = date.today()
     if has_ticks or has_shioaji_big:
@@ -1591,7 +1591,7 @@ def render_finmind():
 
     # ── 共用參數（所有項目均需代號＋日期） ─────────────────
     code = code_input_section()
-    start_date, end_date = date_input_section(default_days=365)
+    start_date, end_date = date_input_section(default_days=365, key_prefix="fm_")
 
     # 勾選摘要
     selected = (
@@ -1702,7 +1702,7 @@ def render_futures_forex():
             disabled=(not selected_x),
             key="ff_currency")
 
-    start_date, end_date = date_input_section(default_days=30)
+    start_date, end_date = date_input_section(default_days=30, key_prefix="ff_")
 
     if selected:
         st.caption(f"已勾選 {len(selected)} 項：{' · '.join(selected)}")
@@ -1833,8 +1833,8 @@ def render_us_stocks():
     start_date, end_date = None, None
     if has_kbar or has_fm_kbar:
         from ui_components import date_input_section
-        start_date, end_date = date_input_section(default_days=180)
-        
+        start_date, end_date = date_input_section(default_days=180, key_prefix="us_")
+
     if selected:
         st.caption(f"已勾選 {len(selected)} 項：{' · '.join(selected)}")
         
@@ -2087,7 +2087,7 @@ def render_hk_us_stocks():
 
     start_date = end_date = date.today()
     if needs_date:
-        start_date, end_date = date_input_section(default_days=365)
+        start_date, end_date = date_input_section(default_days=365, key_prefix="hk_")
 
     if selected:
         st.caption(f"已勾選 {len(selected)} 項：{' · '.join(selected)}")
@@ -2243,7 +2243,7 @@ def render_tools():
 
     with st.expander("📈 K線圖工具"):
         code = code_input_section()
-        start_date, end_date = date_input_section()
+        start_date, end_date = date_input_section(key_prefix="tool_kbar_")
         if st.button("繪製 K線圖"):
             st.info("功能在 Phase 3 實現")
 
@@ -2303,7 +2303,7 @@ def render_tools():
             metric = st.selectbox("選擇比較指標", ["三大法人", "融資融券", "外資持股"], key="compare_metric")
             use_async = st.checkbox("使用非同步並行查詢（更快）", value=True, key="compare_technical_async")
 
-            start_date, end_date = date_input_section(default_days=60)
+            start_date, end_date = date_input_section(default_days=60, key_prefix="cmp_tech_")
 
             if st.button("執行對比", key="compare_technical_btn"):
                 codes = [c.strip() for c in codes_str.split(",") if c.strip()]
@@ -2368,7 +2368,7 @@ def render_tools():
             metric = st.selectbox("選擇比較指標", ["月營收", "財務報表"], key="compare_fundamental_metric")
             use_async = st.checkbox("使用非同步並行查詢（更快）", value=True, key="compare_fundamental_async")
 
-            start_date, end_date = date_input_section(default_days=365)
+            start_date, end_date = date_input_section(default_days=365, key_prefix="cmp_fund_")
 
             if st.button("執行對比", key="compare_fundamental_btn"):
                 codes = [c.strip() for c in codes_str.split(",") if c.strip()]
