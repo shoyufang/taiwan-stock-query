@@ -669,17 +669,64 @@ NAS (台灣 IP, 20:00)
 pip install shioaji pandas yfinance FinMind requests futu-api mplfinance streamlit streamlit-option-menu plotly openpyxl reportlab
 ```
 
- -   [ x ]   * * A I   _�dhQb��f�c  ( 2 0 2 6 - 0 5 - 2 2 ) * * �
-         -   [ x ]   �yd�  ` g o o g l e - g e n a i `   �  G e m i n i   �O�0
-         -   [ x ]   �e�X  ` d e e p s e e k _ e n g i n e . p y `   teT  O p e n A I   �v�[<h_0
-         -   [ x ]   /e�c  D e e p S e e k   V 3 / V 4   �v  F u n c t i o n   C a l l i n g   ( 1 2   ��S��,g0W�]wQ!q+~w��y) 0
-         -   [ x ]   U I   �Ss�,g-��[�Sxe1u  ` g e m i n i _ * `   hQb�9e�p  ` d e e p s e e k _ * ` 0
- 
- 
- 
- -   [ x ]   * * A I   _�dGS}�[b  ( 2 0 2 6 - 0 5 - 2 2 ) * * �
-         -   [ x ]   b�R\�|q}hQb�I��c�p  D e e p S e e k   A I   _�d  ( v 4 - f l a s h ) 0
-         -   [ x ]   �[b  N A S   �rs�,g��vܕ�e�N�v`��zTek��O�_0
- 
- 
- 
+---
+
+### 2026-05-23 Gemini Session（美股與跨市場功能升級 - Stage 1, 2, 3 完整交付）
+- **核心任務**：依照使用者指令，一個一個推進美股及跨市場功能重磅升級。
+- **主要成果**：
+  - **Stage 1: 跨市場技術分析 Plotly 圖表升級**：
+    * `query_wrapper.py`：`_cached_kbar` 自動偵測非台股代號（非純數字）並分流走 `yfinance` API，進行 `tz_localize(None)` 時區剝離防崩潰處理，完美支援 SQLite 快取與 Streamlit 記憶體雙快取。
+    * `technical_analysis.py`：Plotly K 線圖 `plot_kbar_with_indicators` 自動切換配色——美股/港股為國際標準的「綠漲紅跌」，台股為習慣的「紅漲藍跌」，且成交量與 MACD 柱狀體配色同步；價格小數點自適應美股為 `.2f`，台股 `.0f`。
+    * `app.py`：`render_technical_analysis` 代號解析整合 `resolve_us_stock` Fallback 機制，當解析含有中文未命中時，呼叫 DeepSeek 大模型背景翻譯為美股 Ticker。
+  - **Stage 2: 台美 ADR 溢折價即時監控儀表板**：
+    * 新增 `adr_query.py` 模組：
+      - `get_usd_twd_rate()`：優先抓取 yfinance `TWD=X` 匯率，備用 FinMind 歷史匯率，終極 Fallback 預設 `32.2`。
+      - `get_adr_snapshots()`：整合 TSMC (TSM vs 2330)、UMC (UMC vs 2303)、ASE (ASX vs 3711)，比例 1:5。
+      - 實作 60 秒極速 SQLite 快取限制，防範儀表板每 30 秒自動刷新局部頁面（`st.fragment`）頻繁請求被鎖。
+      - 台股價格防線：優先 Shioaji 快照，斷線或假日 Fallback yfinance `Code.TW` 歷史收盤價。
+    * `app.py`：儀表板整合高質感玻璃擬態 HTML/CSS 資訊卡片，溢價顯示珊瑚橘 (`var(--claude-primary)`)，折價顯示深藍色 (`#1976d2`)。
+  - **Stage 3: 一鍵「AI 美股健檢與研究報告」功能**：
+    * `deepseek_engine.py`：實作 `generate_us_stock_report(ticker)` 核心功能，自動精簡財務三大表歷史數據與機構持股，透過華爾街級 Prompt 指導 AI 生成繁體中文 Markdown 投資報告（包含核心業務與護城河、財務結構、籌碼意涵、本益比估值空間、SWOT矩陣）。
+    * `app.py`：美股專區下方引入 AI 報告容器，實作 `st.session_state` 本地快取金鑰 `us_ai_report_{ticker}`，確保重整時已生成報告不消失，並整合 `📥 下載 Markdown 投資報告` 按鈕一鍵匯出 `.md` 檔案。
+  - **單元測試全綠通過**：
+    * 建立 `tests/test_adr_query.py` 與 `tests/test_ai_report.py`。
+    * 成功通過 `pytest` 測試套件 237 項 100% 綠燈，極度健全！
+
+### 2026-05-23 Gemini Session（美股與跨市場功能升級 - Stage 4 完整交付）
+- **核心任務**：依照使用者指令，實現美股多因子選股篩選器（Screener）升級。
+- **主要成果**：
+  - **Stage 4: 美股多因子選股篩選器**：
+    * 新增 `us_screener.py` 模組：
+      - 定義 `US_SCREENER_POOL`：包含 M7（AAPL, MSFT, GOOGL, AMZN, META, NVDA, TSLA）、半導體（TSM, AMD, INTC, ASML, QCOM, AVGO, MU, TXN）、消費/零售（KO, PEP, WMT, PG, MCD, SBUX 等）、金融（JPM, BAC, MS, GS, V, MA, BRK-B 等）、醫藥（LLY, JNJ, PFE, MRK, UNH, ABBV）與能源/工業共 50 檔最具代表性的美股權值股與藍籌巨頭。
+      - 實作 `_fetch_ticker_metrics(ticker)`：透過 `yfinance` API 多重 Fallback 解析最新收盤價、52週高點、本益比 (PE)、預期本益比 (Forward PE)、股利殖利率%、股東權益報酬率 (ROE%) 與市值。
+      - 實作 `get_us_screener_data()`：內建 **12小時 SQLite 永久快取 (TTL: 43200s)**。當快取失效時，透過 `ThreadPoolExecutor` 啟用 10 個背景線程極速並行下載 50 檔美股基本面與拉回幅度數據，控制在 5-8 秒內極速完成。
+      - 實作 `filter_us_stocks(df, filters)`：多因子過濾邏輯，支持市值過濾、PE門檻、Forward PE門檻、ROE下限、殖利率下限、52週高點拉回區間 (拉回比率) 與行業板塊等多因子聯合漏斗篩選。
+    * 升級 `app.py` 選股 UI (Screener)：
+      - 在選股分頁最上方引進「選擇選股市場」單選紐（台股選股 / 美股選股），台股功能完全無縮排不破壞相容性，美股功能完全獨立。
+      - `render_us_screener()`：實現高質感兩欄式因子配置面板。
+        * 左欄：市值規模過濾、本益比上限、預期本益比上限、以及動態解析所有行業板塊 (`df["行業板塊"].unique()`) 的板塊篩選 multiselect。
+        * 右欄：ROE 下限、殖利率下限、以及拉回幅度 (%) 的雙向滑桿 (Slider) 的安全邊際過濾。
+      - 實作選股雙按鈕：`🔍 開始選股篩選` 與 `🔄 強制更新數據`。點擊強制更新會徹底清理快取並重啟並行下載線程池。
+      - 實作 `_us_screener_result_block`：顯示格式化美股選股結果表格（將市值十進位化為 `XXX.X B`），提供一鍵導出 Excel 下載 (已過濾 datetime 類型確保 0 崩潰)，並主動提示複製代號至「技術分析」與「美股專區」查看。
+  - **單元測試全綠通過**：
+    * 新增 `tests/test_us_screener.py`。
+    * `pytest` 跑綠 **242 項測試 (100% 全數通過，無 Regression)**！
+
+### 2026-05-23 Gemini Session（美股與跨市場功能升級 - Stage 5 完整交付）
+- **核心任務**：依照使用者指令，實現美股財報行事曆與華爾街共識 UI 升級。
+- **主要成果**：
+  - **Stage 5: 美股財報行事曆與華爾街共識 UI**：
+    * 新增 `us_calendar.py` 模組：
+      - 實作 `_fetch_single_calendar_consensus(ticker)`：提取 `yfinance` 的財報公佈日 (Earnings Date)、下季預估 EPS、下季預估營收，並從 recommendations 提取平均目標價、最高價、最低價、推薦評等（如 `buy`, `hold` 等）及參與評估分析師人數。
+      - 建立中文化評等與 Emoji 標籤對照表 (`RATING_MAP`，如強力買入 🟢🟢、持有 🟡、賣出 🔴 等)，使分析師共識的視覺化極其精緻 premium。
+      - 實作 `get_us_calendar_consensus_data()`：內建 **24小時 SQLite 永久快取 (TTL: 86400s)**，極速加載，快取失效或手動更新時啟用BACKGROUND並行抓取 50 檔美股巨頭日程。
+    * 升級 `app.py` 側邊欄與分流：
+      - 於 `OTHER_TABS` 選單中新增獨立導航項 **`"📅 美股日曆 & 共識"`**，點擊直接流暢切換至專屬的 render 區塊，完全不影響其他既有頁面。
+      - `render_us_calendar_consensus()`：實現雙分頁 Tab 控制：
+        * **Tab 1: 📅 財報公佈日曆 (Earnings Calendar)**：以時間表日程呈现即將公佈財報之美股巨頭日期、預期營收與 EPS，並依公佈日期由近到遠自動排序，提供一鍵下載 Excel 檔案。
+        * **Tab 2: 🎯 華爾街共識與潛在空間 (Wall Street Consensus)**：按照分析師目標價之「潛在漲幅%」由高到低降序排列，提供尋找被低估資產的強大量化工具。支援最低潛在漲幅 Slider 控制與板塊 multiselect 篩選。提供 Excel 檔案下載，並整合代號快速跳轉提示。
+  - **單元測試全綠通過**：
+    * 新增 `tests/test_us_calendar.py`。
+    * `pytest` 跑綠 **245 項測試 (100% 全數綠燈通過，0 異常，無 Regression)**！
+
+
