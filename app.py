@@ -318,6 +318,10 @@ if "execute_bookmark" not in st.session_state:
     st.session_state.execute_bookmark = None
 if "execute_history" not in st.session_state:
     st.session_state.execute_history = None
+if "active_dashboard_query" not in st.session_state:
+    st.session_state.active_dashboard_query = None
+if "last_query" not in st.session_state:
+    st.session_state.last_query = None
 if "selected_tab" not in st.session_state:
     st.session_state.selected_tab = "DeepSeek AI"
 if "deepseek_chat_history" not in st.session_state:
@@ -400,6 +404,154 @@ def execute_from_history(history_item: Dict[str, Any]):
         except Exception as e:
             main_logger.error(f"歷史查詢執行失敗: {query_type}, 錯誤: {str(e)}")
             st.error(f"❌ 執行失敗: {str(e)}")
+
+
+def execute_query_by_params(tab: str, params: dict):
+    """根據參數執行查詢並直接就地渲染結果，支援跨分頁所有功能 (Pinned widgets)"""
+    q_type = params.get("type", "")
+    if not q_type:
+        st.warning("⚠️ 捷徑參數不完整，無法執行")
+        return
+
+    try:
+        # 1. 舊有 history 類別執行
+        if q_type == "ranking":
+            ranking_type = params.get("ranking_type", "up")
+            limit = params.get("limit", 10)
+            res = qw.query_ranking(ranking_type, limit)
+            display_result(res, f"台股排行 - {ranking_type}")
+        
+        elif q_type == "snapshot":
+            codes = params.get("codes", [])
+            if codes:
+                res = qw.query_snapshot(codes)
+                display_result(res, "個股即時快照")
+                
+        elif q_type == "kbar":
+            code = params.get("code", "")
+            from datetime import datetime
+            start_date = datetime.strptime(params["start"], "%Y-%m-%d").date()
+            end_date = datetime.strptime(params["end"], "%Y-%m-%d").date()
+            res = qw.query_daily_kbar(code, start_date, end_date)
+            display_result(res, f"{code} 日K")
+            
+        elif q_type == "ticks":
+            code = params.get("code", "")
+            from datetime import datetime
+            query_date = datetime.strptime(params["date"], "%Y-%m-%d").date()
+            res = qw.query_ticks(code, query_date)
+            display_result(res, f"{code} 逐筆成交")
+            
+        elif q_type == "institutional":
+            code = params.get("code", "")
+            from datetime import datetime
+            start_date = datetime.strptime(params["start"], "%Y-%m-%d").date()
+            end_date = datetime.strptime(params["end"], "%Y-%m-%d").date()
+            res = qw.query_institutional_investors(code, start_date, end_date)
+            display_result(res, f"{code} 三大法人明細")
+
+        # 2. 新增的跨模組捷徑執行
+        elif q_type == "technical_analysis":
+            code = params.get("code", "")
+            from datetime import datetime
+            start_date = datetime.strptime(params["start"], "%Y-%m-%d").date()
+            end_date = datetime.strptime(params["end"], "%Y-%m-%d").date()
+            indicators = params.get("indicators", [])
+            import technical_analysis as ta
+            with st.spinner("正在繪製互動式技術指標圖表..."):
+                kbar_df = qw.query_daily_kbar(code, start_date, end_date)
+                if isinstance(kbar_df, pd.DataFrame) and not kbar_df.empty:
+                    fig = ta.plot_kbar_with_indicators(
+                        kbar_df,
+                        code,
+                        indicators=indicators if indicators else ["MA5", "MA20"],
+                        height=800
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.error("無法獲取K線數據，繪圖失敗")
+                    
+        elif q_type == "taistock_batch":
+            from datetime import datetime
+            start_date = datetime.strptime(params["start_date"], "%Y-%m-%d").date()
+            end_date = datetime.strptime(params["end_date"], "%Y-%m-%d").date()
+            query_date = datetime.strptime(params["query_date"], "%Y-%m-%d").date()
+            results = []
+            for item in params["selected"]:
+                res = _taistock_dispatch(item, params["code"], params["codes"], start_date, end_date, query_date, params["count"])
+                results.append((item, res))
+            # 存入臨時狀態以利渲染結果
+            st.session_state["db_batch_results"] = results
+            _render_batch_results("db_batch_results")
+
+        elif q_type == "twse_batch":
+            results = []
+            for item in params["selected"]:
+                res, _ = _twse_dispatch(item, params["code"])
+                results.append((item, res))
+            st.session_state["db_batch_results"] = results
+            _render_batch_results("db_batch_results")
+            
+        elif q_type == "finmind_batch":
+            from datetime import datetime
+            start_date = datetime.strptime(params["start_date"], "%Y-%m-%d").date()
+            end_date = datetime.strptime(params["end_date"], "%Y-%m-%d").date()
+            results = []
+            for item in params["selected"]:
+                res = _finmind_dispatch(item, params["code"], start_date, end_date)
+                results.append((item, res))
+            st.session_state["db_batch_results"] = (results, params["code"])
+            _render_batch_results(
+                "db_batch_results",
+                label_fn=lambda item, extra: f"📋 {extra} — {item}" if extra else f"📋 {item}",
+            )
+            
+        elif q_type == "futures_forex_batch":
+            from datetime import datetime
+            start_date = datetime.strptime(params["start_date"], "%Y-%m-%d").date()
+            end_date = datetime.strptime(params["end_date"], "%Y-%m-%d").date()
+            results = []
+            for item in params["selected"]:
+                res = _futures_forex_dispatch(
+                    item, params.get("futures_code"), params.get("currency"), start_date, end_date)
+                results.append((item, res))
+            st.session_state["db_batch_results"] = results
+            _render_batch_results("db_batch_results")
+            
+        elif q_type == "screener_us":
+            import us_screener as usc
+            with st.spinner("正在執行美股多因子選股篩選..."):
+                df_all = usc.get_us_screener_data(force_refresh=False)
+                res_df = usc.filter_us_stocks(df_all, params["filters"])
+                _us_screener_result_block(res_df, "美股多因子選股")
+                
+        elif q_type == "us_stock_batch":
+            from datetime import datetime
+            start_date = datetime.strptime(params["start_date"], "%Y-%m-%d").date() if params.get("start_date") else None
+            end_date = datetime.strptime(params["end_date"], "%Y-%m-%d").date() if params.get("end_date") else None
+            results = []
+            for item in params["selected"]:
+                res = _us_stock_dispatch(item, params["ticker"], start_date, end_date)
+                results.append((item, res))
+            st.session_state["db_batch_results"] = results
+            _render_batch_results("db_batch_results")
+            
+        elif q_type == "us_calendar_consensus":
+            import us_calendar as usc
+            with st.spinner("正在加載美股日曆與華爾街共識數據..."):
+                df_cal = usc.get_us_calendar_consensus_data(force_refresh=False)
+                if not df_cal.empty:
+                    # 顯示華爾街評等共識排名
+                    display_cols = ["代號", "名稱", "行業板塊", "最新價", "共識評等", "平均目標價", "潛在漲幅%", "分析師人數"]
+                    st.dataframe(df_cal[display_cols].sort_values("潛在漲幅%", ascending=False), use_container_width=True, hide_index=True)
+                else:
+                    st.warning("無數據可顯示")
+        else:
+            st.warning(f"⚠️ 暫不支援的捷徑類型: {q_type}")
+    except Exception as exc:
+        st.error(f"❌ 捷徑執行失敗: {exc}")
+        main_logger.error(f"捷徑執行出錯 params={params}: {exc}")
+
 
 # ══════════════════════════════════════════════════════════
 # Tab 對應的查詢界面
@@ -515,16 +667,94 @@ def render_dashboard():
     """整合儀表板首頁 (Task 7.4)"""
     main_logger.info("渲染儀表板 Tab")
     st.markdown("### 📊 跨市場專業儀表板")
+    
+    # 1. 頂部：自動刷新的 ADR 與 關注名單 監控
     render_dashboard_fragment()
     
+    st.divider()
+    
+    # 2. 中部：我的常用釘選查詢 (Favorites & Pinned widgets)
+    st.subheader("📌 我的常用釘選查詢")
+    
+    # 初始化 active_dashboard_query
+    if "active_dashboard_query" not in st.session_state:
+        st.session_state.active_dashboard_query = None
+        
+    bookmarks = st.session_state.get("bookmarks", [])
+    if not bookmarks:
+        st.info("💡 您目前還沒有釘選任何查詢。在其他分頁查詢完成後，可使用下方的「📌 釘選此查詢到儀表板首頁」將其新增至此！")
+    else:
+        # 每行 3 個卡片
+        cols = st.columns(3)
+        for idx, bm in enumerate(bookmarks):
+            name = bm["name"]
+            tab = bm["tab"]
+            params = bm["params"]
+            
+            # 根據捷徑類型顯示 Emoji
+            q_type = params.get("type", "")
+            emoji = "📋"
+            if q_type == "technical_analysis": emoji = "📈"
+            elif q_type in ["taistock_batch", "twse_batch", "finmind_batch", "us_stock_batch", "us_stock_query"]: emoji = "📊"
+            elif q_type == "futures_forex_batch": emoji = "💱"
+            elif q_type == "screener_us": emoji = "🔍"
+            elif q_type == "us_calendar_consensus": emoji = "📅"
+            
+            # 參數摘要
+            param_desc = ""
+            if "code" in params and params["code"]: param_desc += f"代號: {params['code']} "
+            elif "codes" in params and params["codes"]: param_desc += f"代號: {','.join(params['codes'][:2])} "
+            elif "ticker" in params and params["ticker"]: param_desc += f"美股: {params['ticker']} "
+            
+            if "selected" in params:
+                param_desc += f"| 項目: {len(params['selected'])}個"
+                
+            with cols[idx % 3]:
+                with st.container(border=True):
+                    st.markdown(f"**{emoji} {name}**")
+                    st.caption(f"分頁: {tab} | {param_desc}")
+                    
+                    c_run, c_del = st.columns([3, 1])
+                    with c_run:
+                        if st.button("⚡ 快速查詢", key=f"run_bm_db_{idx}", type="primary", use_container_width=True):
+                            st.session_state.active_dashboard_query = bm
+                            st.rerun()
+                    with c_del:
+                        if st.button("🗑️", key=f"del_bm_db_{idx}", use_container_width=True, help="移除釘選"):
+                            from config import remove_bookmark, load_bookmarks
+                            remove_bookmark(name)
+                            st.session_state.bookmarks = load_bookmarks()
+                            st.success("已移除釘選")
+                            if st.session_state.active_dashboard_query and st.session_state.active_dashboard_query["name"] == name:
+                                st.session_state.active_dashboard_query = None
+                            st.rerun()
+
+    # 3. 原位查詢結果容器
+    active_q = st.session_state.get("active_dashboard_query")
+    if active_q:
+        st.markdown("---")
+        
+        # 標題與關閉按鈕
+        col_t, col_c = st.columns([5, 1])
+        with col_t:
+            st.markdown(f"### ⚡ 釘選查詢結果 - **{active_q['name']}**")
+        with col_c:
+            if st.button("❌ 關閉結果", key="close_active_db_q", type="secondary", use_container_width=True):
+                st.session_state.active_dashboard_query = None
+                st.rerun()
+                
+        # 執行並原地渲染結果
+        with st.container(border=True):
+            execute_query_by_params(active_q["tab"], active_q["params"])
+
     # 底部快速導航
     st.divider()
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("📈 查台股排行", use_container_width=True):
+        if st.button("📈 查台股排行", use_container_width=True, key="quick_ts_ranking"):
             st.info("請點選左側『台股市場』標籤")
     with col2:
-        if st.button("📂 查看查詢歷史", use_container_width=True):
+        if st.button("📂 查看查詢歷史", use_container_width=True, key="quick_view_history"):
             st.info("請查看左側側邊欄『最近查詢』")
 
 @st.fragment(run_every=30)
@@ -831,6 +1061,22 @@ def render_taistock_market():
             bar.empty()
             st.session_state["ts_batch_results"] = results
 
+            # 保存當前查詢參數供一鍵釘選
+            st.session_state.last_query = {
+                "tab": "台股市場",
+                "params": {
+                    "type": "taistock_batch",
+                    "selected": selected,
+                    "code": code,
+                    "codes": codes,
+                    "start_date": start_date.isoformat(),
+                    "end_date": end_date.isoformat(),
+                    "query_date": query_date.isoformat(),
+                    "count": count
+                },
+                "default_name": f"台股批次 ({'、'.join(selected[:2])}{'等' if len(selected)>2 else ''})"
+            }
+
     _render_batch_results("ts_batch_results")
 
 
@@ -985,6 +1231,17 @@ def render_twse_section():
             bar.empty()
             st.session_state["twse_batch_results"] = results
 
+            # 保存當前查詢參數供一鍵釘選
+            st.session_state.last_query = {
+                "tab": "TWSE",
+                "params": {
+                    "type": "twse_batch",
+                    "selected": selected,
+                    "code": code_filter
+                },
+                "default_name": f"TWSE批次 ({'、'.join(selected[:2])}{'等' if len(selected)>2 else ''})"
+            }
+
     _render_batch_results("twse_batch_results")
 
 
@@ -1070,6 +1327,19 @@ def render_finmind():
                 results.append((item, result))
             bar.empty()
             st.session_state["fm_batch_results"] = (results, code)
+
+            # 保存當前查詢參數供一鍵釘選
+            st.session_state.last_query = {
+                "tab": "FinMind",
+                "params": {
+                    "type": "finmind_batch",
+                    "selected": selected,
+                    "code": code,
+                    "start_date": start_date.isoformat(),
+                    "end_date": end_date.isoformat()
+                },
+                "default_name": f"FinMind批次 - {code} ({'、'.join(selected[:2])}{'等' if len(selected)>2 else ''})"
+            }
 
     _render_batch_results(
         "fm_batch_results",
@@ -1162,6 +1432,20 @@ def render_futures_forex():
                 results.append((item, result))
             bar.empty()
             st.session_state["ff_batch_results"] = results
+
+            # 保存當前查詢參數供一鍵釘選
+            st.session_state.last_query = {
+                "tab": "期貨/匯率",
+                "params": {
+                    "type": "futures_forex_batch",
+                    "selected": selected,
+                    "futures_code": futures_code,
+                    "currency": currency,
+                    "start_date": start_date.isoformat(),
+                    "end_date": end_date.isoformat()
+                },
+                "default_name": f"期指匯率批次 ({'、'.join(selected[:2])}{'等' if len(selected)>2 else ''})"
+            }
 
     _render_batch_results("ff_batch_results")
 
@@ -1278,6 +1562,19 @@ def render_us_stocks():
                 results.append((item, result))
             bar.empty()
             st.session_state["us_batch_results"] = results
+
+            # 保存當前查詢參數供一鍵釘選
+            st.session_state.last_query = {
+                "tab": "🇺🇸 美股專區",
+                "params": {
+                    "type": "us_stock_batch",
+                    "selected": selected,
+                    "ticker": ticker,
+                    "start_date": start_date.isoformat() if start_date else None,
+                    "end_date": end_date.isoformat() if end_date else None
+                },
+                "default_name": f"美股批次 - {ticker} ({'、'.join(selected[:2])}{'等' if len(selected)>2 else ''})"
+            }
 
     _render_batch_results("us_batch_results")
 
@@ -2159,6 +2456,15 @@ def render_us_calendar_consensus():
         except Exception:
             pass
 
+        # 保存當前查詢參數供一鍵釘選
+        st.session_state.last_query = {
+            "tab": "📅 美股日曆 & 共識",
+            "params": {
+                "type": "us_calendar_consensus"
+            },
+            "default_name": "美股日曆與共識"
+        }
+
 
 def render_us_screener():
     """美股多因子選股頁面"""
@@ -2253,6 +2559,16 @@ def render_us_screener():
         }
         res_df = usc.filter_us_stocks(df_all, filters)
         st.session_state["us_screener_result"] = res_df
+
+        # 保存當前查詢參數供一鍵釘選
+        st.session_state.last_query = {
+            "tab": "選股",
+            "params": {
+                "type": "screener_us",
+                "filters": filters
+            },
+            "default_name": "美股多因子選股"
+        }
 
     # 渲染結果
     res_df = st.session_state.get("us_screener_result")
@@ -2644,6 +2960,19 @@ def render_technical_analysis():
                             "indicators": indicators
                         })
 
+                        # 保存當前查詢參數供一鍵釘選
+                        st.session_state.last_query = {
+                            "tab": "技術分析",
+                            "params": {
+                                "type": "technical_analysis",
+                                "code": code,
+                                "start": start_date.isoformat(),
+                                "end": end_date.isoformat(),
+                                "indicators": indicators
+                            },
+                            "default_name": f"{code} 技術分析圖表"
+                        }
+
                         # 基礎統計信息
                         with st.expander("📊 統計信息", expanded=False):
                             col1, col2, col3, col4 = st.columns(4)
@@ -2820,6 +3149,34 @@ else:
         render_news()
     elif selected_tab == "工具":
         render_tools()
+
+# ── 中央：一鍵釘選到儀表板首頁 ─────────────────────────────────
+if st.session_state.get("last_query") is not None:
+    st.markdown("---")
+    lq = st.session_state.last_query
+    
+    # 建立一個精美的 Glassmorphic 卡片樣式 expander
+    with st.expander(f"📌 釘選本次查詢「{lq.get('default_name')}」到儀表板首頁", expanded=False):
+        col_name, col_btn = st.columns([3, 1])
+        with col_name:
+            bm_name = st.text_input("書籤自訂名稱", value=lq.get("default_name", ""), key="pin_bm_name")
+        with col_btn:
+            st.write("") # 垂直對齊用的空白
+            st.write("") # 垂直對齊用的空白
+            if st.button("💾 儲存並釘選", key="pin_bm_btn", type="primary", use_container_width=True):
+                if bm_name:
+                    from config import add_bookmark, load_bookmarks
+                    success = add_bookmark(bm_name, lq["tab"], lq["params"])
+                    if success:
+                        st.session_state.bookmarks = load_bookmarks()
+                        st.success(f"🎉 成功釘選「{bm_name}」到儀表板！")
+                        # 釘選後清除以防重複顯示
+                        st.session_state.last_query = None
+                        st.rerun()
+                    else:
+                        st.error("❌ 書籤名稱已存在")
+                else:
+                    st.warning("⚠️ 請輸入書籤名稱")
 
 # 主畫面渲染完成 → 啟動背景預載（只啟動一次）
 _kick_preload_background()
