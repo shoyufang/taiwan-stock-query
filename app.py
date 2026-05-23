@@ -409,67 +409,6 @@ def execute_from_history(history_item: Dict[str, Any]):
 def render_dashboard_fragment():
     """儀表板自動刷新部分 (Task 7.3/7.4)"""
 
-    st.subheader("🌍 全球市場狀態")
-    import streamlit.components.v1 as components
-    components.html("""
-    <div class="tradingview-widget-container" style="height:500px;width:100%">
-      <div class="tradingview-widget-container__widget" style="height:calc(100% - 32px);width:100%"></div>
-      <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-market-overview.js" async>
-      {
-        "colorTheme": "dark",
-        "dateRange": "12M",
-        "showChart": false,
-        "locale": "zh_TW",
-        "isTransparent": false,
-        "showSymbolLogo": true,
-        "showFloatingTooltip": false,
-        "width": "100%",
-        "height": "500",
-        "tabs": [
-          {
-            "title": "指數",
-            "symbols": [
-              {"s": "TVC:TWII",       "d": "台灣加權"},
-              {"s": "FOREXCOM:SPXUSD","d": "S&P 500"},
-              {"s": "FOREXCOM:NSXUSD","d": "Nasdaq 100"},
-              {"s": "DJ:DJI",         "d": "道瓊工業"},
-              {"s": "NASDAQ:SOX",     "d": "費城半導體"},
-              {"s": "TVC:HSI",        "d": "恆生指數"},
-              {"s": "FOREXCOM:JPN225","d": "日經 225"}
-            ],
-            "originalTitle": "指數"
-          },
-          {
-            "title": "股票",
-            "symbols": [
-              {"s": "TWSE:2330",  "d": "台積電"},
-              {"s": "TWSE:2317",  "d": "鴻海"},
-              {"s": "NASDAQ:NVDA","d": "Nvidia"},
-              {"s": "NASDAQ:AAPL","d": "Apple"},
-              {"s": "NASDAQ:MSFT","d": "Microsoft"},
-              {"s": "NASDAQ:TSM", "d": "TSM ADR"}
-            ],
-            "originalTitle": "股票"
-          },
-          {
-            "title": "外匯/商品",
-            "symbols": [
-              {"s": "FX:USDJPY",      "d": "美元/日圓"},
-              {"s": "FX:EURUSD",      "d": "歐元/美元"},
-              {"s": "TVC:GOLD",       "d": "黃金"},
-              {"s": "TVC:USOIL",      "d": "WTI 原油"},
-              {"s": "BITSTAMP:BTCUSD","d": "比特幣"}
-            ],
-            "originalTitle": "外匯/商品"
-          }
-        ]
-      }
-      </script>
-    </div>
-    """, height=510)
-
-    st.divider()
-    
     # ⚖️ 台美 ADR 溢折價即時監控
     st.subheader("⚖️ 台美 ADR 溢折價即時監控")
     try:
