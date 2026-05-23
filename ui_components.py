@@ -528,18 +528,26 @@ def render_settings_panel(config: Dict[str, Any], in_sidebar: bool = True) -> Di
 
     return config
 
-def date_input_section(label: str = "選擇日期範圍", default_days: int = 30) -> tuple:
-    """日期輸入區域 — 返回 (start_date, end_date)"""
+def date_input_section(label: str = "選擇日期範圍", default_days: int = 30,
+                        key_prefix: str = "") -> tuple:
+    """日期輸入區域 — 返回 (start_date, end_date)
+
+    key_prefix: 傳入唯一前綴以隔離不同 Tab 的 session state，
+                避免切換 Tab 時日期互相覆蓋（例如 "us_", "fm_", "ts_"）
+    """
+    kp = key_prefix or ""
     col1, col2 = st.columns(2)
     with col1:
         start_date = st.date_input(
             "開始日期",
-            value=date.today() - timedelta(days=default_days)
+            value=date.today() - timedelta(days=default_days),
+            key=f"{kp}date_start" if kp else None,
         )
     with col2:
         end_date = st.date_input(
             "結束日期",
-            value=date.today()
+            value=date.today(),
+            key=f"{kp}date_end" if kp else None,
         )
     return start_date, end_date
 
