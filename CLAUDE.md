@@ -729,4 +729,22 @@ pip install shioaji pandas yfinance FinMind requests futu-api mplfinance streaml
     * 新增 `tests/test_us_calendar.py`。
     * `pytest` 跑綠 **245 項測試 (100% 全數綠燈通過，0 異常，無 Regression)**！
 
+### 2026-05-23 Gemini Session（台股法說與除息日曆擴充）
+- **核心任務**：依照使用者指令，為「台股市場」分頁擴充並整合台股法說會與除息日曆。
+- **主要成果**：
+  - **台股法說與除息日曆實作**：
+    * 新增 `tw_calendar.py` 模組：
+      - 定義 `TW_SCREENER_POOL`：包含 50 檔最具代表性的台股權值巨頭（台灣 50 指數成分股）。
+      - 實作 `_fetch_single_tw_calendar_consensus(code)`：利用 `yfinance` 自動提取法說會/財報日期、下季預估 EPS、下季預估營收（台幣元）及除息日。
+      - 本地股票中文名稱映射：完美串接 `stock_lookup.py` 機制，確保台股代號自動轉換為 100% 正確的中文名稱（如 `2330` -> `台積電`）。
+      - 實作 `get_tw_calendar_consensus_data()`：內建 **24小時 SQLite 永久快取 (TTL: 86400s)**，極速加載，支援背景並行抓取 50 檔台股日程。
+    * 升級 `app.py` 台股市場批次查詢 UI：
+      - 於 `NO_DATE_ITEMS` 中新增項目 **`"台股法說與除息日曆"`** 複選按鈕。
+      - 於 `_taistock_dispatch` 批次查詢分派器中，完美實作 `"台股法說與除息日曆"` 分流邏輯，重整並自動排序數據。
+      - 重用高階組件 `display_result()`：讓該日曆直接獲得表格呈现、Notion 跨平台連接儲存、以及一鍵導出下載 Excel 檔案的強大功能。
+  - **單元測試全綠通過**：
+    * 新增 `tests/test_tw_calendar.py`。
+    * `pytest` 跑綠 **248 項測試 (100% 全數綠燈通過，無 Regression)**！
+
+
 
