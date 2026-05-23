@@ -119,12 +119,7 @@ def test_render_tradingview_chart_html(sample_stock_df):
     assert "addCandlestickSeries" in html
     assert "addHistogramSeries" in html
     
-    # 驗證是否包含大升級後的所有指標 JS 調用與關鍵字
+    # 驗證是否包含大升級後的所有主圖趨勢指標 JS 調用與關鍵字
     assert "maData" in html
     assert "emaData" in html
     assert "bbData" in html
-    assert "rsiPane" in html
-    assert "macdPane" in html
-    assert "atrPane" in html
-    assert "createPriceLine" in html
-    assert "Histogram" in html
