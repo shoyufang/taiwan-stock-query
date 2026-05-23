@@ -455,6 +455,60 @@ class DeepSeekEngine:
                 answer = second_response.choices[0].message.content or "（AI 無回應，請重試）"
                 return {"analysis": answer, "raw_response": str(second_response)}
 
+            elif response_message.content and "DSML" in response_message.content:
+                # ── 針對 Gemini / 代理中轉輸出 DSML 工具調用 XML 標籤時的相容處理 ──
+                main_logger.info("偵測到 DSML 工具調用標籤，開始進行 XML 正則解析...")
+                
+                # 正則表達式
+                invoke_pattern = re.compile(r'<\s*\|\s*DSML\s*\|\s*invoke\s+name="([^"]+)"\s*>(.*?)</\s*\|\s*DSML\s*\|\s*invoke\s*>', re.DOTALL)
+                param_pattern = re.compile(r'<\s*\|\s*DSML\s*\|\s*parameter\s+name="([^"]+)"[^>]*>(.*?)</\s*\|\s*DSML\s*\|\s*parameter\s*>', re.DOTALL)
+                
+                invokes = invoke_pattern.findall(response_message.content)
+                if invokes:
+                    # 將本次助理的原始 DSML 內容記錄到對話中
+                    messages.append({"role": "assistant", "content": response_message.content})
+                    
+                    for func_name, params_str in invokes:
+                        # 提取所有參數
+                        params_list = param_pattern.findall(params_str)
+                        # 重構為 dict 參數
+                        func_args = {p_name.strip(): p_val.strip() for p_name, p_val in params_list}
+                        
+                        # 自動補全缺失的日期參數
+                        if func_name in ["tool_query_exchange_rate", "tool_query_daily_kbar", "tool_query_institutional_investors", "tool_query_month_revenue", "tool_query_financial_statement", "tool_query_margin_short"]:
+                            if "start_date" not in func_args:
+                                func_args["start_date"] = default_start
+                            if "end_date" not in func_args:
+                                func_args["end_date"] = default_end
+                        
+                        main_logger.info(f"DSML 解析成功 - 工具: {func_name}，參數: {func_args}")
+                        
+                        # 執行對應的工具
+                        if func_name in _TOOL_FUNCTIONS:
+                            try:
+                                function_response = _TOOL_FUNCTIONS[func_name](**func_args)
+                            except Exception as e:
+                                function_response = f"呼叫工具時發生錯誤: {str(e)}"
+                        else:
+                            function_response = f"找不到指定的工具: {func_name}"
+                            
+                        # 用戶補充工具執行結果
+                        messages.append({
+                            "role": "user",
+                            "content": f"工具 {func_name} 的執行結果如下，請根據此結果用繁體中文回答用戶：\n{function_response}"
+                        })
+                    
+                    # 再次請求模型生成最終答案
+                    second_response = self.client.chat.completions.create(
+                        model=self.model_name,
+                        messages=messages,
+                    )
+                    answer = second_response.choices[0].message.content or "（AI 無回應，請重試）"
+                    return {"analysis": answer, "raw_response": str(second_response)}
+                else:
+                    answer = response_message.content or "（AI 無回應，請重試）"
+                    return {"analysis": answer, "raw_response": str(response)}
+
             else:
                 answer = response_message.content or "（AI 無回應，請重試）"
                 return {"analysis": answer, "raw_response": str(response)}
