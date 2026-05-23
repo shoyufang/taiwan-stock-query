@@ -135,3 +135,5 @@ sudo docker restart sinopac-web
 
 > ⚠️ `admin` 直接執行 `docker restart` 會報 **permission denied**，必須加 `sudo`。
 
+#   N A S   a u t o - d e p l o y   t e s t   0 5 / 2 3 / 2 0 2 6   2 1 : 2 7 : 4 8  
+ 
