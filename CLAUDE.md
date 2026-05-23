@@ -746,7 +746,110 @@ pip install shioaji pandas yfinance FinMind requests futu-api mplfinance streaml
     * 新增 `tests/test_tw_calendar.py`。
     * `pytest` 跑綠 **248 項測試 (100% 全數綠燈通過，無 Regression)**！
 
-### 2026-05-23 Gemini Session（永豐金 Shioaji 獨家行情與歷史查詢功能上架）
+
+### 2026-05-23 Gemini Session（動態主題切換系統實作）
+- **核心任務**：實作 5 種配色主題（Claude 暖橘、深海藍、翡翠綠、科技紫、奢華黑金），讓使用者可在側邊欄即時切換。
+- **主要成果**：
+  - **THEMES 字典**（`app.py` 頂部）：定義 5 組主題色系，每組包含 bg/sidebar/surface/primary/primary_dark/text/text2/border/border_light/shadow/glow/hover_tint/checkbox_tint 共 13 個色值。
+  - **`_inject_theme_css(theme_name)`**：單一函式使用 f-string 動態注入完整 CSS（含 `:root {}` 變數定義與所有 Streamlit 元件覆蓋規則）。
+  - **Session State `theme`**：初始值為 `"🌅 Claude 暖橘"`，在 session state 區塊後立即呼叫 `_inject_theme_css`。
+  - **側邊欄主題切換器**：5 個 emoji 按鈕排成一行，選中者顯示 `type="primary"`，其餘 `type="secondary"`，點擊後 `st.rerun()`。
+
+---
+
+## ⚠️ 關鍵錯誤與正確做法（2026-05-23）
+
+### ❌ 錯誤一：CSS f-string 與 Python f-string 的 `{{}}` 衝突
+
+**問題描述**：
+在 `_inject_theme_css` 函式中，用 f-string 生成 CSS 時，CSS 本身的大括號 `{}` 需要改寫成 `{{}}` 才能避免 Python 解析錯誤。但若同時把整段 CSS 包在函式內，舊的 `st.markdown("""...""")` 呼叫（非 f-string）被混在函式體裡，導致函式結構錯亂、內部出現孤立的原始 CSS 選擇器直接作為 Python 語法被解析。
+
+**正確做法**：
+```python
+def _inject_theme_css(theme_name: str):
+    t = THEMES.get(theme_name, THEMES["🌅 Claude 暖橘"])
+    glow = t["glow"]  # 先提取到普通變數，避免 t['key'] 在 f-string 內的引號衝突
+    # ...
+    st.markdown(f"""
+<style>
+:root {{                          /* CSS 大括號必須用 {{ }} */
+    --claude-primary: {primary};  /* 變數用單層 {} */
+}}
+</style>
+""", unsafe_allow_html=True)
+```
+> **原則**：整個 CSS 區塊只能有「一個」`st.markdown(f"""...""")` 呼叫，舊的靜態 `st.markdown("""...""")` 一定要完全移除，不能並存。
+
+---
+
+### ❌ 錯誤二：Git 分支錯誤導致 NAS 拉不到新 code
+
+**問題描述**：
+本機工作在 `local` 分支，執行 `git push origin main` 後顯示 **"Everything up-to-date"**，代表 `local` 分支的 commit 根本沒有進入 `origin/main`。NAS 執行 `git pull origin main` 當然拉不到新功能。
+
+**根本原因**：
+- 本機 `*` 指向的是 `local` 分支，不是 `main`
+- `git push origin main` 推送的是**本機 `main` 的狀態**（未包含 `local` 的新 commit）
+
+**正確做法**：
+```bash
+# 方法一：切到 main，合併 local，再推
+git checkout main
+git merge local --no-ff -m "merge: ..."
+git pull origin main --no-rebase   # 如果遠端有新 commit，先拉
+git push origin main
+
+# 方法二：直接把 local 分支推到遠端的 main（危險，不建議）
+git push origin local:main
+```
+
+> **原則**：每次推 GitHub 前，先用 `git branch` 確認目前在哪個分支，用 `git log --oneline -3` 確認最新 commit 已在當前分支。推送後確認輸出**不是** "Everything up-to-date"，而是有 hash 範圍（如 `abc123..def456 main -> main`）。
+
+---
+
+### ❌ 錯誤三：NAS Docker 容器更新流程
+
+**問題描述**：
+NAS 的容器啟動方式是 `-v /volume1/docker/sinopac:/app`（volume 掛載），code 直接讀硬碟。但 `admin` 用戶沒有 Docker daemon 權限，直接執行 `docker restart sinopac-web` 會報 **"permission denied"**。
+
+**正確流程**：
+```bash
+# Step 1: SSH 進 NAS（admin 用戶）
+cd /volume1/docker/sinopac
+git pull origin main            # 拉最新 code
+
+# Step 2: 重啟容器（需要 sudo 或 root）
+sudo docker restart sinopac-web   # 方法 A：sudo
+
+# 或：
+sudo -i                           # 方法 B：切換到 root
+docker restart sinopac-web
+
+# 或：
+# 方法 C：直接在 Synology Container Manager Web 介面點「重新啟動」
+```
+
+> **原則**：因為使用了 volume 掛載，`git pull` 後**不需要** `docker build`，只需要 `docker restart` 讓 Streamlit 重新載入 `app.py` 即可。只有 `requirements.txt` 有變動時才需要重新 build。
+
+---
+
+### ✅ 本次正確架構總結（動態主題系統）
+
+```
+app.py 頂部（set_page_config 後）
+  └── THEMES dict（5 主題 × 13 色值）
+  └── _inject_theme_css(theme_name)  ← 唯一 CSS 注入點，含所有規則
+
+session state 初始化區塊
+  └── st.session_state["theme"] = "🌅 Claude 暖橘"（預設值）
+  └── _inject_theme_css(st.session_state["theme"])  ← 每次渲染都執行
+
+with st.sidebar: 最頂部
+  └── 5 個 emoji 按鈕（cols × 5）
+  └── 點擊 → session_state["theme"] = tn → st.rerun()
+  └── 選中者 type="primary"，其他 type="secondary"
+```
+
 - **核心任務**：盤點並上架永豐金 Shioaji 除了下單與帳務之外的所有核心行情與歷史數據查詢功能。
 - **主要成果**：
   - **實作 Shioaji 行情查詢核心**（`sinopac_query.py`）：
