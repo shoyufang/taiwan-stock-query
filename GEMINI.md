@@ -49,6 +49,74 @@
       - [x] **24小時 SQLite 永久快取**：日曆與除息數據支援 24 小時 SQLite 永久快取（TTL: 86400s）與並行下載。
       - [x] **Streamlit UI 整合與批次查詢**：於「台股市場」大分頁的 `NO_DATE_ITEMS` 中新增 `"台股法說與除息日曆"`。在 `_taistock_dispatch` 中實作分流，並利用 `display_result()` 高階組件無縫支援數據表格呈现、Notion 儲存及 Excel 一鍵下載。
       - [x] **單元測試全綠通過**：建立 `test_tw_calendar.py`，順利跑通 248 項 `pytest` 測試（100% PASSED 全綠）。
+- [x] **TradingView-Plotly 雙引擎技術圖表滿血大升級 (2026-05-24)**：
+    - [x] **TradingView Canvas 趨勢看盤**：重構 `render_tradingview_chart` 支援 K線、成交量及多週期 MA (實線)、EMA (Dashed 虛線) 與布林帶 BB (上中下三橘線) 的極速 Canvas 渲染。
+    - [x] **擺動指標 Plotly 分流**：擺動指標 (RSI 參考線、MACD 能量柱/快慢線、ATR 漸層面積圖) 分流至 Plotly 子圖防價格數量級壓縮，並加入 Tab 溫馨導引。
+    - [x] **五大主題完美自適應**：全圖表背景/字體/網格線與「Claude 暖橘」、「深海藍」、「翡翠綠」、「科技紫」、「奢華黑金」主題 100% 融合。
+    - [x] **100% 測試全綠**：新建 `test_technical_analysis.py` 覆蓋指標與 Canvas 生成，全體 269 項單元/UI 整合測試 100% 全綠。
+    - [x] **解鎖 Drive 衝突與 NAS 熱部署**：清除 `.git/AUTO_MERGE.lock` 鎖定，順利 push 並觸發 NAS Hook 熱部署與容器重啟！
+- [ ] 待命：等待使用者回饋或新功能開發指令。
+    - [x] **動態主題切換系統 (2026-05-23)**：
+      - [x] **5 種主題定義**：Claude 暖橘、深海藍、翡翠綠、科技紫、奢華黑金，每主題含 13 個色值。
+      - [x] **`_inject_theme_css()`**：單一函式動態注入完整 CSS（f-string + CSS `{{}}` 跳脫）。
+      - [x] **側邊欄切換器**：5 個 emoji 按鈕，選中顯示 primary，點擊即時 rerun 切換。
+      - [x] **Session State 持久化**：主題選擇存於 `st.session_state["theme"]`，頁面重整前不消失。
+
+---
+
+## ⚠️ 重要錯誤教訓（必讀，2026-05-23）
+
+### 1. CSS f-string 的 `{{}}` 問題
+在 `st.markdown(f"""...""")` 中，**所有 CSS 大括號必須用 `{{` `}}`**，否則 Python 會把 CSS 的 `{}` 當作 f-string 插值而報錯。
+
+```python
+# ✅ 正確
+st.markdown(f"""<style>
+:root {{ --color: {primary}; }}
+.btn {{ background: {bg}; }}
+</style>""", unsafe_allow_html=True)
+
+# ❌ 錯誤（會 SyntaxError 或 KeyError）
+st.markdown(f"""<style>
+:root { --color: {primary}; }
+</style>""", unsafe_allow_html=True)
+```
+
+> 另外：**舊的靜態 `st.markdown("""...""")` 一定要完全移除**，不能和新的 f-string 版本並存在同一函式內，否則結構錯亂。
+
+---
+
+### 2. Git 分支管理：本機 `local` 分支 ≠ `origin/main`
+
+此專案本機工作在 **`local` 分支**，不是 `main`！
+
+```bash
+# 每次 push 前確認：
+git branch          # 確認目前分支（* 標示）
+git log --oneline -3 # 確認 commit 在正確分支
+
+# 正確推送流程：
+git checkout main
+git merge local --no-ff -m "merge: ..."
+git pull origin main --no-rebase  # 先拉遠端新 commit
+git push origin main              # 確認輸出有 hash 範圍，非 "Everything up-to-date"
+```
+
+> **"Everything up-to-date"** = 沒有推成功，NAS 拉不到新 code！
+
+---
+
+### 3. NAS Docker 更新流程
+
+容器使用 `-v /volume1/docker/sinopac:/app` volume 掛載，**不需要 rebuild**：
+
+```bash
+# SSH 進 NAS
+cd /volume1/docker/sinopac
+git pull origin main          # 拉新 code
+
+# 重啟容器（admin 沒有 Docker 權限，需要 sudo）
+sudo docker restart sinopac-web
 - [ ] 待命：等待使用者回饋或新功能開發指令。
     - [x] **動態主題切換系統 (2026-05-23)**：
       - [x] **5 種主題定義**：Claude 暖橘、深海藍、翡翠綠、科技紫、奢華黑金，每主題含 13 個色值。
@@ -117,5 +185,4 @@ sudo docker restart sinopac-web
 
 > ⚠️ `admin` 直接執行 `docker restart` 會報 **permission denied**，必須加 `sudo`。
 
-#   N A S   a u t o - d e p l o y   t e s t   0 5 / 2 3 / 2 0 2 6   2 1 : 2 7 : 4 8  
- 
+#   N A S   a u t o - d e p l o y   t e s t   0 5 / 2 4 / 2 0 2 6   0 5 : 4 5 : 0 0
