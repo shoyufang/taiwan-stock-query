@@ -5,6 +5,60 @@
 
 ---
 
+## 🚀 部署基礎設施（已全自動化，無需再問）
+
+### Git 分支架構
+- **本機工作分支**：`local`（所有開發都在這裡）
+- **發布分支**：`main`（合併後推送到 GitHub 和 NAS）
+- **正確推送流程**（每次都這樣做）：
+  ```bash
+  git checkout main
+  git merge local --no-ff -m "feat/fix/chore: ..."
+  git pull origin main --no-rebase
+  git push origin main   # → GitHub
+  git push nas main      # → NAS（自動重啟容器）
+  git checkout local
+  ```
+- ⚠️ `git push origin main` 若顯示 **"Everything up-to-date"** = commit 還在 `local` 沒 merge 進來！
+
+### Git Remotes
+| Remote | URL | 用途 |
+|--------|-----|------|
+| `origin` | `git@github-taiwan-stock:shoyufang/taiwan-stock-query.git` | GitHub 備份 |
+| `nas` | `ssh://nas-sinopac/volume1/docker/sinopac` | NAS 直接部署 |
+
+### SSH 設定（`~/.ssh/config`）
+```
+Host github-taiwan-stock
+    HostName github.com
+    User git
+    IdentityFile ~/.ssh/github_taiwan_stock
+
+Host nas-sinopac
+    HostName as6604t-77cb.myasustor.com   ← ASUS NAS 外網域名
+    User admin
+    IdentityFile ~/.ssh/id_rsa
+```
+
+### NAS 自動部署機制
+- **NAS 位置**：`as6604t-77cb.myasustor.com`（內網：`192.168.0.171`）
+- **容器名稱**：`sinopac-web`，監聽 Port `8502`
+- **Code 路徑**：`/volume1/docker/sinopac`（volume 掛載，不需 rebuild）
+- **post-receive hook**：push 到 `nas` 後自動執行：
+  1. `git checkout -f main`（更新工作目錄）
+  2. `sudo docker restart sinopac-web`（重啟容器，已設定 passwordless sudo）
+- **結論**：`git push nas main` 後，30 秒內網站自動更新，**完全無需 SSH 進 NAS**！
+
+### 如需手動操作 NAS
+```bash
+ssh nas-sinopac                         # 直接用 alias 連線
+cd /volume1/docker/sinopac
+sudo docker restart sinopac-web         # admin 已有 passwordless sudo（僅此指令）
+sudo docker logs sinopac-web --tail 50  # 查看 log
+```
+
+---
+
 ## 專案概覽
 
 **目的**：整合多個 API 的台股（及港美股）查詢工具，以互動選單操作。
