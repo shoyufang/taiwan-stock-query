@@ -110,6 +110,7 @@ def plot_kbar_with_indicators(
     code: str,
     indicators: list = None,
     title: str = None,
+    theme_cfg: dict = None,
     height: int = 700,
 ) -> go.Figure:
     """
@@ -426,18 +427,36 @@ def plot_kbar_with_indicators(
         except Exception:
             title = f"{code} 技術分析"
 
+    # ── 美化背景與網格 ──
+    if theme_cfg:
+        paper_bg = theme_cfg.get("bg", "#0F172A")
+        plot_bg = theme_cfg.get("surface", "#1E293B")
+        text_color = theme_cfg.get("text", "#F1F5F9")
+        grid_color = theme_cfg.get("border", "rgba(255, 255, 255, 0.05)")
+        # 精調 Plotly 暗色/亮色字體
+        is_dark = paper_bg.startswith("#0") or paper_bg.startswith("#1") or paper_bg.startswith("#2")
+        plotly_template = "plotly_dark" if is_dark else "plotly_white"
+    else:
+        paper_bg = "#0F172A"
+        plot_bg = "#1E293B"
+        text_color = "#F1F5F9"
+        grid_color = "rgba(255, 255, 255, 0.05)"
+        plotly_template = "plotly_dark"
+
     fig.update_layout(
-        title=dict(text=title, x=0.5, xanchor="center", font=dict(size=14)),
+        title=dict(text=title, x=0.5, xanchor="center", font=dict(size=14, color=text_color)),
         height=height,
-        template="plotly_dark",          # 深色背景，K 線顏色更鮮明
+        template=plotly_template,
+        paper_bgcolor=paper_bg,
+        plot_bgcolor=plot_bg,
         hovermode="x unified",
         margin=dict(l=60, r=20, t=50, b=20),
-        font=dict(family="Arial, sans-serif", size=11),
+        font=dict(family="Segoe UI, sans-serif", size=11, color=text_color),
         legend=dict(
             orientation="h",
             yanchor="bottom", y=1.01,
             xanchor="right", x=1,
-            font=dict(size=10),
+            font=dict(size=10, color=text_color),
         ),
         # 關閉 K 線的 rangeslider
         xaxis_rangeslider_visible=False,
@@ -447,9 +466,22 @@ def plot_kbar_with_indicators(
     fig.update_yaxes(title_text="價格", row=1, col=1, tickformat=".2f" if is_us else ".0f")
     fig.update_yaxes(title_text="成交量", row=2, col=1, tickformat=".2s")
 
-    # X 軸：統一關閉 rangeslider，最後一個子圖顯示日期
-    fig.update_xaxes(rangeslider_visible=False)
+    # X 軸與 Y 軸美化網格線（變細、半透明）
+    fig.update_xaxes(
+        gridcolor=grid_color,
+        zerolinecolor=grid_color,
+        tickfont=dict(color=text_color),
+        linecolor=grid_color,
+        rangeslider_visible=False,
+    )
     fig.update_xaxes(showticklabels=True, row=rows, col=1)
+
+    fig.update_yaxes(
+        gridcolor=grid_color,
+        zerolinecolor=grid_color,
+        tickfont=dict(color=text_color),
+        linecolor=grid_color,
+    )
 
     return fig
 
@@ -463,3 +495,212 @@ def quick_chart(code: str, df: pd.DataFrame, indicators: list = None) -> go.Figu
     if indicators is None:
         indicators = ["MA5", "MA20", "RSI"]
     return plot_kbar_with_indicators(df, code, indicators)
+
+
+# ═══════════════════════════════════════════════════════════
+# 華爾街 TradingView 金融終端級 HTML5 Canvas K 線圖
+# ═══════════════════════════════════════════════════════════
+
+def render_tradingview_chart(
+    df: pd.DataFrame,
+    code: str,
+    theme_cfg: dict = None,
+    indicators: list = None,
+    height: int = 500
+) -> str:
+    """
+    生成基於 TradingView Lightweight Charts (HTML5 Canvas) 的極致專業K線圖。
+    """
+    if theme_cfg is None:
+        theme_cfg = {
+            "bg": "#0F172A",
+            "sidebar": "#1E293B",
+            "surface": "#1E293B",
+            "primary": "#3B82F6",
+            "text": "#F1F5F9",
+            "text2": "#94A3B8",
+            "border": "#334155",
+            "border_light": "#1E293B",
+        }
+        
+    df = _normalize_columns(df)
+    
+    # 決定上漲下跌顏色 (美股綠漲紅跌，台股紅漲綠/藍跌)
+    is_us = not code.isdigit()
+    if is_us:
+        up_color = "#26a69a"  # 美股經典綠
+        down_color = "#ef5350"  # 美股經典紅
+    else:
+        up_color = "#ef5350"  # 台股經典紅
+        down_color = "#26a69a"  # 台股經典綠
+
+    # 重構 K 線與成交量數據為 JSON 格式
+    candle_data = []
+    volume_data = []
+    
+    for ts, row in df.iterrows():
+        # 時間格式：YYYY-MM-DD
+        if isinstance(ts, pd.Timestamp):
+            date_str = ts.strftime("%Y-%m-%d")
+        else:
+            date_str = str(ts)
+            
+        o = float(row["open"])
+        h = float(row["high"])
+        l = float(row["low"])
+        c = float(row["close"])
+        v = float(row["volume"]) if "volume" in row else 0.0
+        
+        candle_data.append({
+            "time": date_str,
+            "open": o,
+            "high": h,
+            "low": l,
+            "close": c
+        })
+        
+        volume_data.append({
+            "time": date_str,
+            "value": v,
+            "color": up_color if c >= o else down_color
+        })
+        
+    import json
+    candle_json = json.dumps(candle_data)
+    volume_json = json.dumps(volume_data)
+
+    # 計算移動平均線 (MA5, MA20 等)，並以線條形式加入 JS 中
+    ma_json_data = {}
+    if indicators:
+        for ind in indicators:
+            if ind.startswith("MA"):
+                w_str = ind[2:]
+                if w_str.isdigit():
+                    window = int(w_str)
+                    ma_series = calc_ma(df, window)
+                    ma_list = []
+                    for ts, val in ma_series.items():
+                        if pd.isna(val):
+                            continue
+                        if isinstance(ts, pd.Timestamp):
+                            date_str = ts.strftime("%Y-%m-%d")
+                        else:
+                            date_str = str(ts)
+                        ma_list.append({
+                            "time": date_str,
+                            "value": float(val)
+                        })
+                    ma_json_data[ind] = ma_list
+
+    ma_colors = {
+        "MA5": "#ff9800", "MA10": "#00bcd4", "MA20": "#8b5cf6", "MA60": "#e53935"
+    }
+
+    # 構造 HTML 模版
+    html_template = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <style>
+            body {{
+                margin: 0;
+                padding: 0;
+                background-color: {theme_cfg["bg"]};
+                overflow: hidden;
+            }}
+            #chart-container {{
+                width: 100vw;
+                height: {height}px;
+            }}
+        </style>
+        <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+    </head>
+    <body>
+        <div id="chart-container"></div>
+        <script>
+            document.addEventListener("DOMContentLoaded", function() {{
+                const container = document.getElementById('chart-container');
+                const chart = LightweightCharts.createChart(container, {{
+                    width: container.clientWidth,
+                    height: {height},
+                    layout: {{
+                        background: {{ type: 'solid', color: '{theme_cfg["surface"]}' }},
+                        textColor: '{theme_cfg["text"]}',
+                        fontFamily: 'Segoe UI, -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif',
+                    }},
+                    grid: {{
+                        vertLines: {{ color: '{theme_cfg["border"]}33' }},
+                        horzLines: {{ color: '{theme_cfg["border"]}33' }},
+                    }},
+                    crosshair: {{
+                        mode: LightweightCharts.CrosshairMode.Normal,
+                        vertLine: {{
+                            labelBackgroundColor: '{theme_cfg["primary"]}',
+                        }},
+                        horzLine: {{
+                            labelBackgroundColor: '{theme_cfg["primary"]}',
+                        }},
+                    }},
+                    priceScale: {{
+                        borderColor: '{theme_cfg["border"]}',
+                        scaleMargins: {{
+                            top: 0.15,
+                            bottom: 0.25,
+                        }},
+                    }},
+                    timeScale: {{
+                        borderColor: '{theme_cfg["border"]}',
+                        timeVisible: true,
+                        secondsVisible: false,
+                    }},
+                }});
+
+                // 1. K 線圖系列
+                const candlestickSeries = chart.addCandlestickSeries({{
+                    upColor: '{up_color}',
+                    downColor: '{down_color}',
+                    borderDownColor: '{down_color}',
+                    borderUpColor: '{up_color}',
+                    wickDownColor: '{down_color}',
+                    wickUpColor: '{up_color}',
+                }});
+                candlestickSeries.setData({candle_json});
+
+                // 2. 成交量系列
+                const volumeSeries = chart.addHistogramSeries({{
+                    priceFormat: {{
+                        type: 'volume',
+                    }},
+                    priceScaleId: '', // 獨立縮放 Y 軸
+                    scaleMargins: {{
+                        top: 0.75, // 置於圖表最下方 25% 區間
+                        bottom: 0,
+                    }},
+                }});
+                volumeSeries.setData({volume_json});
+
+                // 3. MA 移動平均線系列
+                const maData = {json.dumps(ma_json_data)};
+                const maColors = {json.dumps(ma_colors)};
+                
+                Object.keys(maData).forEach(maKey => {{
+                    const lineSeries = chart.addLineSeries({{
+                        color: maColors[maKey] || '#90a4ae',
+                        lineWidth: 1.5,
+                        title: maKey,
+                        priceScaleId: 'right',
+                    }});
+                    lineSeries.setData(maData[maKey]);
+                }});
+
+                // 自動調整尺寸自適應
+                window.addEventListener('resize', () => {{
+                    chart.resize(container.clientWidth, {height});
+                }});
+            }});
+        </script>
+    </body>
+    </html>
+    """
+    return html_template

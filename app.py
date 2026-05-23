@@ -672,13 +672,31 @@ def execute_query_by_params(tab: str, params: dict):
             with st.spinner("正在繪製互動式技術指標圖表..."):
                 kbar_df = qw.query_daily_kbar(code, start_date, end_date)
                 if isinstance(kbar_df, pd.DataFrame) and not kbar_df.empty:
-                    fig = ta.plot_kbar_with_indicators(
-                        kbar_df,
-                        code,
-                        indicators=indicators if indicators else ["MA5", "MA20"],
-                        height=800
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
+                    from app import THEMES
+                    theme_name = st.session_state.get("theme", "🌅 Claude 暖橘")
+                    t_cfg = THEMES.get(theme_name, THEMES["🌅 Claude 暖橘"])
+                    
+                    tab_tv, tab_plotly = st.tabs(["📊 TradingView 專業 Canvas 終端 (推薦)", "📈 Plotly 綜合指標圖 (含 RSI/MACD/BB)"])
+                    with tab_tv:
+                        tv_html = ta.render_tradingview_chart(
+                            kbar_df,
+                            code,
+                            theme_cfg=t_cfg,
+                            indicators=indicators if indicators else ["MA5", "MA20"],
+                            height=550
+                        )
+                        st.components.v1.html(tv_html, height=570)
+                        st.caption("💡 提示：使用滑鼠滾輪進行【縮放】，拖曳圖表進行【平移】，十字游標會顯示精確價格與成交量。")
+                        
+                    with tab_plotly:
+                        fig = ta.plot_kbar_with_indicators(
+                            kbar_df,
+                            code,
+                            indicators=indicators if indicators else ["MA5", "MA20"],
+                            theme_cfg=t_cfg,
+                            height=750
+                        )
+                        st.plotly_chart(fig, use_container_width=True)
                 else:
                     st.error("無法獲取K線數據，繪圖失敗")
                     
@@ -3212,16 +3230,37 @@ def render_technical_analysis():
                         if show_atr:
                             indicators.append("ATR")
 
-                        # 繪製圖表
-                        fig = ta.plot_kbar_with_indicators(
-                            kbar_df,
-                            code,
-                            indicators=indicators if indicators else ["MA5", "MA20"],
-                            height=800
-                        )
+                        # 取得當前主題色彩設定，實現全網一體化視覺
+                        from app import THEMES
+                        theme_name = st.session_state.get("theme", "🌅 Claude 暖橘")
+                        t_cfg = THEMES.get(theme_name, THEMES["🌅 Claude 暖橘"])
 
-                        # 顯示圖表
-                        st.plotly_chart(fig, use_container_width=True)
+                        # 建立高質感雙 Tab 視圖，震撼使用者！
+                        tab_tv, tab_plotly = st.tabs(["📊 TradingView 專業 Canvas 終端 (推薦)", "📈 Plotly 綜合指標圖 (含 RSI/MACD/BB)"])
+                        
+                        with tab_tv:
+                            # 渲染 TradingView 終端 (Lightweight Charts)
+                            tv_html = ta.render_tradingview_chart(
+                                kbar_df,
+                                code,
+                                theme_cfg=t_cfg,
+                                indicators=indicators if indicators else ["MA5", "MA20"],
+                                height=550
+                            )
+                            st.components.v1.html(tv_html, height=570)
+                            st.caption("💡 提示：使用滑鼠滾輪進行【縮放】，拖曳圖表進行【平移】，十字游標會顯示精確價格與成交量。")
+                            
+                        with tab_plotly:
+                            # 繪製與美化 Plotly 圖表，傳入 t_cfg 實現主題色彩自適應
+                            fig = ta.plot_kbar_with_indicators(
+                                kbar_df,
+                                code,
+                                indicators=indicators if indicators else ["MA5", "MA20"],
+                                theme_cfg=t_cfg,
+                                height=750
+                            )
+                            # 顯示圖表
+                            st.plotly_chart(fig, use_container_width=True)
 
                         # 顯示統計信息
                         st.success(f"✅ 成功繪製 {code} K線圖（{len(kbar_df)} 根K線）")
