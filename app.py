@@ -788,6 +788,16 @@ def _taistock_dispatch(qt, code, codes, start_date, end_date, query_date, count)
         if not code:
             return {"error": "⚠️ 逐筆成交需輸入股票代號"}
         return qw.query_ticks(code, query_date)
+    if qt == "台股法說與除息日曆":
+        import tw_calendar as twc
+        df = twc.get_tw_calendar_consensus_data(force_refresh=False)
+        if df.empty:
+            return {"error": "無法獲取台股日曆數據"}
+        # 按照財報公佈日排序，N/A排後面，有日期的排前面
+        df_has_date = df[df["財報公佈日"] != "N/A"].copy()
+        df_no_date = df[df["財報公佈日"] == "N/A"].copy()
+        df_has_date = df_has_date.sort_values("財報公佈日", ascending=True)
+        return pd.concat([df_has_date, df_no_date]).reset_index(drop=True)
     return {"error": f"未知項目：{qt}"}
 
 
@@ -795,7 +805,7 @@ def render_taistock_market():
     """台股市場查詢 —— 複選批次模式"""
     main_logger.info("渲染台股市場 Tab")
 
-    NO_DATE_ITEMS = ["漲幅排行", "跌幅排行", "成交量排行", "成交金額排行", "個股即時快照"]
+    NO_DATE_ITEMS = ["漲幅排行", "跌幅排行", "成交量排行", "成交金額排行", "個股即時快照", "台股法說與除息日曆"]
     DATE_ITEMS    = ["個股日K", "逐筆成交"]
 
     # ── 上半：複選區（左=不需日期，右=需要日期） ─────────────
