@@ -675,14 +675,6 @@ def execute_query_by_params(tab: str, params: dict):
                     theme_name = st.session_state.get("theme", "🌅 Claude 暖橘")
                     t_cfg = THEMES.get(theme_name, THEMES["🌅 Claude 暖橘"])
                     
-                    # 動態計算 TradingView 圖表高度，確保副圖有足夠空間
-                    tv_sub_charts = 0
-                    actual_indicators = indicators if indicators else ["MA5", "MA20"]
-                    if "RSI" in actual_indicators: tv_sub_charts += 1
-                    if "MACD" in actual_indicators: tv_sub_charts += 1
-                    if "ATR" in actual_indicators: tv_sub_charts += 1
-                    tv_height = 500 + tv_sub_charts * 150
-                    
                     tab_tv, tab_plotly = st.tabs(["📊 TradingView 專業 Canvas 終端 (推薦)", "📈 Plotly 綜合指標圖 (含 RSI/MACD/BB)"])
                     with tab_tv:
                         tv_html = ta.render_tradingview_chart(
@@ -690,9 +682,10 @@ def execute_query_by_params(tab: str, params: dict):
                             code,
                             theme_cfg=t_cfg,
                             indicators=indicators if indicators else ["MA5", "MA20"],
-                            height=tv_height
+                            height=520
                         )
-                        st.components.v1.html(tv_html, height=tv_height + 20)
+                        st.components.v1.html(tv_html, height=540)
+                        st.caption("💡 提示：本終端支援極速 Canvas 渲染（含 MA/EMA/布林帶）。若需要查看 RSI、MACD、ATR 等獨立副圖指標，請切換至上方【📈 Plotly 綜合指標圖】。")
                         st.caption("💡 提示：使用滑鼠滾輪進行【縮放】，拖曳圖表進行【平移】，十字游標會顯示精確價格與成交量。")
                         
                     with tab_plotly:
@@ -3241,14 +3234,6 @@ def render_technical_analysis():
                         theme_name = st.session_state.get("theme", "🌅 Claude 暖橘")
                         t_cfg = THEMES.get(theme_name, THEMES["🌅 Claude 暖橘"])
 
-                        # 動態計算 TradingView 圖表高度，確保副圖有足夠空間
-                        tv_sub_charts = 0
-                        actual_indicators = indicators if indicators else ["MA5", "MA20"]
-                        if "RSI" in actual_indicators: tv_sub_charts += 1
-                        if "MACD" in actual_indicators: tv_sub_charts += 1
-                        if "ATR" in actual_indicators: tv_sub_charts += 1
-                        tv_height = 500 + tv_sub_charts * 150
-
                         # 建立高質感雙 Tab 視圖，震撼使用者！
                         tab_tv, tab_plotly = st.tabs(["📊 TradingView 專業 Canvas 終端 (推薦)", "📈 Plotly 綜合指標圖 (含 RSI/MACD/BB)"])
                         
@@ -3259,9 +3244,10 @@ def render_technical_analysis():
                                 code,
                                 theme_cfg=t_cfg,
                                 indicators=indicators if indicators else ["MA5", "MA20"],
-                                height=tv_height
+                                height=520
                             )
-                            st.components.v1.html(tv_html, height=tv_height + 20)
+                            st.components.v1.html(tv_html, height=540)
+                            st.caption("💡 提示：本終端支援極速 Canvas 渲染（含 MA/EMA/布林帶）。若需要查看 RSI、MACD、ATR 等獨立副圖指標，請切換至上方【📈 Plotly 綜合指標圖】。")
                             st.caption("💡 提示：使用滑鼠滾輪進行【縮放】，拖曳圖表進行【平移】，十字游標會顯示精確價格與成交量。")
                             
                         with tab_plotly:
