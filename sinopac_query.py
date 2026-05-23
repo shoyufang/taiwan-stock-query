@@ -15,6 +15,72 @@ import yfinance as yf
 from FinMind.data import DataLoader
 from datetime import date, timedelta, timezone
 
+try:
+    import shioaji as sj
+    HAS_SHIOAJI = True
+except ImportError:
+    HAS_SHIOAJI = False
+
+def _get_sinopac_config():
+    try:
+        from config import load_config
+        cfg = load_config()
+        return (
+            cfg.get("api_key", ""),
+            cfg.get("secret_key", ""),
+            cfg.get("simulation_mode", True)
+        )
+    except Exception:
+        return "", "", True
+
+class ShioajiConnectionPool:
+    _instance = None
+    _api = None
+    _fetch_contract = True
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(ShioajiConnectionPool, cls).__new__(cls)
+        return cls._instance
+
+    @classmethod
+    def get_api(cls, fetch_contract: bool = True):
+        if not HAS_SHIOAJI:
+            raise RuntimeError("環境中未安裝 Shioaji 庫，無法進行券商連線。")
+        
+        api_key, secret_key, simulation = _get_sinopac_config()
+        if not api_key or not secret_key:
+            raise RuntimeError("未設定券商 API 金鑰，請至側邊欄『系統設定』填寫。")
+
+        pool = cls()
+        if cls._api is None:
+            cls._api = sj.Shioaji(simulation=simulation)
+            cls._api.login(api_key=api_key, secret_key=secret_key, fetch_contract=fetch_contract)
+            cls._fetch_contract = fetch_contract
+        else:
+            if fetch_contract != cls._fetch_contract:
+                try:
+                    cls._api.logout()
+                except:
+                    pass
+                cls._api = sj.Shioaji(simulation=simulation)
+                cls._api.login(api_key=api_key, secret_key=secret_key, fetch_contract=fetch_contract)
+                cls._fetch_contract = fetch_contract
+        return cls._api
+
+    @classmethod
+    def close(cls):
+        if cls._api is not None:
+            try:
+                cls._api.logout()
+            except:
+                pass
+            cls._api = None
+
+def login(fetch_contract: bool = True):
+    return ShioajiConnectionPool.get_api(fetch_contract=fetch_contract)
+
+
 def _get_finmind_token() -> str:
     """FinMind Token 讀取順序：環境變數 → config.json → Streamlit Secrets"""
     token = os.environ.get("FINMIND_TOKEN", "")
@@ -181,49 +247,158 @@ def query_kbars(
     return df
 
 
-def query_ticks(*args, **kwargs) -> pd.DataFrame:
-    """逐筆成交（公開版不支援，請使用 local 分支完整版）"""
-    return pd.DataFrame({"說明": ["逐筆成交需要永豐金 API，公開版不支援。"
-                                   "請切換至 local 分支（本機完整版）。"]})
+def query_ticks(
+    code: str,
+    query_date: str,
+    market: str = "Stocks",
+    time_start: str = None,
+    time_end: str = None,
+    last_cnt: int = None,
+) -> pd.DataFrame:
+    """逐筆成交（動態支援永豐金 Shioaji API）"""
+    if not HAS_SHIOAJI:
+        return pd.DataFrame({"說明": ["環境中未安裝 Shioaji 庫，不支援逐筆成交。"
+                                       "請在本地/NAS端安裝：pip install shioaji"]})
+    try:
+        api = login(fetch_contract=True)
+        if market == "Stocks":
+            contract = api.Contracts.Stocks[code]
+        elif market == "Futures":
+            contract = api.Contracts.Futures[code]
+        else:
+            contract = api.Contracts.Options[code]
+
+        kwargs = {"contract": contract, "date": query_date}
+        if time_start and time_end:
+            from shioaji.constant import TicksQueryType
+            kwargs["query_type"] = TicksQueryType.RangeTime
+            kwargs["time_start"] = time_start
+            kwargs["time_end"]   = time_end
+        elif last_cnt:
+            from shioaji.constant import TicksQueryType
+            kwargs["query_type"] = TicksQueryType.LastCount
+            kwargs["last_cnt"]   = last_cnt
+
+        ticks = api.ticks(**kwargs)
+        if not ticks or not ticks.close:
+            return pd.DataFrame()
+        return pd.DataFrame({**ticks}).set_index("ts")
+    except Exception as e:
+        return pd.DataFrame({"說明": [f"❌ 逐筆成交查詢失敗: {e}"]})
 
 
 # ══════════════════════════════════════════════════════════
-# 四、帳務查詢（公開版不支援，需永豐金 CA 憑證）
+# 四、帳務查詢（動態支援永豐金 Shioaji API，需憑證與金鑰）
 # ══════════════════════════════════════════════════════════
 
-_BROKER_MSG = "此功能需要永豐金券商帳號及 CA 憑證，公開版不支援。請切換至 local 分支（本機完整版）。"
+def _check_shioaji_accounting() -> bool:
+    if not HAS_SHIOAJI:
+        return False
+    return True
 
+_ACCOUNTING_ERR = "❌ 環境中未安裝 Shioaji 庫，不支援帳務功能。請在本地/NAS端安裝：pip install shioaji"
 
-def query_positions(*args, **kwargs) -> pd.DataFrame:
-    return pd.DataFrame({"說明": [_BROKER_MSG]})
+def query_positions(account_type: str = "stock", *args, **kwargs) -> pd.DataFrame:
+    if not _check_shioaji_accounting():
+        return pd.DataFrame({"說明": [_ACCOUNTING_ERR]})
+    try:
+        api = login(fetch_contract=False)
+        account = api.stock_account if account_type == "stock" else api.futopt_account
+        positions = api.list_positions(account)
+        return pd.DataFrame([p.dict() for p in positions]) if positions else pd.DataFrame()
+    except Exception as e:
+        return pd.DataFrame({"說明": [f"❌ 查詢庫存失敗: {e}"]})
 
+def query_position_detail(code: str, account_type: str = "stock", *args, **kwargs) -> pd.DataFrame:
+    if not _check_shioaji_accounting():
+        return pd.DataFrame({"說明": [_ACCOUNTING_ERR]})
+    try:
+        api = login(fetch_contract=True)
+        account = api.stock_account if account_type == "stock" else api.futopt_account
+        contract = api.Contracts.Stocks[code] if account_type == "stock" else None
+        details = api.list_position_detail(account, contract)
+        return pd.DataFrame([d.dict() for d in details]) if details else pd.DataFrame()
+    except Exception as e:
+        return pd.DataFrame({"說明": [f"❌ 查詢庫存明細失敗: {e}"]})
 
-def query_position_detail(*args, **kwargs) -> pd.DataFrame:
-    return pd.DataFrame({"說明": [_BROKER_MSG]})
+def query_profit_loss(
+    begin_date: str = None,
+    end_date: str = None,
+    account_type: str = "stock",
+    *args, **kwargs
+) -> pd.DataFrame:
+    if not _check_shioaji_accounting():
+        return pd.DataFrame({"說明": [_ACCOUNTING_ERR]})
+    try:
+        from datetime import date
+        if begin_date is None: begin_date = str(date.today())
+        if end_date is None: end_date = str(date.today())
+        api = login(fetch_contract=False)
+        account = api.stock_account if account_type == "stock" else api.futopt_account
+        pnl = api.list_profit_loss(account, begin_date=begin_date, end_date=end_date)
+        return pd.DataFrame([p.dict() for p in pnl]) if pnl else pd.DataFrame()
+    except Exception as e:
+        return pd.DataFrame({"說明": [f"❌ 查詢已實現損益失敗: {e}"]})
 
-
-def query_profit_loss(*args, **kwargs) -> pd.DataFrame:
-    return pd.DataFrame({"說明": [_BROKER_MSG]})
-
-
-def query_profit_loss_summary(*args, **kwargs) -> pd.DataFrame:
-    return pd.DataFrame({"說明": [_BROKER_MSG]})
-
+def query_profit_loss_summary(
+    begin_date: str = None,
+    end_date: str = None,
+    account_type: str = "stock",
+    *args, **kwargs
+) -> pd.DataFrame:
+    if not _check_shioaji_accounting():
+        return pd.DataFrame({"說明": [_ACCOUNTING_ERR]})
+    try:
+        from datetime import date
+        if begin_date is None: begin_date = str(date.today())
+        if end_date is None: end_date = str(date.today())
+        api = login(fetch_contract=False)
+        account = api.stock_account if account_type == "stock" else api.futopt_account
+        summary = api.list_profit_loss_summary(account, begin_date=begin_date, end_date=end_date)
+        return pd.DataFrame([s.dict() for s in summary]) if summary else pd.DataFrame()
+    except Exception as e:
+        return pd.DataFrame({"說明": [f"❌ 查詢已實現損益彙總失敗: {e}"]})
 
 def query_account_balance(*args, **kwargs) -> dict:
-    return {"說明": _BROKER_MSG}
-
+    if not _check_shioaji_accounting():
+        return {"說明": _ACCOUNTING_ERR}
+    try:
+        api = login(fetch_contract=False)
+        balance = api.account_balance()
+        return balance.dict() if balance else {}
+    except Exception as e:
+        return {"說明": f"❌ 查詢銀行餘額失敗: {e}"}
 
 def query_margin(*args, **kwargs) -> dict:
-    return {"說明": _BROKER_MSG}
-
+    if not _check_shioaji_accounting():
+        return {"說明": _ACCOUNTING_ERR}
+    try:
+        api = login(fetch_contract=False)
+        margin = api.margin(api.futopt_account)
+        return margin.dict() if margin else {}
+    except Exception as e:
+        return {"說明": f"❌ 查詢期貨保證金失敗: {e}"}
 
 def query_trading_limits(*args, **kwargs) -> dict:
-    return {"說明": _BROKER_MSG}
-
+    if not _check_shioaji_accounting():
+        return {"說明": _ACCOUNTING_ERR}
+    try:
+        api = login(fetch_contract=False)
+        limits = api.trading_limits(api.stock_account)
+        return limits.dict() if limits else {}
+    except Exception as e:
+        return {"說明": f"❌ 查詢交易額度限制失敗: {e}"}
 
 def query_settlements(*args, **kwargs) -> pd.DataFrame:
-    return pd.DataFrame({"說明": [_BROKER_MSG]})
+    if not _check_shioaji_accounting():
+        return pd.DataFrame({"說明": [_ACCOUNTING_ERR]})
+    try:
+        api = login(fetch_contract=False)
+        settlements = api.settlements(api.stock_account)
+        return pd.DataFrame([s.dict() for s in settlements]) if settlements else pd.DataFrame()
+    except Exception as e:
+        return pd.DataFrame({"說明": [f"❌ 查詢交割款明細失敗: {e}"]})
+
 
 
 # ══════════════════════════════════════════════════════════
