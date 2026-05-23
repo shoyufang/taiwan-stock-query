@@ -68,3 +68,70 @@
       - [x] **Streamlit UI 整合與批次查詢**：於「台股市場」大分頁的 `NO_DATE_ITEMS` 中新增 `"台股法說與除息日曆"`。在 `_taistock_dispatch` 中實作分流，並利用 `display_result()` 高階組件無縫支援數據表格呈现、Notion 儲存及 Excel 一鍵下載。
       - [x] **單元測試全綠通過**：建立 `test_tw_calendar.py`，順利跑通 248 項 `pytest` 測試（100% PASSED 全綠）。
 - [ ] 待命：等待使用者回饋或新功能開發指令。
+    - [x] **動態主題切換系統 (2026-05-23)**：
+      - [x] **5 種主題定義**：Claude 暖橘、深海藍、翡翠綠、科技紫、奢華黑金，每主題含 13 個色值。
+      - [x] **`_inject_theme_css()`**：單一函式動態注入完整 CSS（f-string + CSS `{{}}` 跳脫）。
+      - [x] **側邊欄切換器**：5 個 emoji 按鈕，選中顯示 primary，點擊即時 rerun 切換。
+      - [x] **Session State 持久化**：主題選擇存於 `st.session_state["theme"]`，頁面重整前不消失。
+
+---
+
+## ⚠️ 重要錯誤教訓（必讀，2026-05-23）
+
+### 1. CSS f-string 的 `{{}}` 問題
+在 `st.markdown(f"""...""")` 中，**所有 CSS 大括號必須用 `{{` `}}`**，否則 Python 會把 CSS 的 `{}` 當作 f-string 插值而報錯。
+
+```python
+# ✅ 正確
+st.markdown(f"""<style>
+:root {{ --color: {primary}; }}
+.btn {{ background: {bg}; }}
+</style>""", unsafe_allow_html=True)
+
+# ❌ 錯誤（會 SyntaxError 或 KeyError）
+st.markdown(f"""<style>
+:root { --color: {primary}; }
+</style>""", unsafe_allow_html=True)
+```
+
+> 另外：**舊的靜態 `st.markdown("""...""")` 一定要完全移除**，不能和新的 f-string 版本並存在同一函式內，否則結構錯亂。
+
+---
+
+### 2. Git 分支管理：本機 `local` 分支 ≠ `origin/main`
+
+此專案本機工作在 **`local` 分支**，不是 `main`！
+
+```bash
+# 每次 push 前確認：
+git branch          # 確認目前分支（* 標示）
+git log --oneline -3 # 確認 commit 在正確分支
+
+# 正確推送流程：
+git checkout main
+git merge local --no-ff -m "merge: ..."
+git pull origin main --no-rebase  # 先拉遠端新 commit
+git push origin main              # 確認輸出有 hash 範圍，非 "Everything up-to-date"
+```
+
+> **"Everything up-to-date"** = 沒有推成功，NAS 拉不到新 code！
+
+---
+
+### 3. NAS Docker 更新流程
+
+容器使用 `-v /volume1/docker/sinopac:/app` volume 掛載，**不需要 rebuild**：
+
+```bash
+# SSH 進 NAS
+cd /volume1/docker/sinopac
+git pull origin main          # 拉新 code
+
+# 重啟容器（admin 沒有 Docker 權限，需要 sudo）
+sudo docker restart sinopac-web
+
+# 或在 Synology Container Manager 網頁點「重新啟動」
+```
+
+> ⚠️ `admin` 直接執行 `docker restart` 會報 **permission denied**，必須加 `sudo`。
+
