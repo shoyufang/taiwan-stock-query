@@ -409,9 +409,39 @@ hr {{ border: none !important; border-top: 1px solid var(--claude-border) !impor
 [data-testid="stSuccess"] {{ border-radius: 8px !important; border-left: 3px solid #10b981 !important; }}
 
 /* ══════════════════ CHAT ════════════════════ */
-[data-testid="stChatInput"] {{ border-radius: 12px !important; border: 1px solid var(--claude-border) !important; }}
-[data-testid="stChatInput"] textarea {{ font-size: 0.95rem !important; background: var(--claude-surface) !important; }}
-[data-testid="stChatMessage"] {{ border-radius: 12px !important; padding: 4px 0 !important; }}
+[data-testid="stChatInput"] {{
+    border-radius: 12px !important;
+    border: 1px solid {border} !important;
+    background-color: transparent !important;
+}}
+[data-testid="stChatInput"] > div {{
+    background-color: {surface} !important;
+    border: 1px solid {border} !important;
+    border-radius: 12px !important;
+}}
+[data-testid="stChatInput"] textarea {{
+    font-size: 0.95rem !important;
+    background-color: transparent !important;
+    color: {text} !important;
+    -webkit-text-fill-color: {text} !important;
+}}
+[data-testid="stChatInput"] textarea::placeholder {{
+    color: {text2} !important;
+    opacity: 0.6 !important;
+}}
+[data-testid="stChatInput"] button {{
+    color: {primary} !important;
+    background-color: transparent !important;
+}}
+[data-testid="stChatMessage"] {{
+    border-radius: 12px !important;
+    padding: 4px 0 !important;
+}}
+[data-testid="stChatMessage"] p,
+[data-testid="stChatMessage"] span,
+[data-testid="stChatMessage"] div {{
+    color: {text} !important;
+}}
 
 /* ══════════ TAB 標籤 ═══════════════════════ */
 [data-testid="stTabs"] [role="tab"] {{
