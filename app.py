@@ -2735,7 +2735,7 @@ def render_technical_analysis():
 # ==================== SIDEBAR AND MAIN LOGIC ====================
 
 # 三組導航按鈕（永豐金 / TWSE / 其他）
-SINOPAC_TABS = ["儀表板", "技術分析"]
+SINOPAC_TABS = ["儀表板", "台股市場", "技術分析"]
 TWSE_TABS    = ["TWSE"]
 OTHER_TABS   = ["DeepSeek AI", "🇺🇸 美股專區", "📅 美股日曆 & 共識", "FinMind", "期貨/匯率", "選股", "新聞", "工具"]
 
