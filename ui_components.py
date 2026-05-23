@@ -758,8 +758,8 @@ def render_shioaji_snapshot(df: pd.DataFrame):
             st.markdown(f"""
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
                 <div>
-                    <span style="font-size:20px; font-weight:bold; color:#1F2937;">{name} ({code})</span>
-                    <span style="margin-left:8px; font-size:14px; color:#6B7280;">即時行情</span>
+                    <span style="font-size:20px; font-weight:bold; color:var(--claude-text);">{name} ({code})</span>
+                    <span style="margin-left:8px; font-size:14px; color:var(--claude-text-2);">即時行情</span>
                 </div>
                 <div style="text-align:right;">
                     <span style="font-size:22px; font-weight:bold; color:{color};">{close}</span>
@@ -797,9 +797,9 @@ def render_shioaji_snapshot(df: pd.DataFrame):
                 for i in range(min(5, len(bid_ps))):
                     bid_data.append((bid_ps[i], bid_vs[i]))
                 
-                html = """
-                <div style="background-color:#F8FAFC; border-radius:10px; padding:15px; border: 1px solid #E2E8F0; font-family:monospace; max-width:600px; margin:15px auto 0 auto;">
-                    <div style="text-align:center; font-weight:bold; color:#64748B; border-bottom:1px solid #E2E8F0; padding-bottom:8px; margin-bottom:8px; display:flex; justify-content:space-between;">
+                html = f"""
+                <div style="background-color:var(--claude-surface); border-radius:10px; padding:15px; border: 1px solid var(--claude-border); font-family:monospace; max-width:600px; margin:15px auto 0 auto;">
+                    <div style="text-align:center; font-weight:bold; color:var(--claude-text-2); border-bottom:1px solid var(--claude-border); padding-bottom:8px; margin-bottom:8px; display:flex; justify-content:space-between;">
                         <span style="width:30%; text-align:left;">委買量(張)</span>
                         <span style="width:40%; text-align:center;">最佳五檔報價</span>
                         <span style="width:30%; text-align:right;">委賣量(張)</span>
@@ -811,11 +811,11 @@ def render_shioaji_snapshot(df: pd.DataFrame):
                     pct = (av / total_order_vol) * 100
                     html += f"""
                     <div style="display:flex; justify-content:space-between; align-items:center; height:24px; margin-bottom:4px;">
-                        <span style="width:30%; text-align:left; color:#888888;">-</span>
+                        <span style="width:30%; text-align:left; color:var(--claude-text-2);">-</span>
                         <span style="width:40%; text-align:center; color:#00cc96; font-weight:bold;">{ap:.2f}</span>
                         <div style="width:30%; display:flex; align-items:center; justify-content:flex-end;">
                             <span style="margin-right:8px; font-weight:bold; color:#00cc96;">{av}</span>
-                            <div style="width:60px; background-color:#E2E8F0; height:8px; border-radius:4px; overflow:hidden;">
+                            <div style="width:60px; background-color:var(--claude-border-light); height:8px; border-radius:4px; overflow:hidden;">
                                 <div style="width:{pct:.1f}%; background-color:#00cc96; height:100%;"></div>
                             </div>
                         </div>
@@ -824,8 +824,8 @@ def render_shioaji_snapshot(df: pd.DataFrame):
                 
                 # 2. 成交價
                 html += f"""
-                <div style="text-align:center; margin: 8px 0; border-top:1px dashed #CBD5E1; border-bottom:1px dashed #CBD5E1; padding:6px 0; background-color:#F1F5F9;">
-                    <span style="color:#64748B; font-weight:bold; font-size:12px;">最新成交價</span>
+                <div style="text-align:center; margin: 8px 0; border-top:1px dashed var(--claude-border); border-bottom:1px dashed var(--claude-border); padding:6px 0; background-color:var(--claude-bg);">
+                    <span style="color:var(--claude-text-2); font-weight:bold; font-size:12px;">最新成交價</span>
                     <span style="color:{color}; font-weight:bold; font-size:18px; margin-left:10px;">{close:.2f}</span>
                 </div>
                 """
@@ -836,13 +836,13 @@ def render_shioaji_snapshot(df: pd.DataFrame):
                     html += f"""
                     <div style="display:flex; justify-content:space-between; align-items:center; height:24px; margin-top:4px;">
                         <div style="width:30%; display:flex; align-items:center; justify-content:flex-start;">
-                            <div style="width:60px; background-color:#E2E8F0; height:8px; border-radius:4px; overflow:hidden; margin-right:8px;">
+                            <div style="width:60px; background-color:var(--claude-border-light); height:8px; border-radius:4px; overflow:hidden; margin-right:8px;">
                                 <div style="width:{pct:.1f}%; background-color:#ff4b4b; height:100%;"></div>
                             </div>
                             <span style="font-weight:bold; color:#ff4b4b;">{bv}</span>
                         </div>
                         <span style="width:40%; text-align:center; color:#ff4b4b; font-weight:bold;">{bp:.2f}</span>
-                        <span style="width:30%; text-align:right; color:#888888;">-</span>
+                        <span style="width:30%; text-align:right; color:var(--claude-text-2);">-</span>
                     </div>
                     """
                 
