@@ -13,3 +13,5 @@ openpyxl
 reportlab
 # AI
 openai
+shioaji
+

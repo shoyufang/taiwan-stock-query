@@ -12,7 +12,9 @@ echo "=== 啟動全新的 Streamlit 網站容器 ==="
 docker run -d --name sinopac-web \
   --restart unless-stopped \
   -v /volume1/docker/sinopac:/app \
+  -v /volume1/home/admin/.app_config:/root/.app_config \
   -w /app \
+
   -p 8502:8501 \
   -e DEEPSEEK_API_KEY="請在此填入您的_DeepSeek_API_Key" \
   -e FINMIND_TOKEN="請在此填入您的_FinMind_Token_如果有的話" \
