@@ -31,44 +31,154 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-st.markdown("""
+# ══════════════════════════════════════════════════════════
+# 主題系統定義
+# ══════════════════════════════════════════════════════════
+
+THEMES = {
+    "🌅 Claude 暖橘": {
+        "bg":           "#F2F0EB",
+        "sidebar":      "#E8E4DC",
+        "surface":      "#FFFFFF",
+        "primary":      "#D97757",
+        "primary_dark": "#BF6340",
+        "text":         "#1A1A1A",
+        "text2":        "#6B6B6B",
+        "border":       "#D8D4CB",
+        "border_light": "#EAE7E0",
+        "shadow":       "rgba(0,0,0,0.08)",
+        "glow":         "rgba(217,119,87,0.20)",
+        "hover_tint":   "rgba(217,119,87,0.06)",
+        "checkbox_tint":"rgba(217,119,87,0.08)",
+    },
+    "🌊 深海藍": {
+        "bg":           "#0F172A",
+        "sidebar":      "#1E293B",
+        "surface":      "#1E293B",
+        "primary":      "#3B82F6",
+        "primary_dark": "#2563EB",
+        "text":         "#F1F5F9",
+        "text2":        "#94A3B8",
+        "border":       "#334155",
+        "border_light": "#1E293B",
+        "shadow":       "rgba(0,0,0,0.35)",
+        "glow":         "rgba(59,130,246,0.25)",
+        "hover_tint":   "rgba(59,130,246,0.08)",
+        "checkbox_tint":"rgba(59,130,246,0.10)",
+    },
+    "🟢 翡翠綠": {
+        "bg":           "#111827",
+        "sidebar":      "#1F2937",
+        "surface":      "#1F2937",
+        "primary":      "#10B981",
+        "primary_dark": "#059669",
+        "text":         "#F9FAFB",
+        "text2":        "#9CA3AF",
+        "border":       "#374151",
+        "border_light": "#1F2937",
+        "shadow":       "rgba(0,0,0,0.40)",
+        "glow":         "rgba(16,185,129,0.25)",
+        "hover_tint":   "rgba(16,185,129,0.08)",
+        "checkbox_tint":"rgba(16,185,129,0.10)",
+    },
+    "🟣 科技紫": {
+        "bg":           "#0D0D1A",
+        "sidebar":      "#1A1A2E",
+        "surface":      "#1A1A2E",
+        "primary":      "#8B5CF6",
+        "primary_dark": "#7C3AED",
+        "text":         "#E2E8F0",
+        "text2":        "#A78BFA",
+        "border":       "#2D2D4E",
+        "border_light": "#1A1A2E",
+        "shadow":       "rgba(0,0,0,0.50)",
+        "glow":         "rgba(139,92,246,0.25)",
+        "hover_tint":   "rgba(139,92,246,0.08)",
+        "checkbox_tint":"rgba(139,92,246,0.10)",
+    },
+    "🥇 奢華黑金": {
+        "bg":           "#1C1917",
+        "sidebar":      "#292524",
+        "surface":      "#292524",
+        "primary":      "#F59E0B",
+        "primary_dark": "#D97706",
+        "text":         "#FAFAF9",
+        "text2":        "#A8A29E",
+        "border":       "#44403C",
+        "border_light": "#292524",
+        "shadow":       "rgba(0,0,0,0.45)",
+        "glow":         "rgba(245,158,11,0.25)",
+        "hover_tint":   "rgba(245,158,11,0.08)",
+        "checkbox_tint":"rgba(245,158,11,0.10)",
+    },
+}
+
+def _inject_theme_css(theme_name: str):
+    """根據主題名稱注入對應的 CSS 變數與全域樣式（單一 st.markdown 呼叫）"""
+    t = THEMES.get(theme_name, THEMES["🌅 Claude 暖橘"])
+    # 動態替換 hover/glow 等顏色（避免 rgba 被 f-string 的 {{ }} 語法搞亂）
+    glow        = t["glow"]
+    hover_tint  = t["hover_tint"]
+    cb_tint     = t["checkbox_tint"]
+    primary     = t["primary"]
+    primary_dk  = t["primary_dark"]
+    bg          = t["bg"]
+    sidebar     = t["sidebar"]
+    surface     = t["surface"]
+    text        = t["text"]
+    text2       = t["text2"]
+    border      = t["border"]
+    border_l    = t["border_light"]
+    shadow      = t["shadow"]
+
+    st.markdown(f"""
 <style>
 /* ═══════════════════════════════════════════════════════════
-   台股查詢工具 — 設計系統（Claude 官網配色）
-   主色：#D97757（珊瑚橘）  背景：#F2F0EB（暖奶油白）
+   台股查詢工具 — 設計系統（動態主題：{theme_name}）
    ═══════════════════════════════════════════════════════════ */
 
 /* ── CSS 變數定義（單一來源） ── */
-:root {
-    --claude-bg:        #F2F0EB;
-    --claude-sidebar:   #E8E4DC;
-    --claude-surface:   #FFFFFF;
-    --claude-primary:   #D97757;
-    --claude-primary-dark: #BF6340;
-    --claude-text:      #1A1A1A;
-    --claude-text-2:    #6B6B6B;
-    --claude-border:    #D8D4CB;
-    --claude-border-light: #EAE7E0;
-    --claude-shadow:    rgba(0,0,0,0.08);
-}
+:root {{
+    --claude-bg:           {bg};
+    --claude-sidebar:      {sidebar};
+    --claude-surface:      {surface};
+    --claude-primary:      {primary};
+    --claude-primary-dark: {primary_dk};
+    --claude-text:         {text};
+    --claude-text-2:       {text2};
+    --claude-border:       {border};
+    --claude-border-light: {border_l};
+    --claude-shadow:       {shadow};
+}}
+
+/* ── 強制覆蓋 Streamlit 根背景 ── */
+.stApp {{
+    background-color: {bg} !important;
+}}
+[data-testid="stAppViewContainer"] {{
+    background-color: {bg} !important;
+}}
+[data-testid="stHeader"] {{
+    background-color: {bg} !important;
+}}
 
 /* ── 字型 & 基礎 ── */
-html, body, [class*="css"] {
+html, body, [class*="css"] {{
     font-family: 'Inter','Segoe UI',-apple-system,sans-serif;
     color: var(--claude-text);
-}
-.block-container { padding-top: 1.4rem !important; }
-h1 { font-size: 1.45rem !important; margin-bottom: 0 !important; font-weight: 700 !important; letter-spacing: -0.02em; color: var(--claude-text) !important; }
-h2 { font-size: 1.1rem !important; font-weight: 600 !important; color: var(--claude-text) !important; }
-h3 { font-size: 0.95rem !important; font-weight: 600 !important; color: var(--claude-text) !important; }
+}}
+.block-container {{ padding-top: 1.4rem !important; }}
+h1 {{ font-size: 1.45rem !important; margin-bottom: 0 !important; font-weight: 700 !important; letter-spacing: -0.02em; color: var(--claude-text) !important; }}
+h2 {{ font-size: 1.1rem !important; font-weight: 600 !important; color: var(--claude-text) !important; }}
+h3 {{ font-size: 0.95rem !important; font-weight: 600 !important; color: var(--claude-text) !important; }}
 
 /* ════════════════════ SIDEBAR ════════════════════ */
-[data-testid="stSidebar"] {
+[data-testid="stSidebar"] {{
     width: 250px !important;
     background-color: var(--claude-sidebar) !important;
     border-right: 1px solid var(--claude-border) !important;
-}
-[data-testid="stSidebar"] .stButton button {
+}}
+[data-testid="stSidebar"] .stButton button {{
     width: 100%;
     border-radius: 8px !important;
     font-size: 0.86rem !important;
@@ -76,58 +186,58 @@ h3 { font-size: 0.95rem !important; font-weight: 600 !important; color: var(--cl
     text-align: left !important;
     transition: all 0.15s ease !important;
     border: 1px solid var(--claude-border) !important;
-    background: rgba(255,255,255,0.6) !important;
+    background: {surface}99 !important;
     color: var(--claude-text) !important;
     box-shadow: 0 1px 3px var(--claude-shadow) !important;
     margin-bottom: 3px !important;
-}
-[data-testid="stSidebar"] .stButton button:hover {
+}}
+[data-testid="stSidebar"] .stButton button:hover {{
     background: var(--claude-surface) !important;
     border-color: var(--claude-primary) !important;
-    box-shadow: 0 2px 8px rgba(217,119,87,0.20) !important;
+    box-shadow: 0 2px 8px {glow} !important;
     transform: translateY(-1px) !important;
-}
-[data-testid="stSidebar"] .stButton button:active {
+}}
+[data-testid="stSidebar"] .stButton button:active {{
     transform: translateY(0) !important;
-}
-[data-testid="stSidebar"] .stButton button[kind="primary"] {
+}}
+[data-testid="stSidebar"] .stButton button[kind="primary"] {{
     background: var(--claude-primary) !important;
     color: #fff !important;
     border-color: var(--claude-primary) !important;
-    box-shadow: 0 2px 8px rgba(217,119,87,0.35) !important;
-}
+    box-shadow: 0 2px 8px {glow} !important;
+}}
 
 /* ════════ BORDERED CONTAINER（複選框區） ════════ */
-[data-testid="stVerticalBlockBorderWrapper"] {
+[data-testid="stVerticalBlockBorderWrapper"] {{
     border-radius: 12px !important;
     border: 1px solid var(--claude-border) !important;
     background: var(--claude-surface) !important;
     box-shadow: 0 1px 4px var(--claude-shadow) !important;
-}
+}}
 
 /* ════════════════ CAPTION（分組標題） ════════════ */
-[data-testid="stCaptionContainer"] p {
+[data-testid="stCaptionContainer"] p {{
     font-size: 0.68rem !important;
     font-weight: 700 !important;
     letter-spacing: 0.09em !important;
     text-transform: uppercase !important;
     color: var(--claude-text-2) !important;
     margin-bottom: 2px !important;
-}
+}}
 
 /* ══════════════════ CHECKBOX ══════════════════ */
-[data-testid="stCheckbox"] { margin: 1px 0 !important; }
-[data-testid="stCheckbox"] label {
+[data-testid="stCheckbox"] {{ margin: 1px 0 !important; }}
+[data-testid="stCheckbox"] label {{
     font-size: 0.84rem !important;
     padding: 3px 8px 3px 4px !important;
     border-radius: 6px !important;
     transition: background 0.12s !important;
     color: var(--claude-text) !important;
-}
-[data-testid="stCheckbox"] label:hover { background: rgba(217,119,87,0.08) !important; }
+}}
+[data-testid="stCheckbox"] label:hover {{ background: {cb_tint} !important; }}
 
 /* ════════════════════ BUTTONS ════════════════ */
-button[kind="primary"] {
+button[kind="primary"] {{
     background: linear-gradient(135deg, var(--claude-primary) 0%, var(--claude-primary-dark) 100%) !important;
     color: #fff !important;
     border: none !important;
@@ -135,16 +245,16 @@ button[kind="primary"] {
     font-weight: 600 !important;
     font-size: 0.9rem !important;
     letter-spacing: 0.02em !important;
-    box-shadow: 0 2px 10px rgba(217,119,87,0.30) !important;
+    box-shadow: 0 2px 10px {glow} !important;
     transition: all 0.15s ease !important;
-}
-button[kind="primary"]:hover {
-    box-shadow: 0 4px 18px rgba(217,119,87,0.45) !important;
+}}
+button[kind="primary"]:hover {{
+    box-shadow: 0 4px 18px {glow} !important;
     transform: translateY(-1px) !important;
-}
-button[kind="primary"]:active { transform: translateY(0) !important; }
+}}
+button[kind="primary"]:active {{ transform: translateY(0) !important; }}
 
-button[kind="secondary"] {
+button[kind="secondary"] {{
     border-radius: 6px !important;
     font-size: 0.73rem !important;
     padding: 2px 10px !important;
@@ -152,118 +262,120 @@ button[kind="secondary"] {
     color: var(--claude-text-2) !important;
     background: var(--claude-surface) !important;
     transition: all 0.12s ease !important;
-}
-button[kind="secondary"]:hover {
+}}
+button[kind="secondary"]:hover {{
     border-color: var(--claude-primary) !important;
     color: var(--claude-primary) !important;
-    background: rgba(217,119,87,0.06) !important;
-}
+    background: {hover_tint} !important;
+}}
 
 /* ════════════ TEXT INPUT / DATE INPUT ═══════════ */
 [data-testid="stTextInput"] input,
-[data-testid="stDateInput"] input {
+[data-testid="stDateInput"] input {{
     border-radius: 8px !important;
     border: 1px solid var(--claude-border) !important;
     font-size: 0.87rem !important;
     background: var(--claude-surface) !important;
     color: var(--claude-text) !important;
     transition: border-color 0.15s, box-shadow 0.15s !important;
-}
+}}
 [data-testid="stTextInput"] input:focus,
-[data-testid="stDateInput"] input:focus {
+[data-testid="stDateInput"] input:focus {{
     border-color: var(--claude-primary) !important;
-    box-shadow: 0 0 0 3px rgba(217,119,87,0.15) !important;
-}
+    box-shadow: 0 0 0 3px {glow} !important;
+}}
 
 /* ══════════════════ SELECTBOX ═══════════════ */
-[data-testid="stSelectbox"] [data-baseweb="select"] > div {
+[data-testid="stSelectbox"] [data-baseweb="select"] > div {{
     border-radius: 8px !important;
     border-color: var(--claude-border) !important;
     font-size: 0.87rem !important;
     background: var(--claude-surface) !important;
-}
+}}
 
 /* ══════════════════ SLIDER ═════════════════ */
-[data-testid="stSlider"] [role="slider"] {
+[data-testid="stSlider"] [role="slider"] {{
     background: var(--claude-primary) !important;
     border-color: var(--claude-primary) !important;
-}
+}}
 
 /* ═════════════════ PROGRESS BAR ════════════ */
-[data-testid="stProgressBar"] > div > div > div > div {
-    background: linear-gradient(90deg, var(--claude-primary), #E8956F) !important;
-}
+[data-testid="stProgressBar"] > div > div > div > div {{
+    background: linear-gradient(90deg, var(--claude-primary), var(--claude-primary-dark)) !important;
+}}
 
 /* ═══════════════════ EXPANDER ══════════════ */
-[data-testid="stExpander"] {
+[data-testid="stExpander"] {{
     border-radius: 10px !important;
     border: 1px solid var(--claude-border) !important;
     background: var(--claude-surface) !important;
     box-shadow: 0 1px 3px var(--claude-shadow) !important;
     margin-bottom: 8px !important;
     overflow: hidden !important;
-}
-[data-testid="stExpander"] summary {
+}}
+[data-testid="stExpander"] summary {{
     font-size: 0.87rem !important;
     font-weight: 600 !important;
     padding: 10px 14px !important;
     border-radius: 10px !important;
     transition: background 0.12s !important;
     color: var(--claude-text) !important;
-}
-[data-testid="stExpander"] summary:hover { background: rgba(217,119,87,0.06) !important; }
+}}
+[data-testid="stExpander"] summary:hover {{ background: {hover_tint} !important; }}
 
 /* ══════════════════ DIVIDER ════════════════ */
-hr { border: none !important; border-top: 1px solid var(--claude-border) !important; margin: 1rem 0 !important; }
+hr {{ border: none !important; border-top: 1px solid var(--claude-border) !important; margin: 1rem 0 !important; }}
 
 /* ═══════════════ METRIC CARDS ══════════════ */
-[data-testid="stMetric"] {
+[data-testid="stMetric"] {{
     background: var(--claude-surface) !important;
     border: 1px solid var(--claude-border) !important;
     border-radius: 10px !important;
     padding: 12px 16px !important;
     box-shadow: 0 1px 4px var(--claude-shadow) !important;
-}
-[data-testid="stMetricLabel"] p { font-size: 0.73rem !important; color: var(--claude-text-2) !important; font-weight: 500 !important; }
-[data-testid="stMetricValue"] div { font-size: 1.4rem !important; font-weight: 700 !important; color: var(--claude-text) !important; }
+}}
+[data-testid="stMetricLabel"] p {{ font-size: 0.73rem !important; color: var(--claude-text-2) !important; font-weight: 500 !important; }}
+[data-testid="stMetricValue"] div {{ font-size: 1.4rem !important; font-weight: 700 !important; color: var(--claude-text) !important; }}
 
 /* ════════════════ DATAFRAME ═════════════════ */
-[data-testid="stDataFrame"] {
+[data-testid="stDataFrame"] {{
     border-radius: 8px !important;
     overflow: hidden !important;
     border: 1px solid var(--claude-border) !important;
-}
+}}
 
 /* ══════════════ ALERT BOXES ═════════════════ */
-[data-testid="stInfo"]    { border-radius: 8px !important; border-left: 3px solid #3b82f6 !important; background: #EFF6FF !important; }
-[data-testid="stWarning"] { border-radius: 8px !important; border-left: 3px solid #f59e0b !important; background: #FFFBEB !important; }
-[data-testid="stError"]   { border-radius: 8px !important; border-left: 3px solid #ef4444 !important; background: #FEF2F2 !important; }
-[data-testid="stSuccess"] { border-radius: 8px !important; border-left: 3px solid #10b981 !important; background: #ECFDF5 !important; }
+[data-testid="stInfo"]    {{ border-radius: 8px !important; border-left: 3px solid #3b82f6 !important; }}
+[data-testid="stWarning"] {{ border-radius: 8px !important; border-left: 3px solid #f59e0b !important; }}
+[data-testid="stError"]   {{ border-radius: 8px !important; border-left: 3px solid #ef4444 !important; }}
+[data-testid="stSuccess"] {{ border-radius: 8px !important; border-left: 3px solid #10b981 !important; }}
 
 /* ══════════════════ CHAT ════════════════════ */
-[data-testid="stChatInput"] { border-radius: 12px !important; border: 1px solid var(--claude-border) !important; }
-[data-testid="stChatInput"] textarea { font-size: 0.95rem !important; background: var(--claude-surface) !important; }
-[data-testid="stChatMessage"] { border-radius: 12px !important; padding: 4px 0 !important; }
+[data-testid="stChatInput"] {{ border-radius: 12px !important; border: 1px solid var(--claude-border) !important; }}
+[data-testid="stChatInput"] textarea {{ font-size: 0.95rem !important; background: var(--claude-surface) !important; }}
+[data-testid="stChatMessage"] {{ border-radius: 12px !important; padding: 4px 0 !important; }}
 
 /* ══════════ TAB 標籤 ═══════════════════════ */
-[data-testid="stTabs"] [role="tab"] {
+[data-testid="stTabs"] [role="tab"] {{
     font-size: 0.86rem !important;
     font-weight: 500 !important;
     color: var(--claude-text-2) !important;
     border-radius: 8px 8px 0 0 !important;
     transition: color 0.12s !important;
-}
-[data-testid="stTabs"] [role="tab"][aria-selected="true"] {
+}}
+[data-testid="stTabs"] [role="tab"][aria-selected="true"] {{
     color: var(--claude-primary) !important;
     border-bottom-color: var(--claude-primary) !important;
     font-weight: 600 !important;
-}
-[data-testid="stTabs"] [role="tab"]:hover {
+}}
+[data-testid="stTabs"] [role="tab"]:hover {{
     color: var(--claude-primary) !important;
-    background: rgba(217,119,87,0.06) !important;
-}
+    background: {hover_tint} !important;
+}}
 </style>
 """, unsafe_allow_html=True)
+
+
 
 # ══════════════════════════════════════════════════════════
 # 全局預加載管理器（緩存）
@@ -332,6 +444,11 @@ if "_news_summary" not in st.session_state:
     st.session_state["_news_summary"] = None
 if "_news_subject" not in st.session_state:
     st.session_state["_news_subject"] = ""
+if "theme" not in st.session_state:
+    st.session_state["theme"] = "🌅 Claude 暖橘"
+
+# ── 注入當前主題的 CSS ──
+_inject_theme_css(st.session_state["theme"])
 
 # ══════════════════════════════════════════════════════════
 
@@ -3081,6 +3198,27 @@ def _nav_btn(label: str, icon: str = ""):
         st.rerun()
 
 with st.sidebar:
+    # ── 主題切換器 ──
+    theme_names = list(THEMES.keys())
+    current_idx = theme_names.index(st.session_state.get("theme", "🌅 Claude 暖橘"))
+    st.markdown(
+        '<p style="font-size:0.68rem;font-weight:700;letter-spacing:0.09em;text-transform:uppercase;'
+        'color:var(--claude-text-2);margin:4px 0 6px 2px;">🎨 介面主題</p>',
+        unsafe_allow_html=True
+    )
+    cols_t = st.columns(len(theme_names))
+    for i, tn in enumerate(theme_names):
+        emoji = tn.split()[0]  # 取 emoji 部分
+        is_active = (tn == st.session_state.get("theme"))
+        # 用 button type 區分選中狀態
+        btn_type = "primary" if is_active else "secondary"
+        if cols_t[i].button(emoji, key=f"theme_btn_{i}", type=btn_type,
+                            help=tn, use_container_width=True):
+            st.session_state["theme"] = tn
+            st.rerun()
+    st.markdown("<div style='margin-bottom:8px'></div>", unsafe_allow_html=True)
+    st.divider()
+    # ── 導航按鈕 ──
     for t in SINOPAC_TABS:
         _nav_btn(t)
     for t in TWSE_TABS:
