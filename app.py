@@ -149,11 +149,18 @@ def _inject_theme_css(theme_name: str):
     --claude-border:       {border};
     --claude-border-light: {border_l};
     --claude-shadow:       {shadow};
+
+    /* ── 同步覆蓋 Streamlit 原生主題變數（關鍵！） ── */
+    --text-color:                  {text} !important;
+    --background-color:            {bg} !important;
+    --secondary-background-color:  {sidebar} !important;
+    --primary-color:               {primary} !important;
 }}
 
 /* ── 強制覆蓋 Streamlit 根背景 ── */
 .stApp {{
     background-color: {bg} !important;
+    color: {text} !important;
 }}
 [data-testid="stAppViewContainer"] {{
     background-color: {bg} !important;
@@ -161,16 +168,67 @@ def _inject_theme_css(theme_name: str):
 [data-testid="stHeader"] {{
     background-color: {bg} !important;
 }}
+[data-testid="stMain"] {{
+    background-color: {bg} !important;
+}}
+
+/* ── 強制所有文字元素顯示正確顏色 ── */
+p, span, div, li, td, th, pre, code,
+[data-testid="stMarkdownContainer"] p,
+[data-testid="stMarkdownContainer"] li,
+[data-testid="stMarkdownContainer"] span,
+[data-testid="stMarkdownContainer"] div,
+[data-testid="stText"],
+[data-testid="stCaptionContainer"],
+.stMarkdown, .stText,
+[class*="stMarkdown"], [class*="stText"] {{
+    color: {text} !important;
+}}
+
+/* ── 標籤文字 ── */
+label, [data-testid="stWidgetLabel"],
+[data-testid="stWidgetLabel"] p,
+[data-baseweb="label"],
+[data-baseweb="checkbox"] label {{
+    color: {text} !important;
+}}
+
+/* ── Selectbox / Dropdown 文字 ── */
+[data-baseweb="select"] [data-baseweb="value"],
+[data-baseweb="select"] span,
+[data-baseweb="menu"] li {{
+    color: {text} !important;
+    background-color: {surface} !important;
+}}
+
+/* ── Radio / Toggle ── */
+[data-testid="stRadio"] label,
+[data-testid="stToggle"] label {{
+    color: {text} !important;
+}}
+
+/* ── 數字輸入框 ── */
+[data-testid="stNumberInput"] input {{
+    color: {text} !important;
+    background-color: {surface} !important;
+}}
+
+/* ── Slider 數值標籤 ── */
+[data-testid="stSlider"] [data-testid="stMarkdownContainer"] p {{
+    color: {text} !important;
+}}
 
 /* ── 字型 & 基礎 ── */
 html, body, [class*="css"] {{
     font-family: 'Inter','Segoe UI',-apple-system,sans-serif;
-    color: var(--claude-text);
+    color: {text};
 }}
 .block-container {{ padding-top: 1.4rem !important; }}
-h1 {{ font-size: 1.45rem !important; margin-bottom: 0 !important; font-weight: 700 !important; letter-spacing: -0.02em; color: var(--claude-text) !important; }}
-h2 {{ font-size: 1.1rem !important; font-weight: 600 !important; color: var(--claude-text) !important; }}
-h3 {{ font-size: 0.95rem !important; font-weight: 600 !important; color: var(--claude-text) !important; }}
+h1 {{ font-size: 1.45rem !important; margin-bottom: 0 !important; font-weight: 700 !important; letter-spacing: -0.02em; color: {text} !important; }}
+h2 {{ font-size: 1.1rem !important; font-weight: 600 !important; color: {text} !important; }}
+h3 {{ font-size: 0.95rem !important; font-weight: 600 !important; color: {text} !important; }}
+h4, h5, h6 {{ color: {text} !important; }}
+
 
 /* ════════════════════ SIDEBAR ════════════════════ */
 [data-testid="stSidebar"] {{
