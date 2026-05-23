@@ -633,12 +633,12 @@ def render_tradingview_chart(
                 height: {height}px;
             }}
         </style>
-        <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+        <script src="https://unpkg.com/lightweight-charts@3.8.0/dist/lightweight-charts.standalone.production.js"></script>
     </head>
     <body>
         <div id="chart-container"></div>
         <script>
-            document.addEventListener("DOMContentLoaded", function() {{
+            function _initChart() {{
                 const container = document.getElementById('chart-container');
                 
                 const chart = LightweightCharts.createChart(container, {{
@@ -763,7 +763,13 @@ def render_tradingview_chart(
                 window.addEventListener('resize', () => {{
                     chart.resize(container.clientWidth, {height});
                 }});
-            }});
+            }}
+            // 支援 Streamlit iframe：DOM 已就緒時直接執行，否則等待 DOMContentLoaded
+            if (document.readyState === 'loading') {{
+                document.addEventListener('DOMContentLoaded', _initChart);
+            }} else {{
+                _initChart();
+            }}
         </script>
     </body>
     </html>
