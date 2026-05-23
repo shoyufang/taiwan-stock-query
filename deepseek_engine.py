@@ -496,3 +496,143 @@ def get_deepseek_engine() -> Optional[DeepSeekEngine]:
     if api_key and model_name:
         return DeepSeekEngine(api_key, model_name=model_name)
     return None
+
+def generate_us_stock_report(ticker: str) -> str:
+    """
+    獲取個股所有美股數據，呼叫 DeepSeek 引擎生成一鍵 AI 健檢與投資研究報告
+    """
+    engine = get_deepseek_engine()
+    if not engine or not engine.client:
+        return "⚠️ 未偵測到有效的 DeepSeek API Key，請前往『設定』進行配置。"
+
+    from us_stock_query import (
+        get_us_stock_info, get_us_financials, get_us_holders, get_us_analyst_info, get_us_stock_news
+    )
+
+    # 1. 抓取所有基本與財務數據
+    info = get_us_stock_info(ticker)
+    if not info:
+        return f"⚠️ 無法獲取 {ticker} 的基本資料，請檢查代號是否正確。"
+
+    analyst = get_us_analyst_info(ticker)
+    holders = get_us_holders(ticker)
+    financials = get_us_financials(ticker)
+    news = get_us_stock_news(ticker)
+
+    # 2. 數據精簡與格式化，便於傳入 LLM
+    # A. 財務報表 (只取最新3年的關鍵列)
+    fin_summary = ""
+    income = financials.get("income_annual")
+    if income is not None and not income.empty:
+        try:
+            # 取前3年，前10行關鍵列
+            cols = income.columns[:3]
+            rows = [r for r in ["Total Revenue", "Gross Profit", "Operating Income", "Net Income", "EBITDA"] if r in income.index]
+            if not rows:
+                rows = income.index[:10]
+            fin_summary += "【綜合損益表（年度）】\n" + income.loc[rows, cols].to_string() + "\n\n"
+        except Exception:
+            pass
+
+    balance = financials.get("balance_annual")
+    if balance is not None and not balance.empty:
+        try:
+            cols = balance.columns[:3]
+            rows = [r for r in ["Total Assets", "Total Liabilities Net Minority Interest", "Total Equity Gross Minority Interest", "Total Debt"] if r in balance.index]
+            if not rows:
+                rows = balance.index[:10]
+            fin_summary += "【資產負債表（年度）】\n" + balance.loc[rows, cols].to_string() + "\n\n"
+        except Exception:
+            pass
+
+    cashflow = financials.get("cashflow_annual")
+    if cashflow is not None and not cashflow.empty:
+        try:
+            cols = cashflow.columns[:3]
+            rows = [r for r in ["Free Cash Flow", "Operating Cash Flow", "Capital Expenditure"] if r in cashflow.index]
+            if not rows:
+                rows = cashflow.index[:10]
+            fin_summary += "【現金流量表（年度）】\n" + cashflow.loc[rows, cols].to_string() + "\n\n"
+        except Exception:
+            pass
+
+    # B. 大股東持股
+    holder_summary = ""
+    inst = holders.get("institutional")
+    if inst is not None and not inst.empty:
+        try:
+            holder_summary += "【主要機構持股】\n" + inst.head(5)[["Holder", "Shares", "Value", "% Out"]].to_string(index=False) + "\n"
+        except Exception:
+            pass
+
+    # C. 新聞
+    news_summary = ""
+    if news:
+        news_summary += "【近期相關新聞】\n"
+        for n in news[:5]:
+            news_summary += f"- {n.get('title')} ({n.get('publisher')})\n"
+
+    # 3. 構建 Prompt
+    mcap_val = info.get('market_cap')
+    mcap_str = f"{mcap_val:,d}" if isinstance(mcap_val, (int, float)) else "N/A"
+    
+    prompt = f"""
+你是一位頂尖的華爾街資深投資分析師與估值專家。請針對美股代號【{ticker}】進行深度的 AI 投資價值健檢與研究分析。
+
+以下是該股票的實質 raw 數據：
+
+1. 【基本資料與業務概要】
+- 公司名稱: {info.get('name')}
+- 板塊與行業: {info.get('sector')} / {info.get('industry')}
+- 市值: {mcap_str}
+- 本益比(PE): {info.get('pe_ratio')} | 預期本益比(Forward PE): {info.get('forward_pe')}
+- 每股盈餘(EPS): {info.get('eps')}
+- 股利殖利率: {info.get('dividend_yield', 0) * 100:.2f}%
+- 52週高低點: {info.get('52_week_high')} / {info.get('52_week_low')}
+- 公司簡介: {info.get('summary')}
+
+2. 【財務指標數據（歷史3年）】
+{fin_summary}
+
+3. 【大股東與機構持股】
+{holder_summary}
+
+4. 【分析師預測與評等】
+- 目前市價: {analyst.get('current_price')}
+- 分析師共識目標價(平均): {analyst.get('target_mean')} | 最高: {analyst.get('target_high')} | 最低: {analyst.get('target_low')}
+- 覆蓋分析師人數: {analyst.get('analyst_count')}
+- 評等推薦: {analyst.get('recommendation')} (共識分數: {analyst.get('recommendation_mean')})
+
+5. 【市場近期輿情與焦點新聞】
+{news_summary}
+
+---
+
+請依據上述 raw 數據撰寫一份極具專業水準的「美股投資研究報告」。
+報告必須包含以下五大核心模組，並使用繁體中文以 Markdown 格式撰寫，文字風格應專業、理智、客觀，切忌浮誇：
+
+1. 🏢 【核心業務與行業地位】
+   - 簡析其商業模式、護城河強度（強/中/弱），以及在其行業中的競爭優勢。
+2. 📊 【財務體質與結構診斷】
+   - 分析近3年營收、淨利與現金流變化趨勢。
+   - 評估資產負債結構（債務風險高低、現金流充裕度與資本支出健康度）。
+3. 👥 【股東結構與籌碼分析】
+   - 解析前五大機構股東結構對公司治理與股價支撐的意涵。
+4. 🎯 【估值合理性與目標價分析】
+   - 比對當前 PE / Forward PE，分析與分析師目標均價的潛在利潤空間（Premium/Discount %）。
+   - 給出您的合理股價評估與安全邊際。
+5. ⚠️ 【核心投資風險與SWOT總結】
+   - 指出其未來1-2年的核心投資風險（如利率、競爭、供應鏈等），並以簡要的 SWOT 矩陣結束。
+
+請立即開始撰寫這份高水準的投資報告：
+"""
+
+    try:
+        response = engine.client.chat.completions.create(
+            model=engine.model_name,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return response.choices[0].message.content or "（AI 未回傳分析結果，請重試）"
+    except Exception as e:
+        main_logger.error(f"生成 AI 投資報告失敗: {e}")
+        return f"❌ 呼叫 AI 引擎生成報告失敗：{e}"

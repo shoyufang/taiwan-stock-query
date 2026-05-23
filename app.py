@@ -470,6 +470,91 @@ def render_dashboard_fragment():
 
     st.divider()
     
+    # ⚖️ 台美 ADR 溢折價即時監控
+    st.subheader("⚖️ 台美 ADR 溢折價即時監控")
+    try:
+        from adr_query import get_adr_snapshots
+        adr_data = get_adr_snapshots()
+        rate = adr_data["rate"]
+        ts_cached = adr_data["timestamp"]
+        
+        # 建立 3 欄
+        cols = st.columns(3)
+        for idx, item in enumerate(adr_data["data"]):
+            key = item["key"]
+            name = item["name"]
+            adr_ticker = item["adr_ticker"]
+            adr_price = item["adr_price"]
+            tw_code = item["tw_code"]
+            tw_price = item["tw_price"]
+            adr_twd_equiv = item["adr_twd_equiv"]
+            premium_pct = item["premium_pct"]
+            
+            # 溢價顏色 (正為暖橘，負為藍色)
+            badge_color = "var(--claude-primary)" if premium_pct >= 0 else "#1976d2"
+            badge_bg = "rgba(217, 119, 87, 0.12)" if premium_pct >= 0 else "rgba(25, 118, 210, 0.12)"
+            
+            # 使用 HTML 繪製高質感的 Glassmorphic 卡片
+            with cols[idx]:
+                st.markdown(f"""
+                <div style="
+                    background: #FFFFFF;
+                    border-radius: 12px;
+                    padding: 16px;
+                    border: 1px solid var(--claude-border);
+                    box-shadow: 0 2px 8px var(--claude-shadow);
+                ">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                        <span style="font-weight: 700; font-size: 0.95rem; color: var(--claude-text);">{name} {key}</span>
+                        <div style="
+                            background: {badge_bg};
+                            border-radius: 6px;
+                            padding: 3px 8px;
+                            color: {badge_color};
+                            font-weight: 700;
+                            font-size: 0.85rem;
+                        ">
+                            {premium_pct:+.2f}%
+                        </div>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                        <div>
+                            <span style="font-size: 0.72rem; color: var(--claude-text-2);">美股 {adr_ticker}</span><br/>
+                            <strong style="font-size: 1.05rem; color: var(--claude-text);">${adr_price:.2f}</strong>
+                        </div>
+                        <div style="text-align: right;">
+                            <span style="font-size: 0.72rem; color: var(--claude-text-2);">台股 {tw_code}</span><br/>
+                            <strong style="font-size: 1.05rem; color: var(--claude-text);">{tw_price:.1f}元</strong>
+                        </div>
+                    </div>
+                    <div style="
+                        border-top: 1px solid var(--claude-border-light);
+                        padding-top: 8px;
+                        margin-top: 8px;
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                    ">
+                        <span style="font-size: 0.72rem; color: var(--claude-text-2);">ADR 折合台幣</span>
+                        <strong style="font-size: 1.0rem; color: var(--claude-primary);">{adr_twd_equiv:.2f}元</strong>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+        st.markdown(f"""
+        <div style="text-align: right; margin-top: 6px; margin-bottom: 15px;">
+            <span style="font-size: 0.72rem; color: var(--claude-text-2); font-weight: 500;">
+                💵 美元對台幣匯率: <strong>{rate:.4f}</strong> | ⏱️ ADR 快取更新: <strong>{ts_cached}</strong>
+            </span>
+        </div>
+        """, unsafe_allow_html=True)
+        
+    except Exception as e:
+        st.warning(f"無法載入台美 ADR 監控數據: {e}")
+        main_logger.error(f"儀表板 ADR 監控渲染出錯: {e}")
+        
+    st.divider()
+    
     # 熱門監控 (基於動態預載名單)
     st.subheader("🔥 關注名單即時監控")
     watchlist = preload_manager.frequent_queries["snapshots"]
@@ -1247,6 +1332,41 @@ def render_us_stocks():
 
     _render_batch_results("us_batch_results")
 
+    # ── AI 投資研究報告 ──────────────────────────────────
+    if ticker:
+        st.divider()
+        st.markdown(f"### 🤖 AI 一鍵美股健檢與投資報告")
+        
+        # 報告快取金鑰，防範重新整理時消失
+        report_key = f"us_ai_report_{ticker}"
+        
+        col1, col2 = st.columns([1, 4])
+        with col1:
+            generate_btn = st.button("✨ 生成 AI 健檢報告", type="primary", use_container_width=True, key=f"btn_ai_rep_{ticker}")
+        
+        if generate_btn:
+            with st.spinner(f"正在為您抓取數據並由 AI 生成 {ticker} 深度投資研究報告..."):
+                from deepseek_engine import generate_us_stock_report
+                report_content = generate_us_stock_report(ticker)
+                st.session_state[report_key] = report_content
+                
+        if report_key in st.session_state:
+            report_content = st.session_state[report_key]
+            
+            # 使用高質感邊框包起報告
+            with st.container(border=True):
+                st.markdown(report_content)
+                
+                # 下載按鈕
+                st.download_button(
+                    "📥 下載 Markdown 投資報告",
+                    data=report_content,
+                    file_name=f"{ticker}_AI_Investment_Report.md",
+                    mime="text/markdown",
+                    use_container_width=True,
+                    key=f"dl_ai_rep_{ticker}"
+                )
+
 def _us_stock_dispatch(item: str, ticker: str, start_date, end_date):
     """分派美股市場查詢。"""
     if item == "大盤指數快照":
@@ -1950,6 +2070,247 @@ def render_deepseek_chat():
 
 # ==================== 選股引擎 ====================
 
+def _us_screener_result_block(df: pd.DataFrame, label: str):
+    """顯示美股選股結果並提供 Excel 下載"""
+    if df is None or df.empty:
+        st.info("無符合條件的美股")
+        return
+    st.success(f"找到 **{len(df)}** 檔符合「{label}」")
+    
+    # 格式化 UI 顯示 (市值改為 $XXX.X B)
+    display_df = df.copy()
+    if "市值" in display_df.columns:
+        display_df["市值"] = display_df["市值"].apply(lambda x: f"${x / 10**9:.1f} B" if pd.notna(x) and x > 0 else "$0 B")
+        
+    st.dataframe(display_df, use_container_width=True, hide_index=True)
+    st.markdown("💡 **操作提示**：複製股票代號 (例如 `NVDA`, `TSM`) 至 **【技術分析】** 或 **【美股專區】** 可查看即時 K 線圖與 AI 智能分析報告！")
+    
+    try:
+        import io
+        import openpyxl
+        buf = io.BytesIO()
+        with pd.ExcelWriter(buf, engine="openpyxl") as writer:
+            df.to_excel(writer, sheet_name="美股選股結果", index=False)
+        st.download_button("⬇ 下載美股選股 Excel", data=buf.getvalue(),
+                           file_name=f"美股選股_{label}.xlsx",
+                           mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    except Exception as e:
+        main_logger.error(f"美股選股結果匯出 Excel 失敗: {str(e)}")
+
+
+def render_us_calendar_consensus():
+    """美股財報日曆與華爾街共識 UI"""
+    st.markdown("### 📅 美股日曆 & 華爾街共識")
+    st.caption("基於 50 檔美股巨頭/藍籌股，提供即將公佈之財報日曆與華爾街目標價空間、評等共識排名")
+    
+    import us_calendar as usc
+    
+    # 1. 取得數據 (預設使用快取，24小時永久快取)
+    with st.spinner("正在加載美股日曆與華爾街共識數據..."):
+        try:
+            df_all = usc.get_us_calendar_consensus_data(force_refresh=False)
+        except Exception as e:
+            st.error(f"加載數據失敗: {e}")
+            return
+            
+    if df_all.empty:
+        st.error("❌ 無法取得美股日曆與共識數據。請檢查網路或稍後再試。")
+        return
+        
+    # 操作與刷新按鈕
+    col_l, col_r = st.columns([4, 1])
+    with col_r:
+        force_refresh = st.button("🔄 強制重新整理", key="us_cal_refresh", use_container_width=True, help="清空 24 小時快取並重新抓取 50 檔美股最新數據")
+        
+    if force_refresh:
+        with st.spinner("正在背景抓取 50 檔最新數據（預計耗時 5-8 秒）..."):
+            try:
+                df_all = usc.get_us_calendar_consensus_data(force_refresh=True)
+                st.success("🔄 數據更新成功，已寫入 24 小時 SQLite 快取！")
+                st.rerun()
+            except Exception as e:
+                st.error(f"更新失敗: {e}")
+                return
+
+    # 提供兩個分頁
+    tab_cal, tab_con = st.tabs(["📅 財報公佈日曆 (Earnings Calendar)", "🎯 華爾街共識與潛在空間 (Wall Street Consensus)"])
+    
+    with tab_cal:
+        st.markdown("#### 即將公佈之財報日程")
+        st.caption("依照財報公佈日由近到遠排序")
+        
+        df_cal = df_all.copy()
+        
+        # 提取有日期的
+        df_has_date = df_cal[df_cal["財報公佈日"] != "N/A"].copy()
+        df_no_date = df_cal[df_cal["財報公佈日"] == "N/A"].copy()
+        
+        # 對有日期的按日期排序
+        df_has_date = df_has_date.sort_values("財報公佈日", ascending=True)
+        df_cal_sorted = pd.concat([df_has_date, df_no_date]).reset_index(drop=True)
+        
+        # 顯示特定欄位
+        display_cols = ["代號", "名稱", "行業板塊", "最新價", "財報公佈日", "預估下季EPS", "預估營收(B)"]
+        df_cal_disp = df_cal_sorted[display_cols]
+        
+        st.dataframe(df_cal_disp, use_container_width=True, hide_index=True)
+        
+        # 匯出按鈕
+        try:
+            import io
+            buf = io.BytesIO()
+            with pd.ExcelWriter(buf, engine="openpyxl") as writer:
+                df_cal_disp.to_excel(writer, sheet_name="美股財報行事曆", index=False)
+            st.download_button("⬇ 下載財報行事曆 Excel", data=buf.getvalue(),
+                               file_name="美股財報行事曆.xlsx",
+                               mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                               key="us_cal_dl")
+        except Exception:
+            pass
+            
+    with tab_con:
+        st.markdown("#### 華爾街目標價潛在漲幅與評等排名")
+        st.caption("按照潛在漲幅由高到低排序，協助尋找低估或具備高安全邊際之優質資產")
+        
+        df_con = df_all.copy()
+        
+        # 排序：潛在漲幅由高到低
+        df_con = df_con.sort_values("潛在漲幅%", ascending=False).reset_index(drop=True)
+        
+        # 過濾與 Slider 篩選
+        col_fil1, col_fil2 = st.columns(2)
+        with col_fil1:
+            min_upside = st.slider("最低潛在漲幅 (%)", min_value=-50, max_value=100, value=0, step=5, key="us_con_min_upside")
+        with col_fil2:
+            sectors = sorted(list(df_con["行業板塊"].unique()))
+            sector_sel = st.multiselect("板塊篩選", options=["All"] + sectors, default=["All"], key="us_con_sector_sel")
+            
+        # 套用過濾
+        df_filtered = df_con[df_con["潛在漲幅%"] >= min_upside]
+        if sector_sel and "All" not in sector_sel:
+            df_filtered = df_filtered[df_filtered["行業板塊"].isin(sector_sel)]
+            
+        display_con_cols = ["代號", "名稱", "行業板塊", "最新價", "共識評等", "平均目標價", "潛在漲幅%", "目標最低價", "目標最高價", "分析師人數"]
+        df_con_disp = df_filtered[display_con_cols]
+        
+        st.dataframe(df_con_disp, use_container_width=True, hide_index=True)
+        
+        st.markdown("💡 **操作提示**：複製潛在漲幅居前的美股代號 (如 `NVDA`, `AAPL`) 至 **【技術分析】** 或 **【美股專區】**，可查看即時技術 K 線圖與 AI 智能分析報告！")
+        
+        # 匯出按鈕
+        try:
+            import io
+            buf = io.BytesIO()
+            with pd.ExcelWriter(buf, engine="openpyxl") as writer:
+                df_con_disp.to_excel(writer, sheet_name="華爾街共識排名", index=False)
+            st.download_button("⬇ 下載共識排名 Excel", data=buf.getvalue(),
+                               file_name="美股華爾街共識排名.xlsx",
+                               mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                               key="us_con_dl")
+        except Exception:
+            pass
+
+
+def render_us_screener():
+    """美股多因子選股頁面"""
+    st.caption("基於 50 檔美股巨頭/藍籌股，提供中長期基本面與安全邊際多因子量化篩選")
+    
+    import us_screener as usc
+    
+    # 1. 取得美股數據 (使用快取，TTL 為 12 小時)
+    with st.spinner("正在加載美股指標數據..."):
+        try:
+            df_all = usc.get_us_screener_data(force_refresh=False)
+        except Exception as e:
+            st.error(f"加載美股數據失敗: {e}")
+            return
+            
+    if df_all.empty:
+        st.error("❌ 無法取得美股篩選數據。請檢查網路或稍後再試。")
+        return
+        
+    # 動態抓取行業板塊
+    sectors = sorted(list(df_all["行業板塊"].unique()))
+    
+    # 因子配置面板
+    st.markdown("#### ⚙️ 多因子篩選配置")
+    
+    col_l, col_r = st.columns(2)
+    with col_l:
+        st.markdown("**🔍 估值與規模**")
+        mcap_sel = st.selectbox("市值門檻 (Market Cap)", ["All", "> 100B", "> 50B", "> 10B"], index=0, key="us_sc_mcap")
+        
+        pe_on = st.checkbox("本益比 (PE) ≤", value=False, key="us_sc_pe_on")
+        pe_val = st.number_input("PE 上限", value=30.0, min_value=1.0, step=1.0, key="us_sc_pe_val", disabled=not pe_on)
+        
+        fpe_on = st.checkbox("預期本益比 (Forward PE) ≤", value=False, key="us_sc_fpe_on")
+        fpe_val = st.number_input("Forward PE 上限", value=25.0, min_value=1.0, step=1.0, key="us_sc_fpe_val", disabled=not fpe_on)
+        
+        sectors_sel = st.multiselect("行業板塊篩選", options=["All"] + sectors, default=["All"], key="us_sc_sectors")
+        
+    with col_r:
+        st.markdown("**📊 財務回報與安全邊際**")
+        roe_on = st.checkbox("股東權益報酬率 (ROE%) ≥", value=False, key="us_sc_roe_on")
+        roe_val = st.number_input("ROE% 下限", value=15.0, min_value=0.0, step=1.0, key="us_sc_roe_val", disabled=not roe_on)
+        
+        yield_on = st.checkbox("股利殖利率% ≥", value=False, key="us_sc_yield_on")
+        yield_val = st.number_input("殖利率% 下限", value=2.0, min_value=0.0, step=0.1, key="us_sc_yield_val", disabled=not yield_on)
+        
+        pullback_on = st.checkbox("距離 52 週高點拉回區間", value=False, key="us_sc_pb_on")
+        pullback_val = st.slider(
+            "拉回幅度區間 (%)",
+            min_value=-100,
+            max_value=0,
+            value=(-30, -5),
+            step=1,
+            key="us_sc_pb_val",
+            disabled=not pullback_on,
+            help="拉回 -10% 代表目前價格比 52 週高點低 10%"
+        )
+
+    # 動作按鈕
+    col_btn1, col_btn2 = st.columns([3, 1])
+    with col_btn1:
+        run_screener = st.button("🔍 開始選股篩選", type="primary", key="us_sc_run", use_container_width=True)
+    with col_btn2:
+        force_refresh_btn = st.button("🔄 強制更新數據", key="us_sc_refresh", use_container_width=True, help="清空 SQLite 快取並重新背景抓取 50 檔股票最新指標")
+
+    # 如果點擊強制更新
+    if force_refresh_btn:
+        with st.spinner("正在重新下載 50 檔美股最新數據（並行下載預計需 5-8 秒）..."):
+            try:
+                df_all = usc.get_us_screener_data(force_refresh=True)
+                st.success("🔄 數據更新成功並已寫入 12 小時永久快取！")
+                st.rerun()
+            except Exception as e:
+                st.error(f"數據更新失敗: {e}")
+                return
+
+    # 初始化 session state 中的美股選股結果
+    if "us_screener_result" not in st.session_state:
+        st.session_state["us_screener_result"] = None
+
+    if run_screener:
+        # 構造過濾條件
+        filters = {
+            "min_mcap": mcap_sel,
+            "max_pe": pe_val if pe_on else None,
+            "max_forward_pe": fpe_val if fpe_on else None,
+            "min_roe": roe_val if roe_on else None,
+            "min_yield": yield_val if yield_on else None,
+            "pullback_min": pullback_val[0] if pullback_on else None,
+            "pullback_max": pullback_val[1] if pullback_on else None,
+            "sectors": sectors_sel
+        }
+        res_df = usc.filter_us_stocks(df_all, filters)
+        st.session_state["us_screener_result"] = res_df
+
+    # 渲染結果
+    res_df = st.session_state.get("us_screener_result")
+    if res_df is not None:
+        _us_screener_result_block(res_df, "美股多因子篩選")
+
+
 import screener as sc
 
 def _screener_result_block(df: pd.DataFrame, label: str):
@@ -1993,6 +2354,14 @@ def render_screener():
     """多因子選股頁面"""
     main_logger.info("渲染選股 Tab")
     st.markdown("### 🔍 多因子選股")
+    
+    # 選擇選股市場
+    market_mode = st.radio("選擇選股市場", ["台股選股", "美股選股"], horizontal=True, key="screener_market_mode")
+    
+    if market_mode == "美股選股":
+        render_us_screener()
+        return
+
     st.caption("模仿 XQ XScript Preset 選股邏輯，以 Python + FinMind + TWSE 實現")
 
     tab_a, tab_b, tab_c, tab_d = st.tabs(["A 技術面", "B 財報面", "C 籌碼面", "D 多因子組合"])
@@ -2194,12 +2563,19 @@ def render_technical_analysis():
     col1, col2 = st.columns(2)
     with col1:
         try:
-            from stock_lookup import resolve_code, get_name_hint
+            from stock_lookup import resolve_code, get_name_hint, resolve_us_stock
             _raw_ta = st.text_input("股票代號", value="2330", placeholder="例：2330、台積電、AAPL", key="ta_code")
             code = resolve_code(_raw_ta) if _raw_ta else "2330"
+            
+            # 美股/港股別名及 AI 翻譯 fallback（如果 resolve_code 沒匹配到且輸入含有中文）
+            if _raw_ta and code == _raw_ta.strip() and any('\u4e00' <= char <= '\u9fff' for char in _raw_ta):
+                code = resolve_us_stock(_raw_ta)
+                
             _hint = get_name_hint(_raw_ta)
             if _hint:
                 st.caption(f"✅ 已解析：{_hint}")
+            elif _raw_ta and code != _raw_ta.strip():
+                st.caption(f"✅ 已解析：{_raw_ta.strip()} ➡️ **{code}**")
         except ImportError:
             code = st.text_input("股票代號", value="2330", key="ta_code")
     with col2:
@@ -2351,7 +2727,7 @@ def render_technical_analysis():
 # 三組導航按鈕（永豐金 / TWSE / 其他）
 SINOPAC_TABS = ["儀表板", "台股市場", "技術分析"]
 TWSE_TABS    = ["TWSE"]
-OTHER_TABS   = ["DeepSeek AI", "🇺🇸 美股專區", "FinMind", "期貨/匯率", "選股", "新聞", "工具"]
+OTHER_TABS   = ["DeepSeek AI", "🇺🇸 美股專區", "📅 美股日曆 & 共識", "FinMind", "期貨/匯率", "選股", "新聞", "工具"]
 
 def _nav_btn(label: str, icon: str = ""):
     """渲染一個導航按鈕，當前選中顯示 primary 樣式"""
@@ -2472,6 +2848,8 @@ if selected_tab == "DeepSeek AI":
     render_deepseek_chat()
 elif selected_tab == "🇺🇸 美股專區":
     render_us_stocks()
+elif selected_tab == "📅 美股日曆 & 共識":
+    render_us_calendar_consensus()
 else:
     st.title(f"📊 {selected_tab}")
     st.markdown("---")

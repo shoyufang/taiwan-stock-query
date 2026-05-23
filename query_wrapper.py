@@ -240,7 +240,7 @@ def query_snapshot(codes: List[str]) -> pd.DataFrame:
 
 @st.cache_data(ttl=86400, show_spinner=False)  # 1 day: Historical K-bars
 def _cached_kbar(code: str, start_str: str, end_str: str) -> pd.DataFrame:
-    """Internal cached K-bar query with SQLite fallback"""
+    """Internal cached K-bar query with SQLite fallback (Supports TW & US stocks)"""
     cache_key = f"kbar:{code}:{start_str}:{end_str}"
     
     # 嘗試從 SQLite 獲取
@@ -248,7 +248,33 @@ def _cached_kbar(code: str, start_str: str, end_str: str) -> pd.DataFrame:
     if cached_data is not None:
         return cached_data
         
-    result = sq.query_kbars(code, start_str, end_str)
+    is_us = not code.isdigit()
+    if is_us:
+        # 美股/港股，調用 yfinance 獲取歷史 K 線
+        try:
+            import yfinance as yf
+            from datetime import timedelta
+            start_dt = pd.to_datetime(start_str).date()
+            end_dt = pd.to_datetime(end_str).date()
+            sd = start_dt.strftime('%Y-%m-%d')
+            ed = (end_dt + timedelta(days=1)).strftime('%Y-%m-%d')
+            
+            ticker_obj = yf.Ticker(code)
+            df = ticker_obj.history(start=sd, end=ed)
+            if df is not None and not df.empty:
+                # 剝離時區資訊
+                if hasattr(df.index, "tz") and df.index.tz is not None:
+                    df.index = df.index.tz_localize(None)
+                df.index.name = 'Date'
+                result = df
+            else:
+                result = pd.DataFrame()
+        except Exception as e:
+            main_logger.error(f"yfinance 獲取 K 線失敗 ({code}): {e}")
+            result = pd.DataFrame()
+    else:
+        # 台股，調用 Shioaji / 本地快取
+        result = sq.query_kbars(code, start_str, end_str)
     
     if not result.empty:
         set_cache(cache_key, result, ttl=86400)
@@ -274,7 +300,10 @@ def query_daily_kbar(code: str, start_date: date, end_date: date) -> pd.DataFram
         elapsed_ms = (time.time() - start_time) * 1000
         perf_tracker.record_query_time("query_daily_kbar", elapsed_ms)
         main_logger.info(f"K 線查詢完成: {len(result)} 筆, 耗時 {elapsed_ms:.1f}ms")
-        add_history("台股市場", {"type": "kbar", "code": code, "start": start_str, "end": end_str})
+        
+        is_us = not code.isdigit()
+        tab_name = "美股專區" if is_us else "台股市場"
+        add_history(tab_name, {"type": "kbar", "code": code, "start": start_str, "end": end_str})
         return result
     except Exception as e:
         main_logger.error(f"查詢 K 線失敗: {str(e)}")

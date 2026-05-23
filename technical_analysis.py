@@ -134,6 +134,15 @@ def plot_kbar_with_indicators(
     if indicators is None:
         indicators = ["MA5", "MA20"]
 
+    # ── 決定配色（美股/港股用綠漲紅跌；台股用紅漲藍跌） ───────────────────
+    is_us = not code.isdigit()
+    if is_us:
+        up_color = "#2e7d32"  # 漲：綠
+        down_color = "#d32f2f"  # 跌：紅
+    else:
+        up_color = "#d32f2f"  # 漲：紅
+        down_color = "#1976d2"  # 跌：藍（台股習慣）
+
     # ── 欄位標準化 ─────────────────────────────────────────
     df = _normalize_columns(df)
 
@@ -226,10 +235,10 @@ def plot_kbar_with_indicators(
             low=df["low"],
             close=df["close"],
             name="K線",
-            increasing_line_color="#d32f2f",    # 漲：紅
-            increasing_fillcolor="#d32f2f",
-            decreasing_line_color="#1976d2",    # 跌：藍（台股習慣）
-            decreasing_fillcolor="#1976d2",
+            increasing_line_color=up_color,
+            increasing_fillcolor=up_color,
+            decreasing_line_color=down_color,
+            decreasing_fillcolor=down_color,
             line=dict(width=1),
         ),
         row=1, col=1,
@@ -308,7 +317,7 @@ def plot_kbar_with_indicators(
     # ═══════════════════════════════════════════════════════
     if has_volume:
         vol_colors = [
-            "#d32f2f" if c >= o else "#1976d2"
+            up_color if c >= o else down_color
             for c, o in zip(df["close"], df["open"])
         ]
         fig.add_trace(
@@ -353,9 +362,9 @@ def plot_kbar_with_indicators(
     # MACD 子圖
     # ═══════════════════════════════════════════════════════
     if has_macd:
-        # Histogram 柱狀（正紅負藍）
+        # Histogram 柱狀
         hist_values = indicator_data["Histogram"].fillna(0)
-        hist_colors = ["#d32f2f" if h >= 0 else "#1976d2" for h in hist_values]
+        hist_colors = [up_color if h >= 0 else down_color for h in hist_values]
         fig.add_trace(
             go.Bar(
                 x=df.index, y=hist_values,
@@ -435,7 +444,7 @@ def plot_kbar_with_indicators(
     )
 
     # Y 軸標籤
-    fig.update_yaxes(title_text="價格", row=1, col=1, tickformat=".0f")
+    fig.update_yaxes(title_text="價格", row=1, col=1, tickformat=".2f" if is_us else ".0f")
     fig.update_yaxes(title_text="成交量", row=2, col=1, tickformat=".2s")
 
     # X 軸：統一關閉 rangeslider，最後一個子圖顯示日期
