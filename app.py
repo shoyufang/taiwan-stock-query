@@ -672,7 +672,6 @@ def execute_query_by_params(tab: str, params: dict):
             with st.spinner("正在繪製互動式技術指標圖表..."):
                 kbar_df = qw.query_daily_kbar(code, start_date, end_date)
                 if isinstance(kbar_df, pd.DataFrame) and not kbar_df.empty:
-                    from app import THEMES
                     theme_name = st.session_state.get("theme", "🌅 Claude 暖橘")
                     t_cfg = THEMES.get(theme_name, THEMES["🌅 Claude 暖橘"])
                     
@@ -3231,7 +3230,6 @@ def render_technical_analysis():
                             indicators.append("ATR")
 
                         # 取得當前主題色彩設定，實現全網一體化視覺
-                        from app import THEMES
                         theme_name = st.session_state.get("theme", "🌅 Claude 暖橘")
                         t_cfg = THEMES.get(theme_name, THEMES["🌅 Claude 暖橘"])
 
