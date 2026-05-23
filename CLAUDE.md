@@ -746,5 +746,23 @@ pip install shioaji pandas yfinance FinMind requests futu-api mplfinance streaml
     * 新增 `tests/test_tw_calendar.py`。
     * `pytest` 跑綠 **248 項測試 (100% 全數綠燈通過，無 Regression)**！
 
-
-
+### 2026-05-23 Gemini Session（永豐金 Shioaji 獨家行情與歷史查詢功能上架）
+- **核心任務**：盤點並上架永豐金 Shioaji 除了下單與帳務之外的所有核心行情與歷史數據查詢功能。
+- **主要成果**：
+  - **實作 Shioaji 行情查詢核心**（`sinopac_query.py`）：
+    * 實作 `query_shioaji_snapshot(codes)`：使用 `api.snapshots` 獲取盤中即時快照與五檔委買委賣價量，並結構化解析。
+    * 實作 `query_shioaji_kbars(code, start, end, resolution)`：獲取多週期（1分K、5分K、15分K、30分K、60分K、日K）歷史與盤中分K數據，免去 sub-import 避免 module 衝突。
+    * 實作 `query_shioaji_contract_info(code)`：查詢商品官方交易所合約，包含融資融券成數限制、當沖/資券互抵、昨日參考與今日漲跌停價格等權威屬性。
+    * 實作 `analyze_shioaji_big_orders(code, date, threshold_vol, threshold_amt)`：逐筆成交 ticks 大單主力籌碼分析，結構化返回 Dict 便於渲染。
+  - **包裝與 SQLite 快取機制**（`query_wrapper.py`）：
+    * 對接四行情函數，整合 `add_history` 使其無縫融入書籤釘選儀表板與查詢軌跡中。
+    * 實施 SQLite 永久快取防流量爆點：快照快取 10秒，分K快取 10分鐘，合約快取 24小時，大單快取 5分鐘/1天。
+  - **視覺化原地高階渲染與選單上架**（`app.py` & `ui_components.py`）：
+    * 選單升級：`NO_DATE_ITEMS` 和 `DATE_ITEMS` 新增四核心 Shioaji 選項，提供 K 線週期、大單門檻動態面板。
+    * 最佳五檔 HTML/CSS 視覺化：在 `ui_components.py` 中以高質感卡片繪製「五檔報價盤」，成交價正中央，委買委賣 Bar 紅綠雙向進度條。
+    * 主力大單流向圓餅圖：以 Plotly 圓餅圖（大單買入 vs 大單賣出 vs 一般交易）與淨流入指標卡動態解讀，並提供明細名冊。
+    * 官方合約 Key-Value 列表與漲跌停價格大徽章面板。
+    * 書籤快速原位查詢與分流：`_taistock_dispatch` 重構為 `**kwargs` 動態接收選用分K週期與大單參數，確保舊書籤調用 100% 綠燈相容。
+  - **單元測試全綠通過**：
+    * 新增 `tests/test_shioaji_market.py`。
+    * `pytest` 跑綠 **266 項測試 (100% 全數綠燈通過，無任何 Regression，相容性達極致)**！

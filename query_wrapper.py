@@ -338,6 +338,143 @@ def query_ticks(code: str, query_date: date) -> pd.DataFrame:
         main_logger.error(f"查詢逐筆失敗: {str(e)}")
         return pd.DataFrame({"錯誤": [str(e)]})
 
+
+def query_shioaji_snapshot(codes: list) -> pd.DataFrame:
+    """查詢 Shioaji 即時快照與最佳五檔（帶 SQLite 10 秒快取與歷史記錄）"""
+    start_time = time.time()
+    codes_key = ",".join(sorted(codes))
+    cache_key = f"shioaji_snapshot:{codes_key}"
+    
+    main_logger.info(f"查詢 Shioaji 快照: {codes_key}")
+    try:
+        cached_data = get_cache(cache_key)
+        if cached_data is not None:
+            main_logger.info("Shioaji 快照快取命中")
+            return cached_data
+            
+        result = sq.query_shioaji_snapshot(codes)
+        if not result.empty and "說明" not in result.columns:
+            set_cache(cache_key, result, ttl=10)
+            
+        elapsed_ms = (time.time() - start_time) * 1000
+        perf_tracker.record_query_time("query_shioaji_snapshot", elapsed_ms)
+        add_history("台股市場", {"type": "shioaji_snapshot", "codes": codes})
+        return result
+    except Exception as e:
+        main_logger.error(f"Shioaji 快照查詢失敗: {str(e)}")
+        return pd.DataFrame({"錯誤": [str(e)]})
+
+
+def query_shioaji_kbars(
+    code: str,
+    start_date: Any,
+    end_date: Any,
+    resolution: str = "1min"
+) -> pd.DataFrame:
+    """查詢 Shioaji 多週期分 K 線（帶 SQLite 10 分鐘快取與歷史記錄）"""
+    start_time = time.time()
+    try:
+        if isinstance(start_date, str):
+            start_date = pd.to_datetime(start_date).date()
+        if isinstance(end_date, str):
+            end_date = pd.to_datetime(end_date).date()
+            
+        start_str = start_date.strftime("%Y-%m-%d")
+        end_str = end_date.strftime("%Y-%m-%d")
+        
+        cache_key = f"shioaji_kbars:{code}:{start_str}:{end_str}:{resolution}"
+        main_logger.info(f"查詢 Shioaji 分K: {code}, {start_str} ~ {end_str}, {resolution}")
+        
+        cached_data = get_cache(cache_key)
+        if cached_data is not None:
+            main_logger.info("Shioaji 分K快取命中")
+            return cached_data
+            
+        result = sq.query_shioaji_kbars(code, start_str, end_str, resolution)
+        if not result.empty and "說明" not in result.columns:
+            set_cache(cache_key, result, ttl=600)
+            
+        elapsed_ms = (time.time() - start_time) * 1000
+        perf_tracker.record_query_time("query_shioaji_kbars", elapsed_ms)
+        add_history("台股市場", {"type": "shioaji_kbars", "code": code, "start": start_str, "end": end_str, "resolution": resolution})
+        return result
+    except Exception as e:
+        main_logger.error(f"Shioaji 分K查詢失敗: {str(e)}")
+        return pd.DataFrame({"錯誤": [str(e)]})
+
+
+def query_shioaji_contract(code: str) -> pd.DataFrame:
+    """查詢 Shioaji 商品官方合約與交易限制（帶 SQLite 24 小時快取與歷史記錄）"""
+    start_time = time.time()
+    cache_key = f"shioaji_contract:{code}"
+    main_logger.info(f"查詢 Shioaji 合約: {code}")
+    try:
+        cached_data = get_cache(cache_key)
+        if cached_data is not None:
+            main_logger.info("Shioaji 合約快取命中")
+            return cached_data
+            
+        result = sq.query_shioaji_contract_info(code)
+        if not result.empty and "說明" not in result.columns:
+            set_cache(cache_key, result, ttl=86400)
+            
+        elapsed_ms = (time.time() - start_time) * 1000
+        perf_tracker.record_query_time("query_shioaji_contract", elapsed_ms)
+        add_history("台股市場", {"type": "shioaji_contract", "code": code})
+        return result
+    except Exception as e:
+        main_logger.error(f"Shioaji 合約查詢失敗: {str(e)}")
+        return pd.DataFrame({"錯誤": [str(e)]})
+
+
+def analyze_shioaji_big_orders(
+    code: str,
+    query_date: Any,
+    threshold_volume: int = 50,
+    threshold_amount: float = 5000000.0
+) -> dict:
+    """逐筆 ticks 大單分析（帶 SQLite 5 分鐘/1 天動態快取與歷史記錄）"""
+    start_time = time.time()
+    try:
+        if isinstance(query_date, str):
+            query_date = pd.to_datetime(query_date).date()
+        date_str = query_date.strftime("%Y-%m-%d")
+        
+        # 區分今天與歷史日期
+        from datetime import date as dt_date
+        is_today = (query_date == dt_date.today())
+        ttl = 300 if is_today else 86400
+        
+        cache_key = f"shioaji_big_orders:{code}:{date_str}:{threshold_volume}:{threshold_amount}"
+        main_logger.info(f"大單分析: {code}, {date_str}, {threshold_volume}張/{threshold_amount}元")
+        
+        cached_data = get_cache(cache_key)
+        if cached_data is not None:
+            main_logger.info("大單分析快取命中")
+            return cached_data
+            
+        result = sq.analyze_shioaji_big_orders(code, date_str, threshold_volume, threshold_amount)
+        # 只要 detail 沒有錯誤說明，即可快取
+        detail_df = result.get("detail", pd.DataFrame())
+        if not detail_df.empty and "說明" not in detail_df.columns:
+            set_cache(cache_key, result, ttl=ttl)
+            
+        elapsed_ms = (time.time() - start_time) * 1000
+        perf_tracker.record_query_time("analyze_shioaji_big_orders", elapsed_ms)
+        add_history("台股市場", {
+            "type": "shioaji_big_orders",
+            "code": code,
+            "date": date_str,
+            "volume": threshold_volume,
+            "amount": threshold_amount
+        })
+        return result
+    except Exception as e:
+        main_logger.error(f"大單分析失敗: {str(e)}")
+        err_df = pd.DataFrame({"錯誤": [str(e)]})
+        return {"summary": pd.DataFrame(), "detail": err_df}
+
+
 # ══════════════════════════════════════════════════════════
 # FinMind 籌碼面相關查詢 (1 hour cache: Technical indicators)
 # ══════════════════════════════════════════════════════════
