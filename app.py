@@ -1961,31 +1961,37 @@ def _us_stock_dispatch(item: str, ticker: str, start_date, end_date):
         return {"type": "us_news", "data": news} if news else {"error": "無法獲取相關新聞"}
         
     if item == "個股歷史K線":
-        # 如果需要日期範圍，yfinance 的 history(start, end) 支援
-        # 若是 start_date 和 end_date 有值，使用之。
+        # 優先走 query_wrapper 統一路徑（含快取策略與時區處理）
         if start_date and end_date:
             try:
-                import yfinance as yf
-                import pandas as pd
-                tkr = yf.Ticker(ticker)
-                # end_date 要加一天才能包含 end_date 當天
-                from datetime import timedelta
-                ed = (end_date + timedelta(days=1)).strftime('%Y-%m-%d')
-                sd = start_date.strftime('%Y-%m-%d')
-                df_history = tkr.history(start=sd, end=ed)
-                if df_history is not None and not df_history.empty:
-                    df_history.reset_index(inplace=True)
-                    # 確保日期欄位名稱正確
-                    if 'Date' in df_history.columns:
-                        df_history['Date'] = pd.to_datetime(df_history['Date']).dt.date
-                    return df_history
-            except Exception as e:
-                return {"error": f"獲取 K 線資料失敗：{e}"}
-        
-        # 預設
-        df_history = get_us_stock_history(ticker, period="1y")
-        if df_history is not None and not df_history.empty:
-            return df_history
+                result = qw.query_daily_kbar(ticker, start_date, end_date)
+                if isinstance(result, pd.DataFrame) and not result.empty:
+                    # query_daily_kbar 回傳 DatetimeIndex，重設為欄位以便 display_kbar 辨識
+                    if result.index.name == 'Date' or isinstance(result.index, pd.DatetimeIndex):
+                        result = result.reset_index()
+                    if 'Date' in result.columns:
+                        result['Date'] = pd.to_datetime(result['Date']).dt.date
+                    return result
+            except Exception:
+                pass  # fallback to direct yfinance below
+
+        # 無日期範圍時，直接抓最近 180 天（不走快取，確保最新）
+        try:
+            import yfinance as yf
+            from datetime import timedelta as _td2, date as _date2
+            tkr = yf.Ticker(ticker)
+            _sd = (_date2.today() - _td2(days=180)).strftime('%Y-%m-%d')
+            _ed = (_date2.today() + _td2(days=1)).strftime('%Y-%m-%d')
+            df_history = tkr.history(start=_sd, end=_ed)
+            if df_history is not None and not df_history.empty:
+                if hasattr(df_history.index, "tz") and df_history.index.tz is not None:
+                    df_history.index = df_history.index.tz_localize(None)
+                df_history.reset_index(inplace=True)
+                if 'Date' in df_history.columns:
+                    df_history['Date'] = pd.to_datetime(df_history['Date']).dt.date
+                return df_history
+        except Exception as e:
+            return {"error": f"獲取 K 線資料失敗：{e}"}
         return {"error": "無法獲取 K 線資料"}
         
     if item == "美股代號總表 (FinMind)":
@@ -3149,12 +3155,29 @@ def render_technical_analysis():
         )
 
     # ── 日期範圍 ──────────────────────────────────────────
+    # 強制修正：瀏覽器重連後會還原舊 session 值，若結束日期超過 30 天前自動重設
+    # 同時更名 ta_end → ta_end_v2 強制清除瀏覽器快取的舊值
+    if "ta_end_v2" in st.session_state:
+        _te = st.session_state["ta_end_v2"]
+        if isinstance(_te, date) and _te < date.today() - timedelta(days=30):
+            del st.session_state["ta_end_v2"]
+
     col1, col2 = st.columns(2)
     with col1:
         start_date = st.date_input("開始日期", value=date.today() - timedelta(days=120),
-                                   key="ta_start")
+                                   key="ta_start_v2")
     with col2:
-        end_date = st.date_input("結束日期", value=date.today(), key="ta_end")
+        end_date = st.date_input("結束日期", value=date.today(), key="ta_end_v2")
+
+    # 若結束日期超過 7 天前，顯示提示並提供快速重設
+    if end_date < date.today() - timedelta(days=7):
+        _c1, _c2 = st.columns([3, 1])
+        with _c1:
+            st.warning(f"⚠️ 結束日期 {end_date} 超過 7 天前，查詢到的 K 線資料可能不是最新。")
+        with _c2:
+            if st.button("📅 設為今日", key="ta_reset_end", use_container_width=True):
+                st.session_state["ta_end_v2"] = date.today()
+                st.rerun()
 
     # ── 技術指標選擇 ──────────────────────────────────────
     st.markdown("**選擇技術指標（可複選）**")
