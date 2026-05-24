@@ -536,6 +536,16 @@ def date_input_section(label: str = "選擇日期範圍", default_days: int = 30
                 避免切換 Tab 時日期互相覆蓋（例如 "us_", "fm_", "ts_"）
     """
     kp = key_prefix or ""
+    end_key = f"{kp}date_end" if kp else None
+
+    # ── 自動修正過期的結束日期 ──────────────────────────────
+    # Streamlit widget 值存在瀏覽器並在重連後送回伺服器，
+    # 若使用者先前設定的結束日期超過 30 天以前，自動重設為今日
+    if end_key and end_key in st.session_state:
+        _stored_end = st.session_state[end_key]
+        if isinstance(_stored_end, date) and _stored_end < date.today() - timedelta(days=30):
+            del st.session_state[end_key]   # 強制 widget 用 value= 預設值重新初始化
+
     col1, col2 = st.columns(2)
     with col1:
         start_date = st.date_input(
@@ -547,8 +557,20 @@ def date_input_section(label: str = "選擇日期範圍", default_days: int = 30
         end_date = st.date_input(
             "結束日期",
             value=date.today(),
-            key=f"{kp}date_end" if kp else None,
+            key=end_key,
         )
+
+    # 若結束日期超過 7 天前，顯示警告提示
+    if end_date < date.today() - timedelta(days=7):
+        c1, c2 = st.columns([3, 1])
+        with c1:
+            st.warning(f"⚠️ 結束日期 {end_date} 超過 7 天前，資料可能不是最新。")
+        with c2:
+            if st.button("📅 設為今日", key=f"{kp}reset_end", use_container_width=True):
+                if end_key:
+                    st.session_state[end_key] = date.today()
+                st.rerun()
+
     return start_date, end_date
 
 def code_input_section(label: str = "輸入股票代號", single: bool = True) -> str | list:
