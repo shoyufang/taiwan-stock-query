@@ -142,9 +142,34 @@ def display_result(df, query_type: str = "", enable_export: bool = True, code: s
                                 st.error(f"❌ {msg}")
 
 def display_table(df: pd.DataFrame):
-    """顯示表格"""
+    """顯示表格 — 自動套用漲紅跌綠條件格式"""
     st.subheader("📊 查詢結果")
-    st.dataframe(df, use_container_width=True, height=400)
+    
+    # 檢測是否有漲跌相關欄位
+    change_cols = []
+    for col in df.columns:
+        cl = col.lower()
+        if any(kw in cl for kw in ['change', '漲跌', 'change_percent', '漲跌幅', 'change_rate']):
+            change_cols.append(col)
+    
+    # 如果有漲跌欄位，套用條件格式
+    if change_cols:
+        def color_change(val):
+            """漲紅跌綠配色"""
+            try:
+                if isinstance(val, (int, float)) and not pd.isna(val):
+                    if val > 0:
+                        return 'color: #e63946; font-weight: 600'  # 紅
+                    elif val < 0:
+                        return 'color: #2a9d8f; font-weight: 600'  # 綠
+            except:
+                pass
+            return ''
+        
+        styled = df.style.applymap(color_change, subset=change_cols)
+        st.dataframe(styled, use_container_width=True, height=400)
+    else:
+        st.dataframe(df, use_container_width=True, height=400)
 
 def display_kbar(df: pd.DataFrame, code: str = ""):
     """顯示 K線圖 + OHLC 表 — TradingView Canvas + Plotly 雙 Tab"""
@@ -336,11 +361,43 @@ def display_single_value(df: pd.DataFrame):
         st.metric(label=col_name, value=format_number(value) if isinstance(value, float) else value)
 
 def render_sidebar_menu(available_tabs: list) -> str:
-    """渲染側邊欄選單 — 返回選中的 Tab"""
+    """渲染側邊欄選單 — 分組折疊設計，返回選中的 Tab"""
     with st.sidebar:
         st.markdown("## 📋 導航")
-        selected_tab = st.radio("選擇查詢類型", available_tabs, label_visibility="collapsed")
-        return selected_tab
+        
+        # 定義分組
+        groups = {
+            "📊 市場查詢": ["台股市場", "美股專區"],
+            "🔍 選股分析": ["台股選股", "美股選股"],
+            "📈 技術分析": ["技術分析"],
+            "📅 日曆": ["台股日曆", "美股日曆"],
+            "🛠️ 工具": ["工具"],
+            "🤖 AI": ["AI 對話"],
+        }
+        
+        selected_tab = None
+        
+        for group_name, tabs_in_group in groups.items():
+            # 過濾出實際存在的 tabs
+            existing_tabs = [t for t in tabs_in_group if t in available_tabs]
+            if not existing_tabs:
+                continue
+                
+            with st.expander(group_name, expanded=True):
+                for tab in existing_tabs:
+                    if st.button(tab, key=f"sidebar_{tab}", use_container_width=True):
+                        selected_tab = tab
+        
+        # 如果有其他不在分組中的 tabs
+        all_grouped = [t for tabs in groups.values() for t in tabs]
+        ungrouped = [t for t in available_tabs if t not in all_grouped]
+        if ungrouped:
+            with st.expander("其他", expanded=True):
+                for tab in ungrouped:
+                    if st.button(tab, key=f"sidebar_{tab}", use_container_width=True):
+                        selected_tab = tab
+        
+        return selected_tab or available_tabs[0] if available_tabs else "台股市場"
 
 def render_search_box() -> str:
     """渲染智能搜尋框"""
@@ -367,7 +424,7 @@ def render_bookmarks_section(bookmarks: list) -> Optional[Dict[str, Any]]:
         return selected_bookmark
 
 def render_history_section(history: list) -> Optional[Dict[str, Any]]:
-    """渲染查詢歷史區域"""
+    """渲染查詢歷史區域 — 時間線樣式"""
     with st.sidebar:
         st.markdown("---")
         st.markdown("### 📋 最近查詢")
@@ -375,10 +432,38 @@ def render_history_section(history: list) -> Optional[Dict[str, Any]]:
             st.caption("暫無歷史")
             return None
 
+        # 顯示最近 10 筆歷史
+        recent_history = history[:10]
+        
+        for idx, item in enumerate(recent_history):
+            tab = item.get('tab', '')
+            timestamp = item.get('timestamp', '')
+            title = item.get('title', '')
+            
+            # 格式化時間
+            if timestamp:
+                try:
+                    from datetime import datetime
+                    dt = datetime.fromisoformat(timestamp)
+                    time_str = dt.strftime('%m/%d %H:%M')
+                except:
+                    time_str = timestamp[:16]
+            else:
+                time_str = ''
+            
+            # 時間線項目
+            with st.container():
+                col_time, col_content = st.columns([1, 4])
+                with col_time:
+                    st.caption(f"🕒 {time_str}")
+                with col_content:
+                    st.caption(f"**{tab}** — {title[:30]}{'...' if len(title) > 30 else ''}")
+        
+        # 選擇歷史
         selected_history = st.selectbox(
-            "最近查詢",
-            options=history,
-            format_func=lambda x: f"{x.get('tab', '')} - {x.get('timestamp', '')[:10]}",
+            "選擇歷史記錄",
+            options=recent_history,
+            format_func=lambda x: f"{x.get('tab', '')} - {x.get('title', '')[:20]}",
             key="history_select",
             label_visibility="collapsed"
         )

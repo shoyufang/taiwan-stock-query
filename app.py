@@ -447,7 +447,21 @@ def render_dashboard_fragment():
         if not snapshot.empty:
             # 轉置一下方便看
             display_df = snapshot[["代號", "收盤", "漲跌", "漲跌幅%", "成交量"]].copy()
-            st.dataframe(display_df, use_container_width=True, hide_index=True)
+            
+            # 加入漲跌視覺化
+            def highlight_change(val):
+                try:
+                    if isinstance(val, (int, float)) and not pd.isna(val):
+                        if val > 0:
+                            return 'color: #e63946; font-weight: 600'
+                        elif val < 0:
+                            return 'color: #2a9d8f; font-weight: 600'
+                except:
+                    pass
+                return ''
+            
+            styled = display_df.style.applymap(highlight_change, subset=["漲跌", "漲跌幅%"])
+            st.dataframe(styled, use_container_width=True, hide_index=True)
         else:
             st.info("目前無關注名單數據")
     except Exception as e:
@@ -3031,6 +3045,46 @@ elif st.session_state.execute_history:
 # ══════════════════════════════════════════════════════════
 # 主內容區
 # ══════════════════════════════════════════════════════════
+
+# 全域搜尋列（除 AI 和美股專區外都顯示）
+if selected_tab not in ["DeepSeek AI", "🇺🇸 美股專區", "📅 美股日曆 & 共識"]:
+    with st.container():
+        search_col1, search_col2 = st.columns([3, 1])
+        with search_col1:
+            global_search = st.text_input(
+                "🔍 快速搜尋",
+                placeholder="輸入股票代號、中文名稱或功能...",
+                label_visibility="collapsed",
+                key="global_search"
+            )
+        with search_col2:
+            st.markdown("<div style='height: 38px'></div>", unsafe_allow_html=True)
+            if st.button("⚡ 快速查詢", use_container_width=True, key="quick_search_btn"):
+                if global_search:
+                    from stock_lookup import resolve_code
+                    code = resolve_code(global_search)
+                    if code:
+                        st.session_state.quick_search_code = code
+                        st.session_state.quick_search_raw = global_search
+                        st.rerun()
+                    else:
+                        st.warning(f"找不到 '{global_search}' 對應的股票代號")
+
+        # 顯示搜尋結果
+        if hasattr(st.session_state, 'quick_search_code') and st.session_state.get('quick_search_code'):
+            code = st.session_state.quick_search_code
+            raw = st.session_state.get('quick_search_raw', code)
+            st.success(f"✅ 已解析: **{raw}** → **{code}**")
+            # 自動執行快照查詢
+            try:
+                result = qw.query_snapshot([code])
+                if not result.empty:
+                    display_result(result, f"快速搜尋 - {raw}")
+            except Exception as e:
+                st.warning(f"查詢失敗: {e}")
+            # 清除狀態
+            st.session_state.quick_search_code = None
+            st.session_state.quick_search_raw = None
 
 if selected_tab == "DeepSeek AI":
     render_deepseek_chat()
