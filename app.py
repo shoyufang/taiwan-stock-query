@@ -163,13 +163,135 @@ def _handle_institutional(params: dict) -> tuple:
     result = qw.query_institutional_investors(code, start_date, end_date)
     return result, f"{code} 三大法人明細"
 
+
+def _handle_technical_analysis(params: dict):
+    """處理技術分析查詢（直接渲染）"""
+    code = params.get("code", "")
+    start_date = datetime.strptime(params["start"], "%Y-%m-%d").date()
+    end_date = datetime.strptime(params["end"], "%Y-%m-%d").date()
+    indicators = params.get("indicators", [])
+    import technical_analysis as ta
+    kbar_df = qw.query_daily_kbar(code, start_date, end_date)
+    if isinstance(kbar_df, pd.DataFrame) and not kbar_df.empty:
+        theme_name = st.session_state.get("theme", "🌅 Claude 暖橘")
+        t_cfg = THEMES.get(theme_name, THEMES["🌅 Claude 暖橘"])
+        tab_tv, tab_plotly = st.tabs(["📊 TradingView 專業 Canvas 終端 (推薦)", "📈 Plotly 綜合指標圖"])
+        with tab_tv:
+            tv_html = ta.render_tradingview_chart(kbar_df, code, theme_cfg=t_cfg,
+                indicators=indicators if indicators else ["MA5", "MA20"], height=520)
+            st.components.v1.html(tv_html, height=540)
+            st.caption("💡 提示：本終端支援極速 Canvas 渲染（含 MA/EMA/布林帶）。若需要查看 RSI、MACD、ATR 等獨立副圖指標，請切換至上方【📈 Plotly 綜合指標圖】。")
+            st.caption("💡 提示：使用滑鼠滾輪進行【縮放】，拖曳圖表進行【平移】，十字游標會顯示精確價格與成交量。")
+        with tab_plotly:
+            fig = ta.plot_kbar_with_indicators(kbar_df, code,
+                indicators=indicators if indicators else ["MA5", "MA20"], theme_cfg=t_cfg, height=750)
+            st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.error("無法獲取K線數據，繪圖失敗")
+
+
+def _handle_taistock_batch(params: dict):
+    """處理台股批次查詢（直接渲染）"""
+    from datetime import datetime
+    start_date = datetime.strptime(params["start_date"], "%Y-%m-%d").date()
+    end_date = datetime.strptime(params["end_date"], "%Y-%m-%d").date()
+    query_date = datetime.strptime(params["query_date"], "%Y-%m-%d").date()
+    results = []
+    for item in params["selected"]:
+        kwargs = {}
+        for k in ("resolution", "threshold_vol", "threshold_amt"):
+            if k in params:
+                kwargs[k] = params[k]
+        res = _taistock_dispatch(item, params["code"], params["codes"], start_date, end_date, query_date, params["count"], **kwargs)
+        results.append((item, res))
+    st.session_state["db_batch_results"] = results
+    _render_batch_results("db_batch_results")
+
+
+def _handle_twse_batch(params: dict):
+    """處理 TWSE 批次查詢（直接渲染）"""
+    results = []
+    for item in params["selected"]:
+        res, _ = _twse_dispatch(item, params["code"])
+        results.append((item, res))
+    st.session_state["db_batch_results"] = results
+    _render_batch_results("db_batch_results")
+
+
+def _handle_finmind_batch(params: dict):
+    """處理 FinMind 批次查詢（直接渲染）"""
+    from datetime import datetime
+    start_date = datetime.strptime(params["start_date"], "%Y-%m-%d").date()
+    end_date = datetime.strptime(params["end_date"], "%Y-%m-%d").date()
+    results = []
+    for item in params["selected"]:
+        res = _finmind_dispatch(item, params["code"], start_date, end_date)
+        results.append((item, res))
+    st.session_state["db_batch_results"] = (results, params["code"])
+    _render_batch_results("db_batch_results", label_fn=lambda item, extra: f"📋 {extra} — {item}" if extra else f"📋 {item}")
+
+
+def _handle_futures_forex_batch(params: dict):
+    """處理期貨/匯率批次查詢（直接渲染）"""
+    from datetime import datetime
+    start_date = datetime.strptime(params["start_date"], "%Y-%m-%d").date()
+    end_date = datetime.strptime(params["end_date"], "%Y-%m-%d").date()
+    results = []
+    for item in params["selected"]:
+        res = _futures_forex_dispatch(item, params.get("futures_code"), params.get("currency"), start_date, end_date)
+        results.append((item, res))
+    st.session_state["db_batch_results"] = results
+    _render_batch_results("db_batch_results")
+
+
+def _handle_screener_us(params: dict):
+    """處理美股選股（直接渲染）"""
+    import us_screener as usc
+    df_all = usc.get_us_screener_data(force_refresh=False)
+    res_df = usc.filter_us_stocks(df_all, params["filters"])
+    _us_screener_result_block(res_df, "美股多因子選股")
+
+
+def _handle_us_stock_batch(params: dict):
+    """處理美股批次查詢（直接渲染）"""
+    from datetime import datetime
+    start_date = datetime.strptime(params["start_date"], "%Y-%m-%d").date() if params.get("start_date") else None
+    end_date = datetime.strptime(params["end_date"], "%Y-%m-%d").date() if params.get("end_date") else None
+    results = []
+    for item in params["selected"]:
+        res = _us_stock_dispatch(item, params["ticker"], start_date, end_date)
+        results.append((item, res))
+    st.session_state["db_batch_results"] = results
+    _render_batch_results("db_batch_results")
+
+
+def _handle_us_calendar_consensus(params: dict):
+    """處理美股日曆（直接渲染）"""
+    import us_calendar as usc
+    df_cal = usc.get_us_calendar_consensus_data(force_refresh=False)
+    if not df_cal.empty:
+        display_cols = ["代號", "名稱", "行業板塊", "最新價", "共識評等", "平均目標價", "潛在漲幅%", "分析師人數"]
+        st.dataframe(df_cal[display_cols].sort_values("潛在漲幅%", ascending=False), use_container_width=True, hide_index=True)
+    else:
+        st.warning("無數據可顯示")
+
+
 QUERY_DISPATCH = {
     "ranking": _handle_ranking,
     "snapshot": _handle_snapshot,
     "kbar": _handle_kbar,
     "ticks": _handle_ticks,
     "institutional": _handle_institutional,
+    "technical_analysis": _handle_technical_analysis,
+    "taistock_batch": _handle_taistock_batch,
+    "twse_batch": _handle_twse_batch,
+    "finmind_batch": _handle_finmind_batch,
+    "futures_forex_batch": _handle_futures_forex_batch,
+    "screener_us": _handle_screener_us,
+    "us_stock_batch": _handle_us_stock_batch,
+    "us_calendar_consensus": _handle_us_calendar_consensus,
 }
+
 
 def execute_from_history(history_item: Dict[str, Any]):
     """從歷史記錄執行查詢"""
@@ -186,10 +308,13 @@ def execute_from_history(history_item: Dict[str, Any]):
         try:
             handler = QUERY_DISPATCH.get(query_type)
             if handler:
-                result, title = handler(params)
-                if not result.empty:
-                    st.session_state.current_result = result
-                    display_result(result, f"{history_item.get('tab', '')} - {title.split(' - ')[-1] if ' - ' in title else title}")
+                res = handler(params)
+                if isinstance(res, tuple) and len(res) == 2:
+                    result, title = res
+                    if not result.empty:
+                        st.session_state.current_result = result
+                        display_result(result, f"{history_item.get('tab', '')} - {title.split(' - ')[-1] if ' - ' in title else title}")
+                # handler 若自行渲染（technical_analysis、batch 等），res 為 None
             else:
                 st.warning(f"⚠️ 暫不支援的查詢類型: {query_type}")
 
@@ -208,136 +333,13 @@ def execute_query_by_params(tab: str, params: dict):
         return
 
     try:
-        # 1. 使用 registry 執行基本查詢類型
         handler = QUERY_DISPATCH.get(q_type)
         if handler:
-            res, title = handler(params)
-            if not res.empty:
-                display_result(res, title)
-        # 2. 新增的跨模組捷徑執行
-        elif q_type == "technical_analysis":
-            code = params.get("code", "")
-            from datetime import datetime
-            start_date = datetime.strptime(params["start"], "%Y-%m-%d").date()
-            end_date = datetime.strptime(params["end"], "%Y-%m-%d").date()
-            indicators = params.get("indicators", [])
-            import technical_analysis as ta
-            with st.spinner("正在繪製互動式技術指標圖表..."):
-                kbar_df = qw.query_daily_kbar(code, start_date, end_date)
-                if isinstance(kbar_df, pd.DataFrame) and not kbar_df.empty:
-                    theme_name = st.session_state.get("theme", "🌅 Claude 暖橘")
-                    t_cfg = THEMES.get(theme_name, THEMES["🌅 Claude 暖橘"])
-                    
-                    tab_tv, tab_plotly = st.tabs(["📊 TradingView 專業 Canvas 終端 (推薦)", "📈 Plotly 綜合指標圖 (含 RSI/MACD/BB)"])
-                    with tab_tv:
-                        tv_html = ta.render_tradingview_chart(
-                            kbar_df,
-                            code,
-                            theme_cfg=t_cfg,
-                            indicators=indicators if indicators else ["MA5", "MA20"],
-                            height=520
-                        )
-                        st.components.v1.html(tv_html, height=540)
-                        st.caption("💡 提示：本終端支援極速 Canvas 渲染（含 MA/EMA/布林帶）。若需要查看 RSI、MACD、ATR 等獨立副圖指標，請切換至上方【📈 Plotly 綜合指標圖】。")
-                        st.caption("💡 提示：使用滑鼠滾輪進行【縮放】，拖曳圖表進行【平移】，十字游標會顯示精確價格與成交量。")
-                        
-                    with tab_plotly:
-                        fig = ta.plot_kbar_with_indicators(
-                            kbar_df,
-                            code,
-                            indicators=indicators if indicators else ["MA5", "MA20"],
-                            theme_cfg=t_cfg,
-                            height=750
-                        )
-                        st.plotly_chart(fig, use_container_width=True)
-                else:
-                    st.error("無法獲取K線數據，繪圖失敗")
-                    
-        elif q_type == "taistock_batch":
-            from datetime import datetime
-            start_date = datetime.strptime(params["start_date"], "%Y-%m-%d").date()
-            end_date = datetime.strptime(params["end_date"], "%Y-%m-%d").date()
-            query_date = datetime.strptime(params["query_date"], "%Y-%m-%d").date()
-            results = []
-            for item in params["selected"]:
-                kwargs = {}
-                if "resolution" in params:
-                    kwargs["resolution"] = params["resolution"]
-                if "threshold_vol" in params:
-                    kwargs["threshold_vol"] = params["threshold_vol"]
-                if "threshold_amt" in params:
-                    kwargs["threshold_amt"] = params["threshold_amt"]
-                res = _taistock_dispatch(
-                    item, params["code"], params["codes"], start_date, end_date, query_date, params["count"],
-                    **kwargs
-                )
-                results.append((item, res))
-            # 存入臨時狀態以利渲染結果
-            st.session_state["db_batch_results"] = results
-            _render_batch_results("db_batch_results")
-
-        elif q_type == "twse_batch":
-            results = []
-            for item in params["selected"]:
-                res, _ = _twse_dispatch(item, params["code"])
-                results.append((item, res))
-            st.session_state["db_batch_results"] = results
-            _render_batch_results("db_batch_results")
-            
-        elif q_type == "finmind_batch":
-            from datetime import datetime
-            start_date = datetime.strptime(params["start_date"], "%Y-%m-%d").date()
-            end_date = datetime.strptime(params["end_date"], "%Y-%m-%d").date()
-            results = []
-            for item in params["selected"]:
-                res = _finmind_dispatch(item, params["code"], start_date, end_date)
-                results.append((item, res))
-            st.session_state["db_batch_results"] = (results, params["code"])
-            _render_batch_results(
-                "db_batch_results",
-                label_fn=lambda item, extra: f"📋 {extra} — {item}" if extra else f"📋 {item}",
-            )
-            
-        elif q_type == "futures_forex_batch":
-            from datetime import datetime
-            start_date = datetime.strptime(params["start_date"], "%Y-%m-%d").date()
-            end_date = datetime.strptime(params["end_date"], "%Y-%m-%d").date()
-            results = []
-            for item in params["selected"]:
-                res = _futures_forex_dispatch(
-                    item, params.get("futures_code"), params.get("currency"), start_date, end_date)
-                results.append((item, res))
-            st.session_state["db_batch_results"] = results
-            _render_batch_results("db_batch_results")
-            
-        elif q_type == "screener_us":
-            import us_screener as usc
-            with st.spinner("正在執行美股多因子選股篩選..."):
-                df_all = usc.get_us_screener_data(force_refresh=False)
-                res_df = usc.filter_us_stocks(df_all, params["filters"])
-                _us_screener_result_block(res_df, "美股多因子選股")
-                
-        elif q_type == "us_stock_batch":
-            from datetime import datetime
-            start_date = datetime.strptime(params["start_date"], "%Y-%m-%d").date() if params.get("start_date") else None
-            end_date = datetime.strptime(params["end_date"], "%Y-%m-%d").date() if params.get("end_date") else None
-            results = []
-            for item in params["selected"]:
-                res = _us_stock_dispatch(item, params["ticker"], start_date, end_date)
-                results.append((item, res))
-            st.session_state["db_batch_results"] = results
-            _render_batch_results("db_batch_results")
-            
-        elif q_type == "us_calendar_consensus":
-            import us_calendar as usc
-            with st.spinner("正在加載美股日曆與華爾街共識數據..."):
-                df_cal = usc.get_us_calendar_consensus_data(force_refresh=False)
-                if not df_cal.empty:
-                    # 顯示華爾街評等共識排名
-                    display_cols = ["代號", "名稱", "行業板塊", "最新價", "共識評等", "平均目標價", "潛在漲幅%", "分析師人數"]
-                    st.dataframe(df_cal[display_cols].sort_values("潛在漲幅%", ascending=False), use_container_width=True, hide_index=True)
-                else:
-                    st.warning("無數據可顯示")
+            res = handler(params)
+            if isinstance(res, tuple) and len(res) == 2:
+                result, title = res
+                if not result.empty:
+                    display_result(res, title)
         else:
             st.warning(f"⚠️ 暫不支援的捷徑類型: {q_type}")
     except Exception as exc:
