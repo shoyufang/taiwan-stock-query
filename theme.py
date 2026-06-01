@@ -408,11 +408,13 @@ hr {{ border: none !important; border-top: 1px solid var(--claude-border) !impor
 <!-- 鍵盤快捷鍵 -->
 <script>
 document.addEventListener('keydown', function(e) {{
-    // Ctrl+K: 聚焦搜尋框
+    // Ctrl+K: 聚焦搜尋框（側邊欄）
     if ((e.ctrlKey || e.metaKey) && e.key === 'k') {{
         e.preventDefault();
         var searchInput = document.querySelector('input[aria-label="🔍 快速搜尋"]') ||
-                          document.querySelector('input[placeholder*="快速搜尋"]');
+                          document.querySelector('input[placeholder*="快速搜尋"]') ||
+                          document.querySelector('input[placeholder*="股號或中文名"]') ||
+                          document.querySelector('input[aria-label="搜尋"]');
         if (searchInput) searchInput.focus();
     }}
     // Ctrl+S: 聚焦書籤名稱

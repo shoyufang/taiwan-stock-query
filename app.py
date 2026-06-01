@@ -2950,6 +2950,24 @@ with st.sidebar:
 
 selected_tab = st.session_state.selected_tab
 
+# 搜尋列（側邊欄）
+st.sidebar.markdown("---")
+st.sidebar.markdown("### 🔍 快速搜尋")
+quick_code = st.sidebar.text_input("搜尋", placeholder="股號或中文名", label_visibility="collapsed", key="sidebar_search")
+if quick_code:
+    from stock_lookup import resolve_code
+    resolved = resolve_code(quick_code)
+    if resolved:
+        st.sidebar.success(f"✅ **{quick_code}** → **{resolved}**")
+        if st.sidebar.button("📊 查詢", key="sidebar_search_btn", use_container_width=True):
+            try:
+                result = qw.query_snapshot([resolved])
+                if not result.empty:
+                    st.session_state.sidebar_search_result = (result, f"快速查詢 - {quick_code}")
+                    st.rerun()
+            except:
+                pass
+
 # 書籤區域
 st.sidebar.markdown("---")
 st.sidebar.markdown("### ⭐ 釘選功能")
@@ -3046,45 +3064,8 @@ elif st.session_state.execute_history:
 # 主內容區
 # ══════════════════════════════════════════════════════════
 
-# 全域搜尋列（除 AI 和美股專區外都顯示）
-if selected_tab not in ["DeepSeek AI", "🇺🇸 美股專區", "📅 美股日曆 & 共識"]:
-    with st.container():
-        search_col1, search_col2 = st.columns([3, 1])
-        with search_col1:
-            global_search = st.text_input(
-                "🔍 快速搜尋",
-                placeholder="輸入股票代號、中文名稱或功能...",
-                label_visibility="collapsed",
-                key="global_search"
-            )
-        with search_col2:
-            st.markdown("<div style='height: 38px'></div>", unsafe_allow_html=True)
-            if st.button("⚡ 快速查詢", use_container_width=True, key="quick_search_btn"):
-                if global_search:
-                    from stock_lookup import resolve_code
-                    code = resolve_code(global_search)
-                    if code:
-                        st.session_state.quick_search_code = code
-                        st.session_state.quick_search_raw = global_search
-                        st.rerun()
-                    else:
-                        st.warning(f"找不到 '{global_search}' 對應的股票代號")
-
-        # 顯示搜尋結果
-        if hasattr(st.session_state, 'quick_search_code') and st.session_state.get('quick_search_code'):
-            code = st.session_state.quick_search_code
-            raw = st.session_state.get('quick_search_raw', code)
-            st.success(f"✅ 已解析: **{raw}** → **{code}**")
-            # 自動執行快照查詢
-            try:
-                result = qw.query_snapshot([code])
-                if not result.empty:
-                    display_result(result, f"快速搜尋 - {raw}")
-            except Exception as e:
-                st.warning(f"查詢失敗: {e}")
-            # 清除狀態
-            st.session_state.quick_search_code = None
-            st.session_state.quick_search_raw = None
+st.markdown("---")
+st.markdown("### 📋 最近查詢")
 
 if selected_tab == "DeepSeek AI":
     render_deepseek_chat()
@@ -3128,6 +3109,12 @@ else:
     elif selected_tab == "⚡ 效能監控":
         from tabs.health_monitor import render_health_monitor
         render_health_monitor()
+
+# ── 側邊欄搜尋結果 ──
+if st.session_state.get("sidebar_search_result"):
+    result, title = st.session_state.sidebar_search_result
+    display_result(result, title)
+    st.session_state.sidebar_search_result = None
 
 # ── 中央：一鍵釘選到儀表板首頁 ─────────────────────────────────
 if st.session_state.get("last_query") is not None:
