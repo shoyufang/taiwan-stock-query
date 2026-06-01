@@ -241,25 +241,21 @@ def query_snapshot(codes: List[str]) -> pd.DataFrame:
 @st.cache_data(ttl=86400, show_spinner=False)  # 1 day: Historical K-bars
 def _cached_kbar(code: str, start_str: str, end_str: str) -> pd.DataFrame:
     """Internal cached K-bar query with SQLite fallback (Supports TW & US stocks)"""
-    from datetime import timedelta as _td
     cache_key = f"kbar:{code}:{start_str}:{end_str}"
 
-    # 若 end_str 距今超過 30 天，SQLite 可能有舊資料但仍嘗試讀取
-    # 若 end_str 是最近 30 天（包含今日），跳過 SQLite 以確保資料為最新
-    _end_dt = pd.to_datetime(end_str).date()
-    _use_sqlite = (_end_dt < date.today() - _td(days=30))
-
-    if _use_sqlite:
-        cached_data = get_cache(cache_key)
-        if cached_data is not None:
-            return cached_data
+    # 先查 SQLite 快取，命中即回
+    cached_data = get_cache(cache_key)
+    if cached_data is not None:
+        return cached_data
 
     is_us = not code.isdigit()
     if is_us:
         # 美股/港股，調用 yfinance 獲取歷史 K 線（不走 yfinance 本身的 HTTP 快取）
+        from datetime import timedelta as _td
         try:
             import yfinance as yf
             start_dt = pd.to_datetime(start_str).date()
+            _end_dt = pd.to_datetime(end_str).date()
             sd = start_dt.strftime('%Y-%m-%d')
             ed = (_end_dt + _td(days=1)).strftime('%Y-%m-%d')
 
@@ -281,8 +277,8 @@ def _cached_kbar(code: str, start_str: str, end_str: str) -> pd.DataFrame:
         # 台股，調用 Shioaji / 本地快取
         result = sq.query_kbars(code, start_str, end_str)
 
-    # 只對舊區間 (>30天前) 寫入 SQLite 快取；近期查詢不快取，保持新鮮
-    if not result.empty and _use_sqlite:
+    # 抓到即寫入 SQLite 快取（TTL 86400）
+    if not result.empty:
         set_cache(cache_key, result, ttl=86400)
     return result
 
