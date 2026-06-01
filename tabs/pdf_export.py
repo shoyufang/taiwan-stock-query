@@ -13,15 +13,13 @@ def render_pdf_export():
     st.subheader("📄 匯出 PDF 報告")
     st.caption("生成單一股票完整報告（K線 + 三大法人 + 財報 + AI 摘要）")
     
-    # 輸入區域
-    col1, col2 = st.columns([2, 1])
-    with col1:
-        code = st.text_input("股票代號", placeholder="例：2330", key="pdf_code")
-    with col2:
-        st.write("")  # 垂直對齊
-        if st.button("📥 生成報告", type="primary", use_container_width=True, key="pdf_generate"):
-            if code:
-                _generate_stock_report(code)
+    # 輸入區域（全寬）
+    code = st.text_input("股票代號", placeholder="例：2330", key="pdf_code")
+    
+    # 按鈕在輸入框下方
+    if st.button("📥 生成報告", type="primary", use_container_width=True, key="pdf_generate"):
+        if code:
+            _generate_stock_report(code)
 
 
 def _generate_stock_report(code: str):
@@ -78,8 +76,28 @@ def _get_kbar(code: str, days: int = 90) -> pd.DataFrame:
     try:
         end_date = datetime.now()
         start_date = end_date - timedelta(days=days)
-        return qw.query_daily_kbar(code, start_date.date(), end_date.date())
-    except:
+        df = qw.query_daily_kbar(code, start_date.date(), end_date.date())
+        if not df.empty:
+            # 標準化欄位名稱，確保後續處理一致
+            col_map = {}
+            for col in df.columns:
+                cl = col.lower()
+                if cl in ['date', '日期', 'ts']:
+                    col_map[col] = '日期'
+                elif cl in ['close', '收盤', '收盤價']:
+                    col_map[col] = '收盤'
+                elif cl in ['open', '開盤']:
+                    col_map[col] = '開盤'
+                elif cl in ['high', '最高']:
+                    col_map[col] = '最高'
+                elif cl in ['low', '最低']:
+                    col_map[col] = '最低'
+                elif cl in ['volume', '成交量', 'vol']:
+                    col_map[col] = '成交量'
+            df = df.rename(columns=col_map)
+        return df
+    except Exception as e:
+        main_logger.error(f"Kbar fetch error: {e}")
         return pd.DataFrame()
 
 
@@ -125,7 +143,14 @@ def _render_report(code: str, report_data: dict):
     kbar = report_data.get("kbar", pd.DataFrame())
     if not kbar.empty:
         st.subheader("📉 日K線圖（最近 3 個月）")
-        st.line_chart(kbar.set_index("日期")["收盤"])
+        # 安全地繪製圖表
+        if '日期' in kbar.columns and '收盤' in kbar.columns:
+            st.line_chart(kbar.set_index('日期')['收盤'])
+        elif len(kbar.columns) >= 2:
+            # Fallback: 使用第一欄作為 X 軸，最後一欄作為 Y 軸
+            st.line_chart(kbar.set_index(kbar.columns[0])[kbar.columns[-1]])
+        else:
+            st.dataframe(kbar, use_container_width=True)
     
     # 4. 三大法人
     institutional = report_data.get("institutional", pd.DataFrame())
