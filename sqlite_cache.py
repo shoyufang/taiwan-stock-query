@@ -11,8 +11,8 @@ from pathlib import Path
 from typing import Any, Optional
 from logging_config import main_logger
 
-# 快取目錄與檔案路徑
-CACHE_DIR = Path.home() / ".app_config"
+# 快取目錄與檔案路徑（可由 APP_CACHE_DIR 環境變數覆寫，供 Docker host-mount 使用）
+CACHE_DIR = Path(os.environ.get("APP_CACHE_DIR", str(Path.home() / ".app_config")))
 CACHE_DB = CACHE_DIR / "cache.db"
 
 class SQLiteCache:

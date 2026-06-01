@@ -560,8 +560,8 @@ def date_input_section(label: str = "選擇日期範圍", default_days: int = 30
             key=end_key,
         )
 
-    # 若結束日期超過 7 天前，顯示警告提示
-    if end_date < date.today() - timedelta(days=7):
+    # 若結束日期超過 7 天前，顯示警告提示（isinstance 保護：mock/None 不進入比較）
+    if isinstance(end_date, date) and end_date < date.today() - timedelta(days=7):
         c1, c2 = st.columns([3, 1])
         with c1:
             st.warning(f"⚠️ 結束日期 {end_date} 超過 7 天前，資料可能不是最新。")
