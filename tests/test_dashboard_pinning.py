@@ -1,5 +1,20 @@
 import sys
+import os
 from unittest.mock import MagicMock, patch
+
+# 確保專案根目錄在 sys.path 最前面
+_project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _project_root in sys.path:
+    sys.path.remove(_project_root)
+sys.path.insert(0, _project_root)
+
+# 強制載入本地 utils.py 並覆蓋 shioaji 搶註冊的 sys.modules['utils']
+import importlib.util
+_local_utils_path = os.path.join(_project_root, 'utils.py')
+_spec = importlib.util.spec_from_file_location('utils', _local_utils_path)
+_local_utils = importlib.util.module_from_spec(_spec)
+sys.modules['utils'] = _local_utils
+_spec.loader.exec_module(_local_utils)
 
 # 自訂強大的 MockStreamlit 類別，根據呼叫參數動態回傳正確數量的 mock 物件與真實輸入值，防範解包與 JSON 序列化錯誤
 class MockStreamlit(MagicMock):

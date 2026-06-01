@@ -19,6 +19,7 @@ from logging_config import main_logger
 from health_check import HealthChecker
 from preload import PreloadManager, get_preload_summary
 from deepseek_engine import get_deepseek_engine
+from theme import THEMES, inject_theme_css
 
 # ══════════════════════════════════════════════════════════
 # Streamlit 配置
@@ -30,446 +31,6 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
-
-# ══════════════════════════════════════════════════════════
-# 主題系統定義
-# ══════════════════════════════════════════════════════════
-
-THEMES = {
-    "🌅 Claude 暖橘": {
-        "bg":           "#F2F0EB",
-        "sidebar":      "#E8E4DC",
-        "surface":      "#FFFFFF",
-        "primary":      "#D97757",
-        "primary_dark": "#BF6340",
-        "text":         "#1A1A1A",
-        "text2":        "#6B6B6B",
-        "border":       "#D8D4CB",
-        "border_light": "#EAE7E0",
-        "shadow":       "rgba(0,0,0,0.08)",
-        "glow":         "rgba(217,119,87,0.20)",
-        "hover_tint":   "rgba(217,119,87,0.06)",
-        "checkbox_tint":"rgba(217,119,87,0.08)",
-    },
-    "🌊 深海藍": {
-        "bg":           "#0F172A",
-        "sidebar":      "#1E293B",
-        "surface":      "#1E293B",
-        "primary":      "#3B82F6",
-        "primary_dark": "#2563EB",
-        "text":         "#F1F5F9",
-        "text2":        "#94A3B8",
-        "border":       "#334155",
-        "border_light": "#1E293B",
-        "shadow":       "rgba(0,0,0,0.35)",
-        "glow":         "rgba(59,130,246,0.25)",
-        "hover_tint":   "rgba(59,130,246,0.08)",
-        "checkbox_tint":"rgba(59,130,246,0.10)",
-    },
-    "🟢 翡翠綠": {
-        "bg":           "#111827",
-        "sidebar":      "#1F2937",
-        "surface":      "#1F2937",
-        "primary":      "#10B981",
-        "primary_dark": "#059669",
-        "text":         "#F9FAFB",
-        "text2":        "#9CA3AF",
-        "border":       "#374151",
-        "border_light": "#1F2937",
-        "shadow":       "rgba(0,0,0,0.40)",
-        "glow":         "rgba(16,185,129,0.25)",
-        "hover_tint":   "rgba(16,185,129,0.08)",
-        "checkbox_tint":"rgba(16,185,129,0.10)",
-    },
-    "🟣 科技紫": {
-        "bg":           "#0D0D1A",
-        "sidebar":      "#1A1A2E",
-        "surface":      "#1A1A2E",
-        "primary":      "#8B5CF6",
-        "primary_dark": "#7C3AED",
-        "text":         "#E2E8F0",
-        "text2":        "#A78BFA",
-        "border":       "#2D2D4E",
-        "border_light": "#1A1A2E",
-        "shadow":       "rgba(0,0,0,0.50)",
-        "glow":         "rgba(139,92,246,0.25)",
-        "hover_tint":   "rgba(139,92,246,0.08)",
-        "checkbox_tint":"rgba(139,92,246,0.10)",
-    },
-    "🥇 奢華黑金": {
-        "bg":           "#1C1917",
-        "sidebar":      "#292524",
-        "surface":      "#292524",
-        "primary":      "#F59E0B",
-        "primary_dark": "#D97706",
-        "text":         "#FAFAF9",
-        "text2":        "#A8A29E",
-        "border":       "#44403C",
-        "border_light": "#292524",
-        "shadow":       "rgba(0,0,0,0.45)",
-        "glow":         "rgba(245,158,11,0.25)",
-        "hover_tint":   "rgba(245,158,11,0.08)",
-        "checkbox_tint":"rgba(245,158,11,0.10)",
-    },
-}
-
-def _inject_theme_css(theme_name: str):
-    """根據主題名稱注入對應的 CSS 變數與全域樣式（單一 st.markdown 呼叫）"""
-    t = THEMES.get(theme_name, THEMES["🌅 Claude 暖橘"])
-    # 動態替換 hover/glow 等顏色（避免 rgba 被 f-string 的 {{ }} 語法搞亂）
-    glow        = t["glow"]
-    hover_tint  = t["hover_tint"]
-    cb_tint     = t["checkbox_tint"]
-    primary     = t["primary"]
-    primary_dk  = t["primary_dark"]
-    bg          = t["bg"]
-    sidebar     = t["sidebar"]
-    surface     = t["surface"]
-    text        = t["text"]
-    text2       = t["text2"]
-    border      = t["border"]
-    border_l    = t["border_light"]
-    shadow      = t["shadow"]
-
-    st.markdown(f"""
-<style>
-/* ═══════════════════════════════════════════════════════════
-   台股查詢工具 — 設計系統（動態主題：{theme_name}）
-   ═══════════════════════════════════════════════════════════ */
-
-/* ── CSS 變數定義（單一來源） ── */
-:root {{
-    --claude-bg:           {bg};
-    --claude-sidebar:      {sidebar};
-    --claude-surface:      {surface};
-    --claude-primary:      {primary};
-    --claude-primary-dark: {primary_dk};
-    --claude-text:         {text};
-    --claude-text-2:       {text2};
-    --claude-border:       {border};
-    --claude-border-light: {border_l};
-    --claude-shadow:       {shadow};
-
-    /* ── 同步覆蓋 Streamlit 原生主題變數（關鍵！） ── */
-    --text-color:                  {text} !important;
-    --background-color:            {bg} !important;
-    --secondary-background-color:  {sidebar} !important;
-    --primary-color:               {primary} !important;
-}}
-
-/* ── 強制覆蓋 Streamlit 根背景 ── */
-.stApp {{
-    background-color: {bg} !important;
-    color: {text} !important;
-}}
-[data-testid="stAppViewContainer"] {{
-    background-color: {bg} !important;
-}}
-[data-testid="stHeader"] {{
-    background-color: {bg} !important;
-}}
-[data-testid="stMain"] {{
-    background-color: {bg} !important;
-}}
-
-/* ── 強制所有文字元素顯示正確顏色 ── */
-p, span, div, li, td, th, pre, code,
-[data-testid="stMarkdownContainer"] p,
-[data-testid="stMarkdownContainer"] li,
-[data-testid="stMarkdownContainer"] span,
-[data-testid="stMarkdownContainer"] div,
-[data-testid="stText"],
-[data-testid="stCaptionContainer"],
-.stMarkdown, .stText,
-[class*="stMarkdown"], [class*="stText"] {{
-    color: {text} !important;
-}}
-
-/* ── 標籤文字 ── */
-label, [data-testid="stWidgetLabel"],
-[data-testid="stWidgetLabel"] p,
-[data-baseweb="label"],
-[data-baseweb="checkbox"] label {{
-    color: {text} !important;
-}}
-
-/* ── Selectbox / Dropdown 文字 ── */
-[data-baseweb="select"] [data-baseweb="value"],
-[data-baseweb="select"] span,
-[data-baseweb="menu"] li {{
-    color: {text} !important;
-    background-color: {surface} !important;
-}}
-
-/* ── Radio / Toggle ── */
-[data-testid="stRadio"] label,
-[data-testid="stToggle"] label {{
-    color: {text} !important;
-}}
-
-/* ── 數字輸入框 ── */
-[data-testid="stNumberInput"] input {{
-    color: {text} !important;
-    background-color: {surface} !important;
-}}
-
-/* ── Slider 數值標籤 ── */
-[data-testid="stSlider"] [data-testid="stMarkdownContainer"] p {{
-    color: {text} !important;
-}}
-
-/* ── 字型 & 基礎 ── */
-html, body, [class*="css"] {{
-    font-family: 'Inter','Segoe UI',-apple-system,sans-serif;
-    color: {text};
-}}
-.block-container {{ padding-top: 1.4rem !important; }}
-h1 {{ font-size: 1.45rem !important; margin-bottom: 0 !important; font-weight: 700 !important; letter-spacing: -0.02em; color: {text} !important; }}
-h2 {{ font-size: 1.1rem !important; font-weight: 600 !important; color: {text} !important; }}
-h3 {{ font-size: 0.95rem !important; font-weight: 600 !important; color: {text} !important; }}
-h4, h5, h6 {{ color: {text} !important; }}
-
-
-/* ════════════════════ SIDEBAR ════════════════════ */
-[data-testid="stSidebar"] {{
-    width: 250px !important;
-    background-color: var(--claude-sidebar) !important;
-    border-right: 1px solid var(--claude-border) !important;
-}}
-[data-testid="stSidebar"] .stButton button {{
-    width: 100%;
-    border-radius: 8px !important;
-    font-size: 0.86rem !important;
-    padding: 7px 14px !important;
-    text-align: left !important;
-    transition: all 0.15s ease !important;
-    border: 1px solid var(--claude-border) !important;
-    background: {surface}99 !important;
-    color: var(--claude-text) !important;
-    box-shadow: 0 1px 3px var(--claude-shadow) !important;
-    margin-bottom: 3px !important;
-}}
-[data-testid="stSidebar"] .stButton button:hover {{
-    background: var(--claude-surface) !important;
-    border-color: var(--claude-primary) !important;
-    box-shadow: 0 2px 8px {glow} !important;
-    transform: translateY(-1px) !important;
-}}
-[data-testid="stSidebar"] .stButton button:active {{
-    transform: translateY(0) !important;
-}}
-[data-testid="stSidebar"] .stButton button[kind="primary"] {{
-    background: var(--claude-primary) !important;
-    color: #fff !important;
-    border-color: var(--claude-primary) !important;
-    box-shadow: 0 2px 8px {glow} !important;
-}}
-
-/* ════════ BORDERED CONTAINER（複選框區） ════════ */
-[data-testid="stVerticalBlockBorderWrapper"] {{
-    border-radius: 12px !important;
-    border: 1px solid var(--claude-border) !important;
-    background: var(--claude-surface) !important;
-    box-shadow: 0 1px 4px var(--claude-shadow) !important;
-}}
-
-/* ════════════════ CAPTION（分組標題） ════════════ */
-[data-testid="stCaptionContainer"] p {{
-    font-size: 0.68rem !important;
-    font-weight: 700 !important;
-    letter-spacing: 0.09em !important;
-    text-transform: uppercase !important;
-    color: var(--claude-text-2) !important;
-    margin-bottom: 2px !important;
-}}
-
-/* ══════════════════ CHECKBOX ══════════════════ */
-[data-testid="stCheckbox"] {{ margin: 1px 0 !important; }}
-[data-testid="stCheckbox"] label {{
-    font-size: 0.84rem !important;
-    padding: 3px 8px 3px 4px !important;
-    border-radius: 6px !important;
-    transition: background 0.12s !important;
-    color: var(--claude-text) !important;
-}}
-[data-testid="stCheckbox"] label:hover {{ background: {cb_tint} !important; }}
-
-/* ════════════════════ BUTTONS ════════════════ */
-button[kind="primary"] {{
-    background: linear-gradient(135deg, var(--claude-primary) 0%, var(--claude-primary-dark) 100%) !important;
-    color: #fff !important;
-    border: none !important;
-    border-radius: 9px !important;
-    font-weight: 600 !important;
-    font-size: 0.9rem !important;
-    letter-spacing: 0.02em !important;
-    box-shadow: 0 2px 10px {glow} !important;
-    transition: all 0.15s ease !important;
-}}
-button[kind="primary"]:hover {{
-    box-shadow: 0 4px 18px {glow} !important;
-    transform: translateY(-1px) !important;
-}}
-button[kind="primary"]:active {{ transform: translateY(0) !important; }}
-
-button[kind="secondary"] {{
-    border-radius: 6px !important;
-    font-size: 0.73rem !important;
-    padding: 2px 10px !important;
-    border: 1px solid var(--claude-border) !important;
-    color: var(--claude-text-2) !important;
-    background: var(--claude-surface) !important;
-    transition: all 0.12s ease !important;
-}}
-button[kind="secondary"]:hover {{
-    border-color: var(--claude-primary) !important;
-    color: var(--claude-primary) !important;
-    background: {hover_tint} !important;
-}}
-
-/* ════════════ TEXT INPUT / DATE INPUT ═══════════ */
-[data-testid="stTextInput"] input,
-[data-testid="stDateInput"] input {{
-    border-radius: 8px !important;
-    border: 1px solid var(--claude-border) !important;
-    font-size: 0.87rem !important;
-    background: var(--claude-surface) !important;
-    color: var(--claude-text) !important;
-    transition: border-color 0.15s, box-shadow 0.15s !important;
-}}
-[data-testid="stTextInput"] input:focus,
-[data-testid="stDateInput"] input:focus {{
-    border-color: var(--claude-primary) !important;
-    box-shadow: 0 0 0 3px {glow} !important;
-}}
-
-/* ══════════════════ SELECTBOX ═══════════════ */
-[data-testid="stSelectbox"] [data-baseweb="select"] > div {{
-    border-radius: 8px !important;
-    border-color: var(--claude-border) !important;
-    font-size: 0.87rem !important;
-    background: var(--claude-surface) !important;
-}}
-
-/* ══════════════════ SLIDER ═════════════════ */
-[data-testid="stSlider"] [role="slider"] {{
-    background: var(--claude-primary) !important;
-    border-color: var(--claude-primary) !important;
-}}
-
-/* ═════════════════ PROGRESS BAR ════════════ */
-[data-testid="stProgressBar"] > div > div > div > div {{
-    background: linear-gradient(90deg, var(--claude-primary), var(--claude-primary-dark)) !important;
-}}
-
-/* ═══════════════════ EXPANDER ══════════════ */
-[data-testid="stExpander"] {{
-    border-radius: 10px !important;
-    border: 1px solid var(--claude-border) !important;
-    background: var(--claude-surface) !important;
-    box-shadow: 0 1px 3px var(--claude-shadow) !important;
-    margin-bottom: 8px !important;
-    overflow: hidden !important;
-}}
-[data-testid="stExpander"] summary {{
-    font-size: 0.87rem !important;
-    font-weight: 600 !important;
-    padding: 10px 14px !important;
-    border-radius: 10px !important;
-    transition: background 0.12s !important;
-    color: var(--claude-text) !important;
-}}
-[data-testid="stExpander"] summary:hover {{ background: {hover_tint} !important; }}
-
-/* ══════════════════ DIVIDER ════════════════ */
-hr {{ border: none !important; border-top: 1px solid var(--claude-border) !important; margin: 1rem 0 !important; }}
-
-/* ═══════════════ METRIC CARDS ══════════════ */
-[data-testid="stMetric"] {{
-    background: var(--claude-surface) !important;
-    border: 1px solid var(--claude-border) !important;
-    border-radius: 10px !important;
-    padding: 12px 16px !important;
-    box-shadow: 0 1px 4px var(--claude-shadow) !important;
-}}
-[data-testid="stMetricLabel"] p {{ font-size: 0.73rem !important; color: var(--claude-text-2) !important; font-weight: 500 !important; }}
-[data-testid="stMetricValue"] div {{ font-size: 1.4rem !important; font-weight: 700 !important; color: var(--claude-text) !important; }}
-
-/* ════════════════ DATAFRAME ═════════════════ */
-[data-testid="stDataFrame"] {{
-    border-radius: 8px !important;
-    overflow: hidden !important;
-    border: 1px solid var(--claude-border) !important;
-}}
-
-/* ══════════════ ALERT BOXES ═════════════════ */
-[data-testid="stInfo"]    {{ border-radius: 8px !important; border-left: 3px solid #3b82f6 !important; }}
-[data-testid="stWarning"] {{ border-radius: 8px !important; border-left: 3px solid #f59e0b !important; }}
-[data-testid="stError"]   {{ border-radius: 8px !important; border-left: 3px solid #ef4444 !important; }}
-[data-testid="stSuccess"] {{ border-radius: 8px !important; border-left: 3px solid #10b981 !important; }}
-
-/* ══════════════════ CHAT ════════════════════ */
-[data-testid="stChatInput"] {{
-    border-radius: 12px !important;
-    border: 1px solid {border} !important;
-    background-color: transparent !important;
-}}
-/* 暴力強制 stChatInput 內的所有 div 容器背景為主題表面色，消除米白色背景殘留 */
-[data-testid="stChatInput"] div,
-[data-testid="stChatInput"] label,
-.stChatInput div {{
-    background-color: {surface} !important;
-    color: {text} !important;
-    border-color: {border} !important;
-}}
-[data-testid="stChatInput"] textarea {{
-    font-size: 0.95rem !important;
-    background-color: transparent !important;
-    color: {text} !important;
-    -webkit-text-fill-color: {text} !important;
-}}
-/* 占位符文字加強 */
-[data-testid="stChatInput"] textarea::placeholder,
-[data-testid="stChatInput"] textarea::-webkit-input-placeholder {{
-    color: {text2} !important;
-    opacity: 0.8 !important;
-    -webkit-text-fill-color: {text2} !important;
-}}
-[data-testid="stChatInput"] button {{
-    color: {primary} !important;
-    background-color: transparent !important;
-}}
-[data-testid="stChatMessage"] {{
-    border-radius: 12px !important;
-    padding: 4px 0 !important;
-}}
-[data-testid="stChatMessage"] p,
-[data-testid="stChatMessage"] span,
-[data-testid="stChatMessage"] div {{
-    color: {text} !important;
-}}
-
-/* ══════════ TAB 標籤 ═══════════════════════ */
-[data-testid="stTabs"] [role="tab"] {{
-    font-size: 0.86rem !important;
-    font-weight: 500 !important;
-    color: var(--claude-text-2) !important;
-    border-radius: 8px 8px 0 0 !important;
-    transition: color 0.12s !important;
-}}
-[data-testid="stTabs"] [role="tab"][aria-selected="true"] {{
-    color: var(--claude-primary) !important;
-    border-bottom-color: var(--claude-primary) !important;
-    font-weight: 600 !important;
-}}
-[data-testid="stTabs"] [role="tab"]:hover {{
-    color: var(--claude-primary) !important;
-    background: {hover_tint} !important;
-}}
-</style>
-""", unsafe_allow_html=True)
-
-
 
 # ══════════════════════════════════════════════════════════
 # 全局預加載管理器（緩存）
@@ -542,13 +103,73 @@ if "theme" not in st.session_state:
     st.session_state["theme"] = "🌅 Claude 暖橘"
 
 # ── 注入當前主題的 CSS ──
-_inject_theme_css(st.session_state["theme"])
+inject_theme_css(st.session_state["theme"])
 # 將主題色彩設定寫入 session_state，讓 ui_components.display_kbar 可取用
 st.session_state["_theme_cfg"] = THEMES.get(st.session_state["theme"], THEMES["🌅 Claude 暖橘"])
 
 # ══════════════════════════════════════════════════════════
 
 # ==================== ALL FUNCTION DEFINITIONS ====================
+
+# ─── 查詢分派 Registry ───
+# 統一查詢分派，消除 execute_from_history 與 execute_query_by_params 的重复 if/elif
+
+def _handle_ranking(params: dict) -> tuple:
+    """處理排行查詢，回傳 (result, title)"""
+    ranking_type = params.get("ranking_type", "up")
+    limit = params.get("limit", 10)
+    result = qw.query_ranking(ranking_type, limit)
+    return result, f"台股排行 - {ranking_type}"
+
+def _handle_snapshot(params: dict) -> tuple:
+    """處理快照查詢，回傳 (result, title)"""
+    codes = params.get("codes", [])
+    if not codes:
+        return pd.DataFrame(), "個股即時快照"
+    result = qw.query_snapshot(codes)
+    return result, "個股即時快照"
+
+def _handle_kbar(params: dict) -> tuple:
+    """處理日K查詢，回傳 (result, title)"""
+    code = params.get("code", "")
+    start = params.get("start", "")
+    end = params.get("end", "")
+    if not (code and start and end):
+        return pd.DataFrame(), f"{code} 日K"
+    start_date = datetime.strptime(start, "%Y-%m-%d").date()
+    end_date = datetime.strptime(end, "%Y-%m-%d").date()
+    result = qw.query_daily_kbar(code, start_date, end_date)
+    return result, f"{code} 日K"
+
+def _handle_ticks(params: dict) -> tuple:
+    """處理逐筆成交查詢，回傳 (result, title)"""
+    code = params.get("code", "")
+    query_date = params.get("date", "")
+    if not (code and query_date):
+        return pd.DataFrame(), f"{code} 逐筆成交"
+    query_date_obj = datetime.strptime(query_date, "%Y-%m-%d").date()
+    result = qw.query_ticks(code, query_date_obj)
+    return result, f"{code} 逐筆成交"
+
+def _handle_institutional(params: dict) -> tuple:
+    """處理三大法人查詢，回傳 (result, title)"""
+    code = params.get("code", "")
+    start = params.get("start", "")
+    end = params.get("end", "")
+    if not (code and start and end):
+        return pd.DataFrame(), f"{code} 三大法人明細"
+    start_date = datetime.strptime(start, "%Y-%m-%d").date()
+    end_date = datetime.strptime(end, "%Y-%m-%d").date()
+    result = qw.query_institutional_investors(code, start_date, end_date)
+    return result, f"{code} 三大法人明細"
+
+QUERY_DISPATCH = {
+    "ranking": _handle_ranking,
+    "snapshot": _handle_snapshot,
+    "kbar": _handle_kbar,
+    "ticks": _handle_ticks,
+    "institutional": _handle_institutional,
+}
 
 def execute_from_history(history_item: Dict[str, Any]):
     """從歷史記錄執行查詢"""
@@ -563,54 +184,14 @@ def execute_from_history(history_item: Dict[str, Any]):
 
     with st.spinner("執行中..."):
         try:
-            # 根據查詢類型執行對應的查詢
-            if query_type == "ranking":
-                ranking_type = params.get("ranking_type", "up")
-                limit = params.get("limit", 10)
-                result = qw.query_ranking(ranking_type, limit)
-                st.session_state.current_result = result
-                display_result(result, f"{history_item.get('tab', '')} - {ranking_type}")
-
-            elif query_type == "snapshot":
-                codes = params.get("codes", [])
-                if codes:
-                    result = qw.query_snapshot(codes)
+            handler = QUERY_DISPATCH.get(query_type)
+            if handler:
+                result, title = handler(params)
+                if not result.empty:
                     st.session_state.current_result = result
-                    display_result(result, "個股即時快照")
-
-            elif query_type == "kbar":
-                code = params.get("code", "")
-                start = params.get("start", "")
-                end = params.get("end", "")
-                if code and start and end:
-                    from datetime import datetime
-                    start_date = datetime.strptime(start, "%Y-%m-%d").date()
-                    end_date = datetime.strptime(end, "%Y-%m-%d").date()
-                    result = qw.query_daily_kbar(code, start_date, end_date)
-                    st.session_state.current_result = result
-                    display_result(result, f"{code} 日K")
-
-            elif query_type == "ticks":
-                code = params.get("code", "")
-                query_date = params.get("date", "")
-                if code and query_date:
-                    from datetime import datetime
-                    query_date_obj = datetime.strptime(query_date, "%Y-%m-%d").date()
-                    result = qw.query_ticks(code, query_date_obj)
-                    st.session_state.current_result = result
-                    display_result(result, f"{code} 逐筆成交")
-
-            elif query_type == "institutional":
-                code = params.get("code", "")
-                start = params.get("start", "")
-                end = params.get("end", "")
-                if code and start and end:
-                    from datetime import datetime
-                    start_date = datetime.strptime(start, "%Y-%m-%d").date()
-                    end_date = datetime.strptime(end, "%Y-%m-%d").date()
-                    result = qw.query_institutional_investors(code, start_date, end_date)
-                    st.session_state.current_result = result
-                    display_result(result, f"{code} 三大法人明細")
+                    display_result(result, f"{history_item.get('tab', '')} - {title.split(' - ')[-1] if ' - ' in title else title}")
+            else:
+                st.warning(f"⚠️ 暫不支援的查詢類型: {query_type}")
 
             main_logger.info(f"歷史查詢執行完成: {query_type}")
             st.success("✅ 查詢執行完成")
@@ -627,42 +208,12 @@ def execute_query_by_params(tab: str, params: dict):
         return
 
     try:
-        # 1. 舊有 history 類別執行
-        if q_type == "ranking":
-            ranking_type = params.get("ranking_type", "up")
-            limit = params.get("limit", 10)
-            res = qw.query_ranking(ranking_type, limit)
-            display_result(res, f"台股排行 - {ranking_type}")
-        
-        elif q_type == "snapshot":
-            codes = params.get("codes", [])
-            if codes:
-                res = qw.query_snapshot(codes)
-                display_result(res, "個股即時快照")
-                
-        elif q_type == "kbar":
-            code = params.get("code", "")
-            from datetime import datetime
-            start_date = datetime.strptime(params["start"], "%Y-%m-%d").date()
-            end_date = datetime.strptime(params["end"], "%Y-%m-%d").date()
-            res = qw.query_daily_kbar(code, start_date, end_date)
-            display_result(res, f"{code} 日K")
-            
-        elif q_type == "ticks":
-            code = params.get("code", "")
-            from datetime import datetime
-            query_date = datetime.strptime(params["date"], "%Y-%m-%d").date()
-            res = qw.query_ticks(code, query_date)
-            display_result(res, f"{code} 逐筆成交")
-            
-        elif q_type == "institutional":
-            code = params.get("code", "")
-            from datetime import datetime
-            start_date = datetime.strptime(params["start"], "%Y-%m-%d").date()
-            end_date = datetime.strptime(params["end"], "%Y-%m-%d").date()
-            res = qw.query_institutional_investors(code, start_date, end_date)
-            display_result(res, f"{code} 三大法人明細")
-
+        # 1. 使用 registry 執行基本查詢類型
+        handler = QUERY_DISPATCH.get(q_type)
+        if handler:
+            res, title = handler(params)
+            if not res.empty:
+                display_result(res, title)
         # 2. 新增的跨模組捷徑執行
         elif q_type == "technical_analysis":
             code = params.get("code", "")
@@ -2518,9 +2069,6 @@ if st.session_state.current_result is not None and not st.session_state.current_
             else:
                 st.warning("⚠️ 請輸入書籤名稱")
 
-if __name__ == "__main__":
-    pass
-
 
 def render_deepseek_chat():
     """DeepSeek AI 智能對話 — Chat UI"""
@@ -3169,8 +2717,8 @@ def render_technical_analysis():
     with col2:
         end_date = st.date_input("結束日期", value=date.today(), key="ta_end_v2")
 
-    # 若結束日期超過 7 天前，顯示提示並提供快速重設
-    if end_date < date.today() - timedelta(days=7):
+    # 若結束日期超過 7 天前，顯示提示並提供快速重設（isinstance 保護）
+    if isinstance(end_date, date) and end_date < date.today() - timedelta(days=7):
         _c1, _c2 = st.columns([3, 1])
         with _c1:
             st.warning(f"⚠️ 結束日期 {end_date} 超過 7 天前，查詢到的 K 線資料可能不是最新。")
