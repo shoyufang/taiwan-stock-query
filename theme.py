@@ -404,4 +404,32 @@ hr {{ border: none !important; border-top: 1px solid var(--claude-border) !impor
     background: {hover_tint} !important;
 }}
 </style>
+
+<!-- 鍵盤快捷鍵 -->
+<script>
+document.addEventListener('keydown', function(e) {{
+    // Ctrl+K: 聚焦搜尋框
+    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {{
+        e.preventDefault();
+        var searchInput = document.querySelector('input[aria-label="🔍 快速搜尋"]') ||
+                          document.querySelector('input[placeholder*="快速搜尋"]');
+        if (searchInput) searchInput.focus();
+    }}
+    // Ctrl+S: 聚焦書籤名稱
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {{
+        e.preventDefault();
+        var bookmarkInput = document.querySelector('input[aria-label="快速書籤名稱"]') ||
+                            document.querySelector('input[placeholder*="書籤"]');
+        if (bookmarkInput) bookmarkInput.focus();
+    }}
+    // Escape: 清除搜尋
+    if (e.key === 'Escape') {{
+        var searchInput = document.querySelector('input[aria-label="🔍 快速搜尋"]');
+        if (searchInput && searchInput.value) {{
+            searchInput.value = '';
+            searchInput.blur();
+        }}
+    }}
+}});
+</script>
 """, unsafe_allow_html=True)
