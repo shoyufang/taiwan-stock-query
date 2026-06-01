@@ -2908,7 +2908,7 @@ def render_technical_analysis():
 # 三組導航按鈕（永豐金 / TWSE / 其他）
 SINOPAC_TABS = ["儀表板", "台股市場", "技術分析"]
 TWSE_TABS    = ["TWSE"]
-OTHER_TABS   = ["DeepSeek AI", "🇺🇸 美股專區", "📅 美股日曆 & 共識", "FinMind", "期貨/匯率", "選股", "新聞", "工具"]
+OTHER_TABS   = ["DeepSeek AI", "🇺🇸 美股專區", "📅 美股日曆 & 共識", "FinMind", "期貨/匯率", "選股", "新聞", "📈 技術掃描器", "工具", "⚡ 效能監控"]
 
 def _nav_btn(label: str, icon: str = ""):
     """渲染一個導航按鈕，當前選中顯示 primary 樣式"""
@@ -3111,8 +3111,14 @@ else:
         render_screener()
     elif selected_tab == "新聞":
         render_news()
+    elif selected_tab == "📈 技術掃描器":
+        from tabs.technical_scanner import render_technical_scanner
+        render_technical_scanner()
     elif selected_tab == "工具":
         render_tools()
+    elif selected_tab == "⚡ 效能監控":
+        from tabs.health_monitor import render_health_monitor
+        render_health_monitor()
 
 # ── 中央：一鍵釘選到儀表板首頁 ─────────────────────────────────
 if st.session_state.get("last_query") is not None:
