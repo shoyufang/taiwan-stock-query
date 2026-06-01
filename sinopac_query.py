@@ -920,6 +920,8 @@ def _finmind_api(dataset: str, data_id: str, start_date: str, end_date: str) -> 
                 "token": FINMIND_TOKEN},
         timeout=15,
     )
+    if not r.text or r.text.strip().startswith("<"):
+        raise RuntimeError(f"FinMind API 回傳空白或 HTML（可能為 API 限制或網路問題）")
     d = r.json()
     if d.get("status") != 200:
         raise ValueError(d.get("msg", "API 錯誤"))
@@ -1245,6 +1247,10 @@ def _twse_old(path: str, params: dict = None) -> pd.DataFrame:
     r = _SESSION.get(url, params=p, timeout=15, verify=False,
                      headers={"Accept": "application/json"})
     r.raise_for_status()
+    if not r.text or r.text.strip().startswith("<"):
+        raise RuntimeError(
+            "TWSE 舊版 API 回傳空白或 HTML（可能因海外 IP 被限制）。"
+        )
     data = r.json()
     fields = data.get("fields") or data.get("title") or []
     rows   = data.get("data", [])
