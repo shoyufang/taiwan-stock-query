@@ -543,11 +543,10 @@ class DeepSeekEngine:
 
 def get_deepseek_engine() -> Optional[DeepSeekEngine]:
     """快捷獲取引擎實例"""
-    from config import load_config
-    cfg = load_config()
-    api_key = cfg.get("deepseek_api_key", "")
-    model_name = cfg.get("deepseek_model", "")
-    if api_key and model_name:
+    from config import get_secret
+    api_key = get_secret("DEEPSEEK_API_KEY")
+    model_name = get_secret("DEEPSEEK_MODEL")
+    if api_key:
         return DeepSeekEngine(api_key, model_name=model_name)
     return None
 

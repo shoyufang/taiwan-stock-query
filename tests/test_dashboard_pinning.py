@@ -84,7 +84,7 @@ from app import execute_query_by_params
 class TestDashboardPinning:
     """測試儀表板常用捷徑與釘選查詢的原位執行與分流功能"""
 
-    @patch('app.qw.query_daily_kbar')
+    @patch('dispatch.qw.query_daily_kbar')
     @patch('technical_analysis.plot_kbar_with_indicators')
     def test_execute_technical_analysis(self, mock_plot, mock_kbar):
         """測試技術分析 K 線圖捷徑執行"""
@@ -117,8 +117,8 @@ class TestDashboardPinning:
         mock_kbar.assert_called_once_with("2330", date(2026, 5, 1), date(2026, 5, 22))
         mock_plot.assert_called_once()
 
-    @patch('app._taistock_dispatch')
-    @patch('app._render_batch_results')
+    @patch('tabs.taistock._taistock_dispatch')
+    @patch('tabs._shared._render_batch_results')
     def test_execute_taistock_batch(self, mock_render, mock_dispatch):
         """測試台股市場批次查詢捷徑執行"""
         mock_dispatch.return_value = pd.DataFrame({"test": [1]})
@@ -142,8 +142,8 @@ class TestDashboardPinning:
         mock_render.assert_called_once_with("db_batch_results")
         assert st.session_state["db_batch_results"] == [("個股即時快照", mock_dispatch.return_value)]
 
-    @patch('app._twse_dispatch')
-    @patch('app._render_batch_results')
+    @patch('tabs.twse._twse_dispatch')
+    @patch('tabs._shared._render_batch_results')
     def test_execute_twse_batch(self, mock_render, mock_dispatch):
         """測試 TWSE OpenAPI 批次查詢捷徑執行"""
         mock_dispatch.return_value = (pd.DataFrame({"test": [1]}), None)
@@ -159,8 +159,8 @@ class TestDashboardPinning:
         mock_dispatch.assert_called_once_with("每日收盤行情", "2330")
         mock_render.assert_called_once_with("db_batch_results")
 
-    @patch('app._finmind_dispatch')
-    @patch('app._render_batch_results')
+    @patch('tabs.finmind._finmind_dispatch')
+    @patch('tabs._shared._render_batch_results')
     def test_execute_finmind_batch(self, mock_render, mock_dispatch):
         """測試 FinMind 批次查詢捷徑執行"""
         mock_dispatch.return_value = pd.DataFrame({"test": [1]})
@@ -179,8 +179,8 @@ class TestDashboardPinning:
         mock_render.assert_called_once()
         assert st.session_state["db_batch_results"] == ([("三大法人買賣超", mock_dispatch.return_value)], "2330")
 
-    @patch('app._futures_forex_dispatch')
-    @patch('app._render_batch_results')
+    @patch('tabs.futures_forex._futures_forex_dispatch')
+    @patch('tabs._shared._render_batch_results')
     def test_execute_futures_forex_batch(self, mock_render, mock_dispatch):
         """測試期貨與外匯批次查詢捷徑執行"""
         mock_dispatch.return_value = pd.DataFrame({"test": [1]})
@@ -203,7 +203,7 @@ class TestDashboardPinning:
 
     @patch('us_screener.get_us_screener_data')
     @patch('us_screener.filter_us_stocks')
-    @patch('app._us_screener_result_block')
+    @patch('tabs.screener_tab._us_screener_result_block')
     def test_execute_screener_us(self, mock_result_block, mock_filter, mock_get_data):
         """測試美股多因子選股捷徑執行"""
         mock_df_all = pd.DataFrame({"ticker": ["AAPL", "MSFT"]})
@@ -224,8 +224,8 @@ class TestDashboardPinning:
         mock_filter.assert_called_once_with(mock_df_all, filters)
         mock_result_block.assert_called_once_with(mock_df_filtered, "美股多因子選股")
 
-    @patch('app._us_stock_dispatch')
-    @patch('app._render_batch_results')
+    @patch('tabs.us_stocks._us_stock_dispatch')
+    @patch('tabs._shared._render_batch_results')
     def test_execute_us_stock_batch(self, mock_render, mock_dispatch):
         """測試美股批次查詢捷徑執行"""
         mock_dispatch.return_value = pd.DataFrame({"test": [1]})

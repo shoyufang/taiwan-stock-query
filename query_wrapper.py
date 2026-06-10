@@ -16,6 +16,7 @@ import sinopac_query as sq
 from config import load_config, add_history
 from logging_config import main_logger, perf_tracker
 from sqlite_cache import get_cache, set_cache
+from caching import cached_query
 
 
 # ══════════════════════════════════════════════════════════
@@ -160,22 +161,10 @@ def _cached_ranking_internal(ranking_type: str, limit: int) -> pd.DataFrame:
     scanner_type, ascending = type_map[ranking_type]
     return sq.query_scanner(scanner_type, ascending, count=limit)
 
-@st.cache_data(ttl=300, show_spinner=False)  # 5 min: Real-time ranking
+@cached_query(ttl=300, sqlite_ttl=300, name="ranking")
 def _cached_ranking(ranking_type: str, limit: int) -> pd.DataFrame:
     """Streamlit cached ranking query with SQLite fallback"""
-    cache_key = f"ranking:{ranking_type}:{limit}"
-    # 嘗試從 SQLite 獲取
-    cached_data = get_cache(cache_key)
-    if cached_data is not None:
-        return cached_data
-    
-    # 執行實際查詢
-    result = _cached_ranking_internal(ranking_type, limit)
-    
-    # 存入 SQLite (與 Streamlit TTL 同步)
-    if not result.empty:
-        set_cache(cache_key, result, ttl=300)
-    return result
+    return _cached_ranking_internal(ranking_type, limit)
 
 def query_ranking(ranking_type: str, limit: int = 10) -> pd.DataFrame:
     """
@@ -203,22 +192,11 @@ def query_ranking(ranking_type: str, limit: int = 10) -> pd.DataFrame:
         main_logger.error(f"查詢排行失敗: {str(e)}")
         return pd.DataFrame({"錯誤": [str(e)]})
 
-@st.cache_data(ttl=300, show_spinner=False)  # 5 min: Real-time snapshot
+@cached_query(ttl=300, sqlite_ttl=300, name="snapshot")
 def _cached_snapshot(codes_tuple: tuple) -> pd.DataFrame:
     """Internal cached snapshot query with SQLite fallback"""
     codes = list(codes_tuple)
-    cache_key = f"snapshot:{','.join(sorted(codes))}"
-    
-    # 嘗試從 SQLite 獲取
-    cached_data = get_cache(cache_key)
-    if cached_data is not None:
-        return cached_data
-        
-    result = sq.query_snapshot(codes)
-    
-    if not result.empty:
-        set_cache(cache_key, result, ttl=300)
-    return result
+    return sq.query_snapshot(codes)
 
 def query_snapshot(codes: List[str]) -> pd.DataFrame:
     """查詢個股即時快照"""
@@ -311,18 +289,10 @@ def query_daily_kbar(code: str, start_date: date, end_date: date) -> pd.DataFram
         main_logger.error(f"查詢 K 線失敗: {str(e)}")
         return pd.DataFrame({"錯誤": [str(e)]})
 
-@st.cache_data(ttl=86400, show_spinner=False)  # 1 day: Historical ticks
+@cached_query(ttl=86400, sqlite_ttl=86400, name="ticks")
 def _cached_ticks(code: str, date_str: str) -> pd.DataFrame:
     """Internal cached ticks query with SQLite fallback"""
-    cache_key = f"ticks:{code}:{date_str}"
-    cached_data = get_cache(cache_key)
-    if cached_data is not None:
-        return cached_data
-        
-    result = sq.query_ticks(code, date_str)
-    if not result.empty:
-        set_cache(cache_key, result, ttl=86400)
-    return result
+    return sq.query_ticks(code, date_str)
 
 def query_ticks(code: str, query_date: date) -> pd.DataFrame:
     """查詢逐筆成交"""
@@ -341,23 +311,18 @@ def query_ticks(code: str, query_date: date) -> pd.DataFrame:
         return pd.DataFrame({"錯誤": [str(e)]})
 
 
+@cached_query(ttl=10, sqlite_ttl=10, name="shioaji_snapshot")
+def _cached_shioaji_snapshot(codes_tuple: tuple) -> pd.DataFrame:
+    """Internal cached Shioaji snapshot query with SQLite fallback"""
+    return sq.query_shioaji_snapshot(list(codes_tuple))
+
 def query_shioaji_snapshot(codes: list) -> pd.DataFrame:
     """查詢 Shioaji 即時快照與最佳五檔（帶 SQLite 10 秒快取與歷史記錄）"""
     start_time = time.time()
     codes_key = ",".join(sorted(codes))
-    cache_key = f"shioaji_snapshot:{codes_key}"
-    
     main_logger.info(f"查詢 Shioaji 快照: {codes_key}")
     try:
-        cached_data = get_cache(cache_key)
-        if cached_data is not None:
-            main_logger.info("Shioaji 快照快取命中")
-            return cached_data
-            
-        result = sq.query_shioaji_snapshot(codes)
-        if not result.empty and "說明" not in result.columns:
-            set_cache(cache_key, result, ttl=10)
-            
+        result = _cached_shioaji_snapshot(tuple(sorted(codes)))
         elapsed_ms = (time.time() - start_time) * 1000
         perf_tracker.record_query_time("query_shioaji_snapshot", elapsed_ms)
         add_history("台股市場", {"type": "shioaji_snapshot", "codes": codes})
@@ -366,6 +331,11 @@ def query_shioaji_snapshot(codes: list) -> pd.DataFrame:
         main_logger.error(f"Shioaji 快照查詢失敗: {str(e)}")
         return pd.DataFrame({"錯誤": [str(e)]})
 
+
+@cached_query(ttl=600, sqlite_ttl=600, name="shioaji_kbars")
+def _cached_shioaji_kbars(code: str, start_str: str, end_str: str, resolution: str) -> pd.DataFrame:
+    """Internal cached Shioaji kbars query with SQLite fallback"""
+    return sq.query_shioaji_kbars(code, start_str, end_str, resolution)
 
 def query_shioaji_kbars(
     code: str,
@@ -384,18 +354,8 @@ def query_shioaji_kbars(
         start_str = start_date.strftime("%Y-%m-%d")
         end_str = end_date.strftime("%Y-%m-%d")
         
-        cache_key = f"shioaji_kbars:{code}:{start_str}:{end_str}:{resolution}"
         main_logger.info(f"查詢 Shioaji 分K: {code}, {start_str} ~ {end_str}, {resolution}")
-        
-        cached_data = get_cache(cache_key)
-        if cached_data is not None:
-            main_logger.info("Shioaji 分K快取命中")
-            return cached_data
-            
-        result = sq.query_shioaji_kbars(code, start_str, end_str, resolution)
-        if not result.empty and "說明" not in result.columns:
-            set_cache(cache_key, result, ttl=600)
-            
+        result = _cached_shioaji_kbars(code, start_str, end_str, resolution)
         elapsed_ms = (time.time() - start_time) * 1000
         perf_tracker.record_query_time("query_shioaji_kbars", elapsed_ms)
         add_history("台股市場", {"type": "shioaji_kbars", "code": code, "start": start_str, "end": end_str, "resolution": resolution})
@@ -405,21 +365,17 @@ def query_shioaji_kbars(
         return pd.DataFrame({"錯誤": [str(e)]})
 
 
+@cached_query(ttl=86400, sqlite_ttl=86400, name="shioaji_contract")
+def _cached_shioaji_contract(code: str) -> pd.DataFrame:
+    """Internal cached Shioaji contract query with SQLite fallback"""
+    return sq.query_shioaji_contract_info(code)
+
 def query_shioaji_contract(code: str) -> pd.DataFrame:
     """查詢 Shioaji 商品官方合約與交易限制（帶 SQLite 24 小時快取與歷史記錄）"""
     start_time = time.time()
-    cache_key = f"shioaji_contract:{code}"
     main_logger.info(f"查詢 Shioaji 合約: {code}")
     try:
-        cached_data = get_cache(cache_key)
-        if cached_data is not None:
-            main_logger.info("Shioaji 合約快取命中")
-            return cached_data
-            
-        result = sq.query_shioaji_contract_info(code)
-        if not result.empty and "說明" not in result.columns:
-            set_cache(cache_key, result, ttl=86400)
-            
+        result = _cached_shioaji_contract(code)
         elapsed_ms = (time.time() - start_time) * 1000
         perf_tracker.record_query_time("query_shioaji_contract", elapsed_ms)
         add_history("台股市場", {"type": "shioaji_contract", "code": code})
@@ -428,6 +384,16 @@ def query_shioaji_contract(code: str) -> pd.DataFrame:
         main_logger.error(f"Shioaji 合約查詢失敗: {str(e)}")
         return pd.DataFrame({"錯誤": [str(e)]})
 
+
+@cached_query(ttl=300, sqlite_ttl=300, name="shioaji_big_orders_today")
+def _cached_shioaji_big_orders_today(code: str, date_str: str, threshold_volume: int, threshold_amount: float) -> dict:
+    """Internal cached Shioaji big orders (today) query with SQLite fallback"""
+    return sq.analyze_shioaji_big_orders(code, date_str, threshold_volume, threshold_amount)
+
+@cached_query(ttl=86400, sqlite_ttl=86400, name="shioaji_big_orders_history")
+def _cached_shioaji_big_orders_history(code: str, date_str: str, threshold_volume: int, threshold_amount: float) -> dict:
+    """Internal cached Shioaji big orders (history) query with SQLite fallback"""
+    return sq.analyze_shioaji_big_orders(code, date_str, threshold_volume, threshold_amount)
 
 def analyze_shioaji_big_orders(
     code: str,
@@ -445,21 +411,13 @@ def analyze_shioaji_big_orders(
         # 區分今天與歷史日期
         from datetime import date as dt_date
         is_today = (query_date == dt_date.today())
-        ttl = 300 if is_today else 86400
         
-        cache_key = f"shioaji_big_orders:{code}:{date_str}:{threshold_volume}:{threshold_amount}"
         main_logger.info(f"大單分析: {code}, {date_str}, {threshold_volume}張/{threshold_amount}元")
         
-        cached_data = get_cache(cache_key)
-        if cached_data is not None:
-            main_logger.info("大單分析快取命中")
-            return cached_data
-            
-        result = sq.analyze_shioaji_big_orders(code, date_str, threshold_volume, threshold_amount)
-        # 只要 detail 沒有錯誤說明，即可快取
-        detail_df = result.get("detail", pd.DataFrame())
-        if not detail_df.empty and "說明" not in detail_df.columns:
-            set_cache(cache_key, result, ttl=ttl)
+        if is_today:
+            result = _cached_shioaji_big_orders_today(code, date_str, threshold_volume, threshold_amount)
+        else:
+            result = _cached_shioaji_big_orders_history(code, date_str, threshold_volume, threshold_amount)
             
         elapsed_ms = (time.time() - start_time) * 1000
         perf_tracker.record_query_time("analyze_shioaji_big_orders", elapsed_ms)
@@ -481,18 +439,10 @@ def analyze_shioaji_big_orders(
 # FinMind 籌碼面相關查詢 (1 hour cache: Technical indicators)
 # ══════════════════════════════════════════════════════════
 
-@st.cache_data(ttl=3600, show_spinner=False)
+@cached_query(ttl=3600, sqlite_ttl=3600, name="institutional")
 def _cached_institutional(code: str, start_str: str, end_str: str) -> pd.DataFrame:
     """Internal cached institutional query with SQLite fallback"""
-    cache_key = f"institutional:{code}:{start_str}:{end_str}"
-    cached_data = get_cache(cache_key)
-    if cached_data is not None:
-        return cached_data
-        
-    result = sq.query_institutional(code, start_str, end_str)
-    if not result.empty:
-        set_cache(cache_key, result, ttl=3600)
-    return result
+    return sq.query_institutional(code, start_str, end_str)
 
 def query_institutional_investors(code: str, start_date: date, end_date: date) -> pd.DataFrame:
     """查詢三大法人明細"""
@@ -511,18 +461,10 @@ def query_institutional_investors(code: str, start_date: date, end_date: date) -
         main_logger.error(f"查詢三大法人明細失敗: {str(e)}")
         return pd.DataFrame({"錯誤": [str(e)]})
 
-@st.cache_data(ttl=3600, show_spinner=False)
+@cached_query(ttl=3600, sqlite_ttl=3600, name="institutional_summary")
 def _cached_institutional_summary(code: str, start_str: str, end_str: str) -> pd.DataFrame:
     """Internal cached institutional summary query with SQLite fallback"""
-    cache_key = f"institutional_summary:{code}:{start_str}:{end_str}"
-    cached_data = get_cache(cache_key)
-    if cached_data is not None:
-        return cached_data
-        
-    result = sq.query_institutional_summary(code, start_str, end_str)
-    if not result.empty:
-        set_cache(cache_key, result, ttl=3600)
-    return result
+    return sq.query_institutional_summary(code, start_str, end_str)
 
 def query_institutional_summary(code: str, start_date: date, end_date: date) -> pd.DataFrame:
     """查詢三大法人合計"""
@@ -541,18 +483,10 @@ def query_institutional_summary(code: str, start_date: date, end_date: date) -> 
         main_logger.error(f"查詢三大法人合計失敗: {str(e)}")
         return pd.DataFrame({"錯誤": [str(e)]})
 
-@st.cache_data(ttl=3600, show_spinner=False)
+@cached_query(ttl=3600, sqlite_ttl=3600, name="day_trading")
 def _cached_day_trading(code: str, start_str: str, end_str: str) -> pd.DataFrame:
     """Internal cached day trading query with SQLite fallback"""
-    cache_key = f"day_trading:{code}:{start_str}:{end_str}"
-    cached_data = get_cache(cache_key)
-    if cached_data is not None:
-        return cached_data
-        
-    result = sq.query_day_trading(code, start_str, end_str)
-    if not result.empty:
-        set_cache(cache_key, result, ttl=3600)
-    return result
+    return sq.query_day_trading(code, start_str, end_str)
 
 def query_day_trading_volume(code: str, start_date: date, end_date: date) -> pd.DataFrame:
     """查詢當沖交易量"""
@@ -571,18 +505,10 @@ def query_day_trading_volume(code: str, start_date: date, end_date: date) -> pd.
         main_logger.error(f"查詢當沖交易失敗: {str(e)}")
         return pd.DataFrame({"錯誤": [str(e)]})
 
-@st.cache_data(ttl=3600, show_spinner=False)
+@cached_query(ttl=3600, sqlite_ttl=3600, name="margin_short")
 def _cached_margin_short(code: str, start_str: str, end_str: str) -> pd.DataFrame:
     """Internal cached margin short query with SQLite fallback"""
-    cache_key = f"margin_short:{code}:{start_str}:{end_str}"
-    cached_data = get_cache(cache_key)
-    if cached_data is not None:
-        return cached_data
-        
-    result = sq.query_margin_short(code, start_str, end_str)
-    if not result.empty:
-        set_cache(cache_key, result, ttl=3600)
-    return result
+    return sq.query_margin_short(code, start_str, end_str)
 
 def query_margin_short(code: str, start_date: date, end_date: date) -> pd.DataFrame:
     """查詢融資融券餘額"""
@@ -601,18 +527,10 @@ def query_margin_short(code: str, start_date: date, end_date: date) -> pd.DataFr
         main_logger.error(f"查詢融資融券失敗: {str(e)}")
         return pd.DataFrame({"錯誤": [str(e)]})
 
-@st.cache_data(ttl=3600, show_spinner=False)
+@cached_query(ttl=3600, sqlite_ttl=3600, name="shareholding")
 def _cached_shareholding(code: str, start_str: str, end_str: str) -> pd.DataFrame:
     """Internal cached shareholding query with SQLite fallback"""
-    cache_key = f"shareholding:{code}:{start_str}:{end_str}"
-    cached_data = get_cache(cache_key)
-    if cached_data is not None:
-        return cached_data
-        
-    result = sq.query_shareholding(code, start_str, end_str)
-    if not result.empty:
-        set_cache(cache_key, result, ttl=3600)
-    return result
+    return sq.query_shareholding(code, start_str, end_str)
 
 def query_foreign_shareholding(code: str, start_date: date, end_date: date) -> pd.DataFrame:
     """查詢外資持股比例"""
@@ -631,18 +549,10 @@ def query_foreign_shareholding(code: str, start_date: date, end_date: date) -> p
         main_logger.error(f"查詢外資持股失敗: {str(e)}")
         return pd.DataFrame({"錯誤": [str(e)]})
 
-@st.cache_data(ttl=3600, show_spinner=False)
+@cached_query(ttl=3600, sqlite_ttl=3600, name="securities_lending")
 def _cached_securities_lending(code: str, start_str: str, end_str: str) -> pd.DataFrame:
     """Internal cached securities lending query with SQLite fallback"""
-    cache_key = f"securities_lending:{code}:{start_str}:{end_str}"
-    cached_data = get_cache(cache_key)
-    if cached_data is not None:
-        return cached_data
-        
-    result = sq.query_securities_lending(code, start_str, end_str)
-    if not result.empty:
-        set_cache(cache_key, result, ttl=3600)
-    return result
+    return sq.query_securities_lending(code, start_str, end_str)
 
 def query_securities_lending(code: str, start_date: date, end_date: date) -> pd.DataFrame:
     """查詢借券成交"""
@@ -665,18 +575,10 @@ def query_securities_lending(code: str, start_date: date, end_date: date) -> pd.
 # FinMind 基本面相關查詢 (1 week cache: Fundamental data)
 # ══════════════════════════════════════════════════════════
 
-@st.cache_data(ttl=604800, show_spinner=False)  # 1 week
+@cached_query(ttl=604800, sqlite_ttl=604800, name="month_revenue")
 def _cached_month_revenue(code: str, start_str: str, end_str: str) -> pd.DataFrame:
     """Internal cached month revenue query with SQLite fallback"""
-    cache_key = f"month_revenue:{code}:{start_str}:{end_str}"
-    cached_data = get_cache(cache_key)
-    if cached_data is not None:
-        return cached_data
-        
-    result = sq.query_month_revenue(code, start_str, end_str)
-    if not result.empty:
-        set_cache(cache_key, result, ttl=604800)
-    return result
+    return sq.query_month_revenue(code, start_str, end_str)
 
 def query_month_revenue(code: str, start_date: date, end_date: date) -> pd.DataFrame:
     """查詢月營收"""
@@ -695,18 +597,10 @@ def query_month_revenue(code: str, start_date: date, end_date: date) -> pd.DataF
         main_logger.error(f"查詢月營收失敗: {str(e)}")
         return pd.DataFrame({"錯誤": [str(e)]})
 
-@st.cache_data(ttl=604800, show_spinner=False)
+@cached_query(ttl=604800, sqlite_ttl=604800, name="financial_statement")
 def _cached_financial_statement(code: str, start_str: str, end_str: str) -> pd.DataFrame:
     """Internal cached financial statement query with SQLite fallback"""
-    cache_key = f"financial_statement:{code}:{start_str}:{end_str}"
-    cached_data = get_cache(cache_key)
-    if cached_data is not None:
-        return cached_data
-        
-    result = sq.query_financial_statement(code, start_str, end_str)
-    if not result.empty:
-        set_cache(cache_key, result, ttl=604800)
-    return result
+    return sq.query_financial_statement(code, start_str, end_str)
 
 def query_financial_statement(code: str, start_date: date, end_date: date) -> pd.DataFrame:
     """查詢綜合損益表"""
@@ -725,18 +619,10 @@ def query_financial_statement(code: str, start_date: date, end_date: date) -> pd
         main_logger.error(f"查詢綜合損益表失敗: {str(e)}")
         return pd.DataFrame({"錯誤": [str(e)]})
 
-@st.cache_data(ttl=604800, show_spinner=False)
+@cached_query(ttl=604800, sqlite_ttl=604800, name="balance_sheet")
 def _cached_balance_sheet(code: str, start_str: str, end_str: str) -> pd.DataFrame:
     """Internal cached balance sheet query with SQLite fallback"""
-    cache_key = f"balance_sheet:{code}:{start_str}:{end_str}"
-    cached_data = get_cache(cache_key)
-    if cached_data is not None:
-        return cached_data
-        
-    result = sq.query_balance_sheet(code, start_str, end_str)
-    if not result.empty:
-        set_cache(cache_key, result, ttl=604800)
-    return result
+    return sq.query_balance_sheet(code, start_str, end_str)
 
 def query_balance_sheet(code: str, start_date: date, end_date: date) -> pd.DataFrame:
     """查詢資產負債表"""
@@ -755,18 +641,10 @@ def query_balance_sheet(code: str, start_date: date, end_date: date) -> pd.DataF
         main_logger.error(f"查詢資產負債表失敗: {str(e)}")
         return pd.DataFrame({"錯誤": [str(e)]})
 
-@st.cache_data(ttl=604800, show_spinner=False)
+@cached_query(ttl=604800, sqlite_ttl=604800, name="dividend")
 def _cached_dividend(code: str, start_str: str, end_str: str) -> pd.DataFrame:
     """Internal cached dividend query with SQLite fallback"""
-    cache_key = f"dividend:{code}:{start_str}:{end_str}"
-    cached_data = get_cache(cache_key)
-    if cached_data is not None:
-        return cached_data
-        
-    result = sq.query_dividend(code, start_str, end_str)
-    if not result.empty:
-        set_cache(cache_key, result, ttl=604800)
-    return result
+    return sq.query_dividend(code, start_str, end_str)
 
 def query_dividend(code: str, start_date: date, end_date: date) -> pd.DataFrame:
     """查詢股利政策"""
@@ -789,7 +667,7 @@ def query_dividend(code: str, start_date: date, end_date: date) -> pd.DataFrame:
 # TWSE 相關查詢 (5 min cache: Real-time daily data)
 # ══════════════════════════════════════════════════════════
 
-@st.cache_data(ttl=300, show_spinner=False)
+@cached_query(ttl=300, sqlite_ttl=None, name="twse_daily")
 def _cached_twse_daily(code: Optional[str]) -> pd.DataFrame:
     return sq.query_twse_daily_all(code)
 
@@ -816,7 +694,7 @@ def query_twse_daily_all(code: Optional[str] = None) -> pd.DataFrame:
         main_logger.error(f"查詢 TWSE 當日行情失敗: {str(e)}")
         return {"error": f"查詢失敗：{str(e)}"}
 
-@st.cache_data(ttl=300, show_spinner=False)
+@cached_query(ttl=300, sqlite_ttl=300, name="twse_valuation")
 def _cached_twse_valuation(code: Optional[str]) -> pd.DataFrame:
     return sq.query_twse_bwibbu(code)
 
@@ -843,7 +721,7 @@ def query_twse_valuation(code: Optional[str] = None) -> pd.DataFrame:
         main_logger.error(f"查詢本益比失敗: {str(e)}")
         return {"error": f"查詢失敗：{str(e)}"}
 
-@st.cache_data(ttl=300, show_spinner=False)
+@cached_query(ttl=300, sqlite_ttl=300, name="twse_institutional")
 def _cached_twse_institutional(code: Optional[str]) -> pd.DataFrame:
     return sq.query_twse_institutional(code)
 
@@ -870,7 +748,7 @@ def query_twse_institutional(code: Optional[str] = None) -> pd.DataFrame:
         main_logger.error(f"查詢三大法人 TWSE 失敗: {str(e)}")
         return {"error": f"查詢失敗：{str(e)}"}
 
-@st.cache_data(ttl=300, show_spinner=False)
+@cached_query(ttl=300, sqlite_ttl=300, name="twse_margin")
 def _cached_twse_margin() -> pd.DataFrame:
     return sq.query_twse_margin()
 
@@ -901,7 +779,7 @@ def query_twse_margin(code: Optional[str] = None) -> pd.DataFrame:
         main_logger.error(f"查詢融資融券彙總失敗: {str(e)}")
         return {"error": f"查詢失敗：{str(e)}"}
 
-@st.cache_data(ttl=300, show_spinner=False)
+@cached_query(ttl=300, sqlite_ttl=300, name="twse_company")
 def _cached_twse_company(code: str) -> pd.DataFrame:
     return sq.query_twse_company(code)
 
@@ -919,7 +797,7 @@ def query_twse_company(code: str) -> pd.DataFrame:
         main_logger.error(f"查詢公司基本資料失敗: {str(e)}")
         return pd.DataFrame({"錯誤": [str(e)]})
 
-@st.cache_data(ttl=300, show_spinner=False)
+@cached_query(ttl=300, sqlite_ttl=300, name="twse_disposition")
 def _cached_twse_disposition() -> pd.DataFrame:
     return sq.query_twse_disposition()
 
@@ -941,7 +819,7 @@ def query_twse_disposition() -> pd.DataFrame:
         main_logger.error(f"查詢處置股失敗: {str(e)}")
         return pd.DataFrame({"錯誤": [str(e)]})
 
-@st.cache_data(ttl=300, show_spinner=False)
+@cached_query(ttl=300, sqlite_ttl=300, name="twse_notice")
 def _cached_twse_notice() -> pd.DataFrame:
     return sq.query_twse_notice()
 
@@ -967,7 +845,7 @@ def query_twse_notice() -> pd.DataFrame:
 # TWSE 擴充查詢（新 OpenAPI 端點，5 分鐘緩存）
 # ══════════════════════════════════════════════════════════
 
-@st.cache_data(ttl=300, show_spinner=False)
+@cached_query(ttl=300, sqlite_ttl=300, name="twse_mi_index")
 def _cached_twse_mi_index() -> pd.DataFrame:
     return sq.query_twse_mi_index()
 
@@ -979,7 +857,7 @@ def query_twse_mi_index() -> pd.DataFrame:
     except Exception as e:
         return pd.DataFrame({"錯誤": [str(e)]})
 
-@st.cache_data(ttl=300, show_spinner=False)
+@cached_query(ttl=300, sqlite_ttl=300, name="twse_stock_day_avg")
 def _cached_twse_stock_day_avg(code) -> pd.DataFrame:
     return sq.query_twse_stock_day_avg(code)
 
@@ -991,7 +869,7 @@ def query_twse_stock_day_avg(code=None) -> pd.DataFrame:
     except Exception as e:
         return pd.DataFrame({"錯誤": [str(e)]})
 
-@st.cache_data(ttl=300, show_spinner=False)
+@cached_query(ttl=300, sqlite_ttl=300, name="twse_monthly")
 def _cached_twse_monthly(code) -> pd.DataFrame:
     return sq.query_twse_monthly(code)
 
@@ -1003,7 +881,7 @@ def query_twse_monthly(code=None) -> pd.DataFrame:
     except Exception as e:
         return pd.DataFrame({"錯誤": [str(e)]})
 
-@st.cache_data(ttl=300, show_spinner=False)
+@cached_query(ttl=300, sqlite_ttl=300, name="twse_annual")
 def _cached_twse_annual(code) -> pd.DataFrame:
     return sq.query_twse_annual(code)
 
@@ -1015,7 +893,7 @@ def query_twse_annual(code=None) -> pd.DataFrame:
     except Exception as e:
         return pd.DataFrame({"錯誤": [str(e)]})
 
-@st.cache_data(ttl=300, show_spinner=False)
+@cached_query(ttl=300, sqlite_ttl=300, name="twse_qfiis_cat")
 def _cached_twse_qfiis_cat() -> pd.DataFrame:
     return sq.query_twse_qfiis_cat()
 
@@ -1027,7 +905,7 @@ def query_twse_qfiis_cat() -> pd.DataFrame:
     except Exception as e:
         return pd.DataFrame({"錯誤": [str(e)]})
 
-@st.cache_data(ttl=300, show_spinner=False)
+@cached_query(ttl=300, sqlite_ttl=300, name="twse_qfiis_top20")
 def _cached_twse_qfiis_top20() -> pd.DataFrame:
     return sq.query_twse_qfiis_top20()
 
@@ -1039,7 +917,7 @@ def query_twse_qfiis_top20() -> pd.DataFrame:
     except Exception as e:
         return pd.DataFrame({"錯誤": [str(e)]})
 
-@st.cache_data(ttl=3600, show_spinner=False)
+@cached_query(ttl=3600, sqlite_ttl=3600, name="twse_newlisting")
 def _cached_twse_newlisting() -> pd.DataFrame:
     return sq.query_twse_newlisting()
 
@@ -1051,7 +929,7 @@ def query_twse_newlisting() -> pd.DataFrame:
     except Exception as e:
         return pd.DataFrame({"錯誤": [str(e)]})
 
-@st.cache_data(ttl=86400, show_spinner=False)
+@cached_query(ttl=86400, sqlite_ttl=86400, name="twse_suspend_listing")
 def _cached_twse_suspend_listing() -> pd.DataFrame:
     return sq.query_twse_suspend_listing()
 
@@ -1063,7 +941,7 @@ def query_twse_suspend_listing() -> pd.DataFrame:
     except Exception as e:
         return pd.DataFrame({"錯誤": [str(e)]})
 
-@st.cache_data(ttl=86400, show_spinner=False)
+@cached_query(ttl=86400, sqlite_ttl=86400, name="twse_apply_listing_local")
 def _cached_twse_apply_listing_local() -> pd.DataFrame:
     return sq.query_twse_apply_listing_local()
 
@@ -1075,7 +953,7 @@ def query_twse_apply_listing_local() -> pd.DataFrame:
     except Exception as e:
         return pd.DataFrame({"錯誤": [str(e)]})
 
-@st.cache_data(ttl=86400, show_spinner=False)
+@cached_query(ttl=86400, sqlite_ttl=86400, name="twse_apply_listing_foreign")
 def _cached_twse_apply_listing_foreign() -> pd.DataFrame:
     return sq.query_twse_apply_listing_foreign()
 
@@ -1087,7 +965,7 @@ def query_twse_apply_listing_foreign() -> pd.DataFrame:
     except Exception as e:
         return pd.DataFrame({"錯誤": [str(e)]})
 
-@st.cache_data(ttl=1800, show_spinner=False)
+@cached_query(ttl=1800, sqlite_ttl=1800, name="twse_news_list")
 def _cached_twse_news_list() -> pd.DataFrame:
     return sq.query_twse_news_list()
 
@@ -1099,7 +977,7 @@ def query_twse_news_list() -> pd.DataFrame:
     except Exception as e:
         return pd.DataFrame({"錯誤": [str(e)]})
 
-@st.cache_data(ttl=1800, show_spinner=False)
+@cached_query(ttl=1800, sqlite_ttl=1800, name="twse_event_list")
 def _cached_twse_event_list() -> pd.DataFrame:
     return sq.query_twse_event_list()
 
@@ -1111,7 +989,7 @@ def query_twse_event_list() -> pd.DataFrame:
     except Exception as e:
         return pd.DataFrame({"錯誤": [str(e)]})
 
-@st.cache_data(ttl=86400, show_spinner=False)
+@cached_query(ttl=86400, sqlite_ttl=86400, name="twse_dividend_policy")
 def _cached_twse_dividend_policy() -> pd.DataFrame:
     return sq.query_twse_dividend_policy()
 
@@ -1123,7 +1001,7 @@ def query_twse_dividend_policy() -> pd.DataFrame:
     except Exception as e:
         return pd.DataFrame({"錯誤": [str(e)]})
 
-@st.cache_data(ttl=86400, show_spinner=False)
+@cached_query(ttl=86400, sqlite_ttl=86400, name="twse_fund_basic")
 def _cached_twse_fund_basic() -> pd.DataFrame:
     return sq.query_twse_fund_basic()
 
@@ -1135,7 +1013,7 @@ def query_twse_fund_basic() -> pd.DataFrame:
     except Exception as e:
         return pd.DataFrame({"錯誤": [str(e)]})
 
-@st.cache_data(ttl=86400, show_spinner=False)
+@cached_query(ttl=86400, sqlite_ttl=86400, name="twse_monthly_revenue")
 def _cached_twse_monthly_revenue() -> pd.DataFrame:
     return sq.query_twse_monthly_revenue()
 
@@ -1147,7 +1025,7 @@ def query_twse_monthly_revenue() -> pd.DataFrame:
     except Exception as e:
         return pd.DataFrame({"錯誤": [str(e)]})
 
-@st.cache_data(ttl=86400, show_spinner=False)
+@cached_query(ttl=86400, sqlite_ttl=86400, name="twse_income_statement")
 def _cached_twse_income_statement(industry: str) -> pd.DataFrame:
     return sq.query_twse_income_statement(industry)
 
@@ -1159,7 +1037,7 @@ def query_twse_income_statement(industry: str = "ci") -> pd.DataFrame:
     except Exception as e:
         return pd.DataFrame({"錯誤": [str(e)]})
 
-@st.cache_data(ttl=86400, show_spinner=False)
+@cached_query(ttl=86400, sqlite_ttl=86400, name="twse_balance_sheet_openapi")
 def _cached_twse_balance_sheet_openapi(industry: str) -> pd.DataFrame:
     return sq.query_twse_balance_sheet_openapi(industry)
 
@@ -1171,7 +1049,7 @@ def query_twse_balance_sheet_openapi(industry: str = "ci") -> pd.DataFrame:
     except Exception as e:
         return pd.DataFrame({"錯誤": [str(e)]})
 
-@st.cache_data(ttl=86400, show_spinner=False)
+@cached_query(ttl=86400, sqlite_ttl=86400, name="twse_etf_rank")
 def _cached_twse_etf_rank() -> pd.DataFrame:
     return sq.query_twse_etf_rank()
 
@@ -1183,7 +1061,7 @@ def query_twse_etf_rank() -> pd.DataFrame:
     except Exception as e:
         return pd.DataFrame({"錯誤": [str(e)]})
 
-@st.cache_data(ttl=86400, show_spinner=False)
+@cached_query(ttl=86400, sqlite_ttl=86400, name="twse_esg")
 def _cached_twse_esg(topic_id: int) -> pd.DataFrame:
     return sq.query_twse_esg(topic_id)
 
@@ -1199,7 +1077,7 @@ def query_twse_esg(topic_id: int) -> pd.DataFrame:
 # 期貨與匯率相關查詢 (1 hour cache: FinMind data)
 # ══════════════════════════════════════════════════════════
 
-@st.cache_data(ttl=3600, show_spinner=False)
+@cached_query(ttl=3600, sqlite_ttl=3600, name="futures_daily")
 def _cached_futures_daily(code: str, start_str: str, end_str: str) -> pd.DataFrame:
     return sq.query_futures_daily(code, start_str, end_str)
 
@@ -1217,7 +1095,7 @@ def query_futures_daily(code: str, start_date: date, end_date: date) -> pd.DataF
         main_logger.error(f"查詢期貨日行情失敗: {str(e)}")
         return pd.DataFrame({"錯誤": [str(e)]})
 
-@st.cache_data(ttl=3600, show_spinner=False)
+@cached_query(ttl=3600, sqlite_ttl=3600, name="futures_institutional")
 def _cached_futures_institutional(code: str, start_str: str, end_str: str) -> pd.DataFrame:
     return sq.query_futures_institutional(code, start_str, end_str)
 
@@ -1235,7 +1113,7 @@ def query_futures_institutional(code: str, start_date: date, end_date: date) -> 
         main_logger.error(f"查詢期貨三大法人失敗: {str(e)}")
         return pd.DataFrame({"錯誤": [str(e)]})
 
-@st.cache_data(ttl=3600, show_spinner=False)
+@cached_query(ttl=3600, sqlite_ttl=3600, name="exchange_rate")
 def _cached_exchange_rate(currency: str, start_str: str, end_str: str) -> pd.DataFrame:
     return sq.query_exchange_rate(currency, start_str, end_str)
 
@@ -1257,7 +1135,7 @@ def query_exchange_rate(currency: str, start_date: date, end_date: date) -> pd.D
 # Futu 相關查詢 (5 min cache: Market state)
 # ══════════════════════════════════════════════════════════
 
-@st.cache_data(ttl=300, show_spinner=False)
+@cached_query(ttl=300, sqlite_ttl=300, name="futu_market_state")
 def _cached_futu_market_state() -> pd.DataFrame:
     return sq.query_futu_market_state()
 
@@ -1278,7 +1156,7 @@ def query_futu_market_state() -> pd.DataFrame:
 # 新聞相關查詢 (1 hour cache: News updates)
 # ══════════════════════════════════════════════════════════
 
-@st.cache_data(ttl=3600, show_spinner=False)
+@cached_query(ttl=3600, sqlite_ttl=3600, name="stock_news")
 def _cached_stock_news(code: str, limit: int) -> pd.DataFrame:
     result = sq.query_news(code, limit)
     return result if isinstance(result, pd.DataFrame) else pd.DataFrame()
@@ -1298,7 +1176,7 @@ def query_stock_news(code: str, limit: int = 10) -> pd.DataFrame:
         main_logger.error(f"查詢個股新聞失敗: {str(e)}")
         return pd.DataFrame({"錯誤": [str(e)]})
 
-@st.cache_data(ttl=3600, show_spinner=False)
+@cached_query(ttl=3600, sqlite_ttl=3600, name="market_news")
 def _cached_market_news(limit: int) -> pd.DataFrame:
     result = sq.query_news(None, limit)
     return result if isinstance(result, pd.DataFrame) else pd.DataFrame()
