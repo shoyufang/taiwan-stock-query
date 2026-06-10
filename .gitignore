@@ -42,3 +42,16 @@ Thumbs.db
 # 測試覆蓋率
 .coverage
 htmlcov/
+
+# 備份與暫存
+*.bak
+*.tmp
+scratch_*.py
+
+# 產出物
+*.png
+email_preview.html
+T4_10142/
+
+# pytest
+.pytest_cache/

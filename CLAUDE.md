@@ -86,8 +86,8 @@ sudo docker logs sinopac-web --tail 50  # 查看 log
 
 **報告檔案**
 
-- `PHASE6_ASYNC_REPORT.md` — Phase 6.1 非同步查詢完整報告
-- `PHASE6_PRELOAD_REPORT.md` — Phase 6.2 背景預加載完整報告
+- `docs/history/PHASE6_ASYNC_REPORT.md` — Phase 6.1 非同步查詢完整報告
+- `docs/history/PHASE6_PRELOAD_REPORT.md` — Phase 6.2 背景預加載完整報告
 
 **Phase 7.5：技術分析視覺化（2026-05-20）**
 - 新增 `technical_analysis.py` 模組：Plotly 互動式K線圖
@@ -370,7 +370,7 @@ daily_job.py 執行以下 5 個步驟：
 
 ---
 
-## 歷史數據回填（backfill.py）
+## 歷史數據回填（scripts/backfill.py）
 
 ### 用途
 
@@ -382,7 +382,7 @@ daily_job.py 執行以下 5 個步驟：
 
 ```bash
 cd "路徑/永豐金API"
-python backfill.py
+python scripts/backfill.py
 ```
 
 執行時間：約 25-35 分鐘（視網路速度）
@@ -418,7 +418,7 @@ git push
 
 | 問題 | 解決方式 |
 |---|---|
-| 執行到一半中斷 | 重新執行 `python backfill.py`，程式會從上次中斷處繼續 |
+| 執行到一半中斷 | 重新執行 `python scripts/backfill.py`，程式會從上次中斷處繼續 |
 | 進度條不顯示 | 安裝 tqdm：`pip install tqdm`（選填，無此庫也能執行） |
 | 特定日期抓不到資料 | 正常現象（非交易日、假日）。日誌會顯示 ⚠️ 警告但程式繼續 |
 | 網路超時 | 調整 `SLEEP_SEC` 從 0.8 改成 1.0，或多執行幾次 |
@@ -478,10 +478,10 @@ streamlit run app.py
   * 響應式設計，適配各螢幕寬度
 
 參考文件：
-- `PHASE4_FEATURES.md` — Phase 4 詳細功能說明
-- `TESTING_GUIDE_PHASE4.md` — Phase 4 功能測試指南
-- `PERFORMANCE_REPORT.md` — Phase 5 性能優化報告
-- `PHASE6_ASYNC_REPORT.md` — Phase 6 Task 1 非同步查詢報告
+- `docs/history/PHASE4_FEATURES.md` — Phase 4 詳細功能說明
+- `docs/guides/TESTING_GUIDE_PHASE4.md` — Phase 4 功能測試指南
+- `docs/history/PERFORMANCE_REPORT.md` — Phase 5 性能優化報告
+- `docs/history/PHASE6_ASYNC_REPORT.md` — Phase 6 Task 1 非同步查詢報告
 
 ---
 
@@ -530,18 +530,18 @@ streamlit run app.py
         - UI 功能：動態指標選擇、日期範圍篩選、統計面板、歷史記錄
         - 互動特性：放大/縮小、懸停提示、日期拖拉、右鍵保存圖表
     - **測試工具新增**：
-        - `email_preview.py` — 無需寄信即可預覽郵件格式
+        - `scripts/email_preview.py` — 無需寄信即可預覽郵件格式
         - 生成 `email_preview.html` 供瀏覽器預覽
     - **後續步驟文檔化**：
         - GitHub Secrets 設定：GMAIL_USER、GMAIL_APP_PASSWORD、NOTIFY_EMAIL
-        - 歷史數據回填：執行 `python backfill.py`（25-35 分鐘）
+        - 歷史數據回填：執行 `python scripts/backfill.py`（25-35 分鐘）
         - 數據上傳：`git add data/ && git commit && git push`
 - **相關文件**：
     - `daily_job.py` — 郵件 HTML 格式實現
-    - `email_preview.py` — 郵件預覽工具（新增）
+    - `scripts/email_preview.py` — 郵件預覽工具（新增）
     - `technical_analysis.py` — 技術分析圖表模組（新增）
     - `app.py` — 技術分析 Tab 集成
-    - `backfill.py` — 5 年歷史數據回填腳本
+    - `scripts/backfill.py` — 5 年歷史數據回填腳本
 
 ### 2026-05-20 Claude Session（UI 配色 + 中文股票名稱 + TWSE Bug 修復）
 - **核心任務**：套用 Claude 官網配色、支援中文股票名稱輸入、修復 TWSE 三大法人查詢
@@ -619,7 +619,7 @@ streamlit run app.py
 ### 2026-05-20 Gemini Session（非台股功能完整驗證完成）
 - **核心任務**：在 Windows 環境下，針對**除「台股市場」分頁外**之所有功能進行全面的自動化數據與功能層面驗證。
 - **驗證成果**：
-    - 成功在 Windows 環境下執行 `verify_non_tw_features.py` 驗證腳本。
+    - 成功在 Windows 環境下執行 `scripts/verify_non_tw_features.py` 驗證腳本。
     - **測試結果**：**32 項成功 (PASS)**，**1 項軟性提醒 (WARN)**，**0 項失敗 (FAIL)**。
     - **受檢模組與功能均 100% 健全**，包含：
         * **系統設定**：成功讀取與解析自選監控、偏好及金鑰遮蔽。
