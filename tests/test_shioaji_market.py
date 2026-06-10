@@ -214,8 +214,8 @@ class TestShioajiMarketQuery:
 class TestQueryWrapperShioaji:
     """測試 query_wrapper 中的 Shioaji 包裝函數與快取機制"""
 
-    @patch("query_wrapper.get_cache", return_value=None)
-    @patch("query_wrapper.set_cache")
+    @patch("caching.get_cache", return_value=None)
+    @patch("caching.set_cache")
     @patch("query_wrapper.sq.query_shioaji_snapshot")
     def test_wrapper_snapshot_cache_miss(self, mock_query, mock_set, mock_get):
         """測試快照包裝函數 - Cache Miss"""
@@ -226,10 +226,12 @@ class TestQueryWrapperShioaji:
         assert res.iloc[0]["收盤"] == 650.0
         mock_set.assert_called_once()
 
-    @patch("query_wrapper.get_cache")
+    @patch("caching.get_cache")
     @patch("query_wrapper.sq.query_shioaji_snapshot")
     def test_wrapper_snapshot_cache_hit(self, mock_query, mock_get):
         """測試快照包裝函數 - Cache Hit"""
+        if hasattr(qw._cached_shioaji_snapshot, "clear"):
+            qw._cached_shioaji_snapshot.clear()
         mock_get.return_value = pd.DataFrame({"代號": ["2330"], "收盤": [655.0]})
         
         res = qw.query_shioaji_snapshot(["2330"])

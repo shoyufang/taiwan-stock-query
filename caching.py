@@ -55,7 +55,20 @@ def cached_query(ttl: int = 3600, sqlite_ttl: int | None = None, name: str | Non
             result = func(*args, **kwargs)
             
             # 3. 寫入 SQLite
-            if sqlite_ttl is not None and result is not None and not result.empty:
+            is_valid = False
+            if result is not None:
+                if isinstance(result, pd.DataFrame):
+                    is_valid = not result.empty and "說明" not in result.columns
+                elif isinstance(result, dict):
+                    detail_df = result.get("detail")
+                    if isinstance(detail_df, pd.DataFrame):
+                        is_valid = not detail_df.empty and "說明" not in detail_df.columns
+                    else:
+                        is_valid = len(result) > 0
+                else:
+                    is_valid = True
+
+            if sqlite_ttl is not None and is_valid:
                 try:
                     set_cache(cache_key, result, ttl=sqlite_ttl)
                 except Exception as e:
@@ -79,6 +92,9 @@ def cached_query(ttl: int = 3600, sqlite_ttl: int | None = None, name: str | Non
             _record_cache_hit(func_name, cache_key, is_st_hit)
             
             return st_cached_inner(*args, **kwargs)
+            
+        if hasattr(st_cached_inner, "clear"):
+            wrapper.clear = st_cached_inner.clear
             
         return wrapper
     return decorator
