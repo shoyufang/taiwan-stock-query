@@ -2035,7 +2035,7 @@ def render_tools():
             if bookmark_name and st.session_state.current_result is not None:
                 success = add_bookmark(
                     bookmark_name,
-                    selected_tab,
+                    st.session_state.selected_tab,
                     {"type": "custom"}
                 )
                 if success:
@@ -2072,7 +2072,7 @@ if st.session_state.current_result is not None and not st.session_state.current_
             if quick_bookmark:
                 success = add_bookmark(
                     quick_bookmark,
-                    selected_tab,
+                    st.session_state.selected_tab,
                     {"type": "quick_save"}
                 )
                 if success:

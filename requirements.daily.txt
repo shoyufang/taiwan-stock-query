@@ -1,6 +1,6 @@
 # daily_job.py 專用依賴（精簡版，不含 Streamlit UI 套件）
-pandas
-yfinance
-requests
-urllib3
-notion-client
+pandas>=3.0.2,<4
+yfinance>=1.4.1,<1.5
+requests>=2.34.2,<3
+urllib3>=2.7.0,<3
+notion-client>=3.1.0,<4

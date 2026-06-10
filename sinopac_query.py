@@ -13,7 +13,8 @@ import os
 import pandas as pd
 import yfinance as yf
 from FinMind.data import DataLoader
-from datetime import date, timedelta, timezone
+from datetime import datetime, date, timedelta, timezone
+from logging_config import main_logger
 
 try:
     import shioaji as sj
