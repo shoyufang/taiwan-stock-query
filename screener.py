@@ -434,8 +434,8 @@ def _get_twse_valuation() -> pd.DataFrame:
 
 def _get_finmind_rev(codes: List[str]) -> Dict[str, pd.DataFrame]:
     """批量取得 FinMind 月營收（小批次避免 rate limit）"""
-    cfg = load_config()
-    token = cfg.get("finmind_token", "")
+    from config import get_secret
+    token = get_secret("FINMIND_TOKEN")
     start = (date.today() - timedelta(days=450)).strftime("%Y-%m-%d")
     end   = date.today().strftime("%Y-%m-%d")
 
@@ -606,8 +606,8 @@ def _get_twse_institutional() -> pd.DataFrame:
 
 def _get_finmind_inst_history(codes: List[str], days: int = 12) -> Dict[str, pd.DataFrame]:
     """取得 FinMind 三大法人歷史（用於連續買超判斷）"""
-    cfg = load_config()
-    token = cfg.get("finmind_token", "")
+    from config import get_secret
+    token = get_secret("FINMIND_TOKEN")
     start = (date.today() - timedelta(days=days + 7)).strftime("%Y-%m-%d")
     end   = date.today().strftime("%Y-%m-%d")
 

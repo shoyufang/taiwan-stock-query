@@ -14,15 +14,9 @@ _SESSION = requests.Session()
 
 
 def get_finmind_token() -> str:
-    """FinMind Token 讀取順序：環境變數 → config.json → Streamlit Secrets"""
-    token = os.environ.get("FINMIND_TOKEN", "")
-    if not token:
-        try:
-            from config import load_config
-            token = load_config().get("finmind_token", "")
-        except Exception:
-            pass
-    return token
+    """取得 FinMind Token（動態由 get_secret 載入）"""
+    from config import get_secret
+    return get_secret("FINMIND_TOKEN")
 
 
 # 為了向後相容保留的模組級別屬性
