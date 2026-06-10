@@ -16,6 +16,7 @@ import sinopac_query as sq
 from config import load_config, add_history
 from logging_config import main_logger, perf_tracker
 from sqlite_cache import get_cache, set_cache
+from caching import cached_query
 
 
 # ══════════════════════════════════════════════════════════
@@ -203,22 +204,11 @@ def query_ranking(ranking_type: str, limit: int = 10) -> pd.DataFrame:
         main_logger.error(f"查詢排行失敗: {str(e)}")
         return pd.DataFrame({"錯誤": [str(e)]})
 
-@st.cache_data(ttl=300, show_spinner=False)  # 5 min: Real-time snapshot
+@cached_query(ttl=300, sqlite_ttl=300, name="snapshot")
 def _cached_snapshot(codes_tuple: tuple) -> pd.DataFrame:
     """Internal cached snapshot query with SQLite fallback"""
     codes = list(codes_tuple)
-    cache_key = f"snapshot:{','.join(sorted(codes))}"
-    
-    # 嘗試從 SQLite 獲取
-    cached_data = get_cache(cache_key)
-    if cached_data is not None:
-        return cached_data
-        
-    result = sq.query_snapshot(codes)
-    
-    if not result.empty:
-        set_cache(cache_key, result, ttl=300)
-    return result
+    return sq.query_snapshot(codes)
 
 def query_snapshot(codes: List[str]) -> pd.DataFrame:
     """查詢個股即時快照"""
@@ -665,18 +655,10 @@ def query_securities_lending(code: str, start_date: date, end_date: date) -> pd.
 # FinMind 基本面相關查詢 (1 week cache: Fundamental data)
 # ══════════════════════════════════════════════════════════
 
-@st.cache_data(ttl=604800, show_spinner=False)  # 1 week
+@cached_query(ttl=604800, sqlite_ttl=604800, name="month_revenue")
 def _cached_month_revenue(code: str, start_str: str, end_str: str) -> pd.DataFrame:
     """Internal cached month revenue query with SQLite fallback"""
-    cache_key = f"month_revenue:{code}:{start_str}:{end_str}"
-    cached_data = get_cache(cache_key)
-    if cached_data is not None:
-        return cached_data
-        
-    result = sq.query_month_revenue(code, start_str, end_str)
-    if not result.empty:
-        set_cache(cache_key, result, ttl=604800)
-    return result
+    return sq.query_month_revenue(code, start_str, end_str)
 
 def query_month_revenue(code: str, start_date: date, end_date: date) -> pd.DataFrame:
     """查詢月營收"""
@@ -789,7 +771,7 @@ def query_dividend(code: str, start_date: date, end_date: date) -> pd.DataFrame:
 # TWSE 相關查詢 (5 min cache: Real-time daily data)
 # ══════════════════════════════════════════════════════════
 
-@st.cache_data(ttl=300, show_spinner=False)
+@cached_query(ttl=300, sqlite_ttl=None, name="twse_daily")
 def _cached_twse_daily(code: Optional[str]) -> pd.DataFrame:
     return sq.query_twse_daily_all(code)
 
