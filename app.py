@@ -198,8 +198,8 @@ TAB_RENDERERS = {
     "期貨/匯率": render_futures_forex,
     "新聞": render_news,
     "工具": render_tools,
-    "📄 PDF 報告": _render_pdf_export,
-    "⚡ 效能監控": _render_health_monitor,
+    "PDF 報告": _render_pdf_export,
+    "效能監控": _render_health_monitor,
     # 舊鍵相容映射（書籤/歷史點擊）
     "儀表板": render_market_overview,
 }
