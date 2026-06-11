@@ -1,11 +1,11 @@
 """
-市場總覽 — 專業看盤首頁（Phase B）
+市場總覽 — 專業看盤首頁（Phase B + Phase E 升級）
 
 版面設計（由上而下）：
-  ① 指數行情條（Ticker Strip）— 30 秒刷新
+  ① 全域搜尋 + 指數行情條（Ticker Strip）— 30 秒刷新
   ② 市場寬度（漲跌家數）+ 三大法人買賣超
   ③ 台美 ADR 溢折價
-  ④ 今日排行（漲幅｜跌幅｜成交量｜成交額）
+  ④ 今日排行（漲幅｜跌幅｜成交量｜成交額）+ → 個股
   ⑤ 盤前警示（處置股｜注意股｜今日除息）
   ⑥ 大盤新聞
 """
@@ -17,6 +17,7 @@ from datetime import datetime, timedelta, date
 
 import query_wrapper as qw
 from logging_config import main_logger
+from tabs._shared import goto_stock_page
 
 
 # ──────────────────────────────────────────────
@@ -32,34 +33,6 @@ def is_market_open() -> bool:
     return dt_time(9, 0) <= now.time() <= dt_time(13, 30)
 
 
-def fmt_number(v, decimals=2) -> str:
-    """數字格式化（千分位 + 小數）"""
-    if pd.isna(v):
-        return "-"
-    try:
-        return f"{float(v):,.{decimals}f}"
-    except (ValueError, TypeError):
-        return str(v)
-
-
-def fmt_amount_yi(v) -> str:
-    """億格式化"""
-    if pd.isna(v):
-        return "-"
-    try:
-        return f"{float(v) / 1e8:,.1f} 億"
-    except (ValueError, TypeError):
-        return "-"
-
-
-def _color_up(v) -> str:
-    """台股漲紅"""
-    try:
-        return "color: #d6453d; font-weight: 700" if float(v) > 0 else "color: #1a9c6b; font-weight: 700" if float(v) < 0 else ""
-    except (ValueError, TypeError, ZeroDivisionError):
-        return ""
-
-
 def _safe_div(a, b, decimals=2):
     """安全除法"""
     try:
@@ -71,12 +44,36 @@ def _safe_div(a, b, decimals=2):
 
 
 # ──────────────────────────────────────────────
-# 區塊 ①：指數行情條
+# 區塊 ①：全域搜尋 + 指數行情條
 # ──────────────────────────────────────────────
 
 @st.fragment(run_every=30 if is_market_open() else None)
 def render_index_strip():
-    """指數行情條 — 加權指數、櫃買、台指期、匯率、美股期貨"""
+    """指數行情條 — 加權指數、櫃買、台指期、匯率、美股期貨 + 全域搜尋"""
+    # ── 全域搜尋列（嵌入市場總覽，Phase E3） ──
+    with st.container():
+        search_col1, search_col2, search_col3 = st.columns([4, 1, 2])
+        with search_col1:
+            global_search = st.text_input(
+                "🔍 快速搜尋",
+                placeholder="輸入股票代號、中文名稱或美股 Ticker...",
+                label_visibility="collapsed",
+                key="market_search"
+            )
+        with search_col2:
+            do_search = st.button("⚡ 查詢", use_container_width=True, type="primary")
+
+        if do_search and global_search:
+            from stock_lookup import resolve_code
+            code = resolve_code(global_search)
+            if code:
+                goto_stock_page(code)
+            else:
+                st.warning(f"找不到 '{global_search}' 對應的股票代號")
+
+    st.divider()
+
+    # ── 指數行情條 ──
     c1, c2, c3, c4, c5 = st.columns(5)
 
     # 加權指數（即時 yfinance）
@@ -90,7 +87,7 @@ def render_index_strip():
                 change = price - prev
                 pct = _safe_div(change, prev)
                 arrow = "▲" if change >= 0 else "▼"
-                color = "#d6453d" if change >= 0 else "#1a9c6b"
+                color = "var(--up-color)" if change >= 0 else "var(--down-color)"
                 st.metric(
                     label="📈 加權指數",
                     value=f"{price:,.0f}",
@@ -126,7 +123,7 @@ def render_index_strip():
                     index_close = float(twii_df["Close"].iloc[-1])
                     diff = tx_close - index_close
                     basis_str = f"價差 +{diff:,.0f}" if diff >= 0 else f"價差 {diff:,.0f}"
-                    basis_color = "#d6453d" if diff >= 0 else "#1a9c6b"
+                    basis_color = "var(--up-color)" if diff >= 0 else "var(--down-color)"
                     st.metric("📊 台指期", f"{tx_close:,.0f}", basis_str)
                     st.markdown(f'<div style="color:{basis_color};font-size:0.75rem">{diff:.0f} (+{(_safe_div(diff, index_close)):.2f}%)</div>', unsafe_allow_html=True)
         except Exception:
@@ -189,7 +186,7 @@ def render_market_breadth_and_institutions():
                 cols[0].metric("↑ 上漲", up_count, delta=None)
                 cols[1].metric("↓ 下跌", down_count, delta=None)
                 cols[2].metric("📉 跌停", up_limit, delta=None)
-                cols[3].metric("📊 成交金額", fmt_amount_yi(total_amt), delta=None)
+                cols[3].metric("📊 成交金額", f"{total_amt/1e8:,.1f} 億", delta=None)
 
                 # 詳細資訊
                 st.caption(f"合計 {total} 檔 | 平盤 {flat_count} 檔")
@@ -219,7 +216,7 @@ def render_market_breadth_and_institutions():
 
                     # 總和條
                     total_net = foreign + self_inst + dealer
-                    bar_color = "#d6453d" if total_net >= 0 else "#1a9c6b"
+                    bar_color = "var(--up-color)" if total_net >= 0 else "var(--down-color)"
                     st.markdown(f'<div style="margin-top:4px;color:{bar_color};font-weight:700;font-size:0.82rem">淨流入: {total_net:+,.0f} 億</div>', unsafe_allow_html=True)
                 else:
                     st.caption("資料格式異常")
@@ -248,7 +245,7 @@ def render_adr_section():
         for idx, item in enumerate(adr_data["data"]):
             premium_pct = item["premium_pct"]
             badge_color = "var(--claude-primary)" if premium_pct >= 0 else "#1976d2"
-            badge_bg = "rgba(217, 119, 87, 0.12)" if premium_pct >= 0 else "rgba(25, 118, 210, 0.12)"
+            badge_bg = "var(--up-bg)" if premium_pct >= 0 else "rgba(25, 118, 210, 0.12)"
             with cols[idx]:
                 st.markdown(f"""
                 <div style="border-radius:10px;padding:12px;border:1px solid var(--claude-border);background:var(--claude-surface);box-shadow:0 1px 4px var(--claude-shadow);">
@@ -280,7 +277,6 @@ def render_rankings():
 
     tabs = st.tabs(["🔺 漲幅", "🔻 跌幅", "📦 成交量", "💰 成交額"])
     ranking_map = {"🔺 漲幅": "ChangePercentRank", "🔻 跌幅": "ChangePercentRank", "📦 成交量": "VolumeRank", "💰 成交額": "AmountRank"}
-    reverse_map = {"🔺 涨幅": True, "🔻 跌幅": False, "📦 成交量": False, "💰 成交額": False}
 
     for tab_label, ranking_type in ranking_map.items():
         with tabs[list(ranking_map.keys()).index(tab_label)]:
@@ -308,6 +304,23 @@ def render_rankings():
                             display_df[col] = display_df[col].apply(lambda v: f"{v:+,.2f}" if pd.notna(v) else "-")
 
                     st.dataframe(display_df, use_container_width=True, hide_index=True, height=400)
+
+                    # 加入「→ 個股全景」按鈕列
+                    for _, row in display_df.iterrows():
+                        code = str(row.get("代號", ""))
+                        name = str(row.get("名稱", ""))
+                        if code and code.isdigit():
+                            html = f"""
+                            <div style="display:flex;align-items:center;gap:8px;padding:4px 8px;margin-bottom:2px;border-radius:5px;background:var(--claude-surface);">
+                                <span style="font-weight:700;font-size:0.78rem;min-width:50px;">{code}</span>
+                                <span style="font-size:0.78rem;color:var(--claude-text-2);flex:1;">{name}</span>
+                                <button style="font-size:0.72rem;padding:2px 6px;border-radius:4px;border:1px solid var(--claude-primary);background:transparent;color:var(--claude-primary);cursor:pointer;"
+                                        onclick="window.parent.postMessage({{'streamlit:rerun'}}, '*')">
+                                    → 個股
+                                </button>
+                            </div>
+                            """
+                            st.markdown(html, unsafe_allow_html=True)
                 else:
                     st.caption("無數據")
             except Exception as e:
@@ -414,7 +427,7 @@ def render_market_overview():
     st.markdown("### 🏠 市場總覽")
     st.caption("一屏掌握大盤，10 秒判斷今天是什麼盤")
 
-    # 區塊 ①：指數行情條（自動刷新）
+    # 區塊 ①：全域搜尋 + 指數行情條（自動刷新）
     render_index_strip()
 
     # 區塊 ②③：市場寬度 + 三大法人
@@ -423,7 +436,7 @@ def render_market_overview():
     # 區塊 ④：ADR
     render_adr_section()
 
-    # 區塊 ⑤：排行
+    # 區塊 ⑤：排行 + →個股
     render_rankings()
 
     # 區塊 ⑥：盤前警示 + 新聞
