@@ -27,18 +27,18 @@ def render_technical_scanner():
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        rsi_oversold = st.checkbox("RSI 超賣 (< 30)", value=True)
-        rsi_overbought = st.checkbox("RSI 超買 (> 70)", value=False)
+        rsi_oversold = st.checkbox("RSI 超賣 (< 30)", value=True, key="ts_rsi_os")
+        rsi_overbought = st.checkbox("RSI 超買 (> 70)", value=False, key="ts_rsi_ob")
     
     with col2:
-        ma_golden_cross = st.checkbox("MA 黃金交叉 (5日 > 20日)", value=True)
-        ma_death_cross = st.checkbox("MA 死亡交叉 (5日 < 20日)", value=False)
+        ma_golden_cross = st.checkbox("MA 黃金交叉 (5日 > 20日)", value=True, key="ts_ma_gc")
+        ma_death_cross = st.checkbox("MA 死亡交叉 (5日 < 20日)", value=False, key="ts_ma_dc")
     
     with col3:
-        volume_breakout = st.checkbox("成交量突破 (> 2倍均量)", value=False)
-        price_breakout = st.checkbox("價格突破 20日高點", value=False)
+        volume_breakout = st.checkbox("成交量突破 (> 2倍均量)", value=False, key="ts_vol_bo")
+        price_breakout = st.checkbox("價格突破 20日高點", value=False, key="ts_price_bo")
     
-    if st.button("🚀 開始掃描", type="primary", use_container_width=True):
+    if st.button("🚀 開始掃描", type="primary", use_container_width=True, key="ts_scan_btn"):
         _run_scanner(
             rsi_oversold, rsi_overbought,
             ma_golden_cross, ma_death_cross,

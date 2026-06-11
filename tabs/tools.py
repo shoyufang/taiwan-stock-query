@@ -19,7 +19,7 @@ def render_tools():
     with st.expander("📈 K線圖工具"):
         code = code_input_section()
         start_date, end_date = date_input_section(key_prefix="tool_kbar_")
-        if st.button("繪製 K線圖"):
+        if st.button("繪製 K線圖", key="tool_kbar_btn"):
             st.info("功能在 Phase 3 實現")
 
     with st.expander("🔄 對比工具"):

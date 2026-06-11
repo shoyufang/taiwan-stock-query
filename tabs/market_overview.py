@@ -61,10 +61,10 @@ def render_index_strip():
                 "🔍 快速搜尋",
                 placeholder="輸入股票代號、中文名稱或美股 Ticker...",
                 label_visibility="collapsed",
-                key="market_search"
+                key="mo_search"
             )
         with search_col2:
-            do_search = st.button("⚡ 查詢", use_container_width=True, type="primary")
+            do_search = st.button("⚡ 查詢", use_container_width=True, type="primary", key="mo_search_btn")
 
         if do_search and global_search:
             from stock_lookup import resolve_code

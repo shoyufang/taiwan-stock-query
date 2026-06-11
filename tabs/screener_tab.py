@@ -31,7 +31,8 @@ def _us_screener_result_block(df: pd.DataFrame, label: str):
             df.to_excel(writer, sheet_name="美股選股結果", index=False)
         st.download_button("⬇ 下載美股選股 Excel", data=buf.getvalue(),
                            file_name=f"美股選股_{label}.xlsx",
-                           mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                           mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                           key="us_dl_btn")
     except Exception as e:
         main_logger.error(f"美股選股結果匯出 Excel 失敗: {str(e)}")
 
@@ -158,7 +159,8 @@ def _screener_result_block(df: pd.DataFrame, label: str):
             df.to_excel(writer, sheet_name="選股結果", index=False)
         st.download_button("⬇ 下載 Excel", data=buf.getvalue(),
                            file_name=f"選股_{label}.xlsx",
-                           mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                           mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                           key=f"dl_{label}")
     except Exception:
         pass
 
