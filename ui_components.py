@@ -155,13 +155,13 @@ def display_table(df: pd.DataFrame):
     # 如果有漲跌欄位，套用條件格式
     if change_cols:
         def color_change(val):
-            """漲紅跌綠配色"""
+            """漲紅跌綠配色（改用 CSS 變數）"""
             try:
                 if isinstance(val, (int, float)) and not pd.isna(val):
                     if val > 0:
-                        return 'color: #e63946; font-weight: 600'  # 紅
+                        return 'color: var(--up-color); font-weight: 600'
                     elif val < 0:
-                        return 'color: #2a9d8f; font-weight: 600'  # 綠
+                        return 'color: var(--down-color); font-weight: 600'
             except:
                 pass
             return ''

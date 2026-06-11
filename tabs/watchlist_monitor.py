@@ -10,11 +10,12 @@ from logging_config import main_logger
 import query_wrapper as qw
 from stock_lookup import resolve_code
 from tabs._shared import goto_stock_page
+from config import load_watchlist, save_watchlist
 
 
 def _color_up(v) -> str:
     try:
-        return "color: #d6453d; font-weight: 700" if float(v) > 0 else "color: #1a9c6b; font-weight: 700" if float(v) < 0 else ""
+        return "color: var(--up-color); font-weight: 700" if float(v) > 0 else "color: var(--down-color); font-weight: 700" if float(v) < 0 else ""
     except (ValueError, TypeError):
         return ""
 
@@ -33,10 +34,14 @@ def render_watchlist_monitor():
     st.markdown("### 👁️ 自選股")
     st.caption("即時報價牆，一鍵跳轉個股全景（Phase B.3 goto_stock_page）")
 
-    # ── 初始自選股 ──
+    # ── 初始自選股（統一用 config.py load/save，三軌同步） ──
     if "watchlist_codes" not in st.session_state:
-        default_wl = ["2330", "2317", "2454", "2308", "2382"]
-        st.session_state.watchlist_codes = default_wl
+        wl_data = load_watchlist()
+        codes = wl_data.get("watchlist", [])
+        if not codes:
+            codes = ["2330", "2317", "2454", "2308", "2382"]
+            save_watchlist({"watchlist": codes})
+        st.session_state.watchlist_codes = codes
 
     # ── 管理列 ──
     col_input, col_add, col_edit, col_clear = st.columns([3, 1, 1, 1])
@@ -55,6 +60,7 @@ def render_watchlist_monitor():
                 for code in codes:
                     if code not in st.session_state.watchlist_codes:
                         st.session_state.watchlist_codes.append(code)
+                save_watchlist({"watchlist": st.session_state.watchlist_codes})
                 st.rerun()
     with col_edit:
         if st.button("✏️ 編輯名單", use_container_width=True):
@@ -75,6 +81,7 @@ def render_watchlist_monitor():
                 if st.button("💾 儲存", use_container_width=True, type="primary"):
                     codes = [c.strip() for c in new_text.split(",") if c.strip()]
                     st.session_state.watchlist_codes = codes
+                    save_watchlist({"watchlist": codes})
                     del st.session_state.show_wl_editor
                     st.rerun()
             with c2:

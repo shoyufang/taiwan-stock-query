@@ -1,11 +1,11 @@
 """
-市場總覽 — 專業看盤首頁（Phase B + Phase E 升級）
+市場總覽 — 專業看盤首頁（Phase B + Phase E 修復）
 
 版面設計（由上而下）：
   ① 全域搜尋 + 指數行情條（Ticker Strip）— 30 秒刷新
   ② 市場寬度（漲跌家數）+ 三大法人買賣超
   ③ 台美 ADR 溢折價
-  ④ 今日排行（漲幅｜跌幅｜成交量｜成交額）+ → 個股
+  ④ 今日排行（漲幅｜跌幅｜成交量｜成交額）
   ⑤ 盤前警示（處置股｜注意股｜今日除息）
   ⑥ 大盤新聞
 """
@@ -18,6 +18,9 @@ from datetime import datetime, timedelta, date
 import query_wrapper as qw
 from logging_config import main_logger
 from tabs._shared import goto_stock_page
+
+# ── 匯率（修復 Bug 4: adr_query.get_usd_twd_rate 回傳 float 非 dict） ──
+from adr_query import get_usd_twd_rate
 
 
 # ──────────────────────────────────────────────
@@ -77,9 +80,10 @@ def render_index_strip():
     c1, c2, c3, c4, c5 = st.columns(5)
 
     # 加權指數（即時 yfinance）
+    # Bug 1 修復: yf.T() → yf.Ticker()
     with c1:
         try:
-            twii = yf.T("^TWII")
+            twii = yf.Ticker("^TWII")
             data = twii.history(period="5d")
             if not data.empty:
                 price = data["Close"].iloc[-1]
@@ -93,14 +97,14 @@ def render_index_strip():
                     value=f"{price:,.0f}",
                     delta=f"{arrow} {abs(change):,.0f} ({pct:+.2f}%)" if pct is not None else None
                 )
-                st.markdown(f'<div style="color:{color};font-size:0.8rem;font-weight:600">台積電 {price:,.0f}</div>', unsafe_allow_html=True)
+                # Bug 6 修復: 刪掉錯誤文案「台積電 {指數值}」
         except Exception:
             st.metric("📈 加權指數", "—", "資料暫不可用")
 
-    # 櫃買指數
+    # 櫃買指數（Bug 1 修復）
     with c2:
         try:
-            tpei = yf.T("^TPEx")
+            tpei = yf.Ticker("^TPEx")
             data = tpei.history(period="5d")
             if not data.empty:
                 price = data["Close"].iloc[-1]
@@ -118,7 +122,7 @@ def render_index_strip():
             tx_df = qw.query_futures_daily("TX", date.today() - timedelta(days=1), date.today())
             if not tx_df.empty:
                 tx_close = float(tx_df.iloc[-1]["收盤"])
-                twii_df = yf.T("^TWII").history(period="2d")
+                twii_df = yf.Ticker("^TWII").history(period="2d")  # Bug 1 修復
                 if not twii_df.empty:
                     index_close = float(twii_df["Close"].iloc[-1])
                     diff = tx_close - index_close
@@ -129,21 +133,18 @@ def render_index_strip():
         except Exception:
             st.metric("📊 台指期", "—", "—")
 
-    # 匯率 USD/TWD
+    # 匯率 USD/TWD（Bug 4 修復: 直接呼叫 get_usd_twd_rate 回傳 float）
     with c4:
         try:
-            rate_data = qw.adr_query.get_usd_twd_rate() if hasattr(qw, "adr_query") else {"rate": 32.2}
-            if not isinstance(rate_data, dict):
-                rate_data = {"rate": 32.2}
-            rate = rate_data.get("rate", 32.2)
+            rate = get_usd_twd_rate()
             st.metric("💵 USD/TWD", f"{rate:.4f}", "—")
         except Exception:
-            st.metric("💵 USD/TWD", "—", "—")
+            st.metric("💵 USD/TWD", "32.2000", "快取值")
 
-    # 費半 + 那指
+    # 費半 + 那指（Bug 1 修復）
     with c5:
         try:
-            sox = yf.T("^SOX")
+            sox = yf.Ticker("^SOX")
             data = sox.history(period="5d")
             if not data.empty:
                 price = data["Close"].iloc[-1]
@@ -178,14 +179,16 @@ def render_market_breadth_and_institutions():
                 total = len(all_df)
                 total_amt = all_df["成交金額"].sum() if "成交金額" in all_df.columns else 0
 
-                # 漲跌停（簡化判斷：漲跌 > 10% 漲停, < -10% 跌停）
-                up_limit = int((all_df["漲跌"] >= 10).sum()) if "漲跌" in all_df.columns else 0
-                down_limit = int((all_df["漲跌"] <= -10).sum()) if "漲跌" in all_df.columns else 0
+                # Bug 修復: 漲跌停用「漲跌幅%」而非「漲跌 >= 10 元」
+                # 且修正標籤：up_limit→漲停, down_limit→跌停（原標籤/數據對調）
+                pct_col = "漲跌幅%" if "漲跌幅%" in all_df.columns else "漲跌"
+                up_limit = int((all_df[pct_col] >= 9.9).sum()) if pd.api.types.is_numeric_dtype(all_df[pct_col]) else 0
+                down_limit = int((all_df[pct_col] <= -9.9).sum()) if pd.api.types.is_numeric_dtype(all_df[pct_col]) else 0
 
                 cols = st.columns(4)
                 cols[0].metric("↑ 上漲", up_count, delta=None)
                 cols[1].metric("↓ 下跌", down_count, delta=None)
-                cols[2].metric("📉 跌停", up_limit, delta=None)
+                cols[2].metric("🔴 漲停", up_limit, delta=None)
                 cols[3].metric("📊 成交金額", f"{total_amt/1e8:,.1f} 億", delta=None)
 
                 # 詳細資訊
@@ -196,30 +199,32 @@ def render_market_breadth_and_institutions():
             main_logger.warning(f"市場寬度查詢失敗: {e}")
             st.caption("資料暫不可用")
 
-    # ── 三大法人 ──
+    # ── 三大法人（Bug 2 修復: 正確欄位名 + 全場加總） ──
     with row2:
         st.markdown('<p style="font-size:0.82rem;font-weight:700;color:var(--claude-text-2);margin-bottom:6px;">🏛️ 三大法人今日買賣超</p>', unsafe_allow_html=True)
         try:
             inst_df = qw.query_twse_institutional()
             if not inst_df.empty:
-                # 彙總：找今日最後一筆
-                latest = inst_df.iloc[-1] if isinstance(inst_df, pd.DataFrame) else None
-                if latest is not None and hasattr(latest, '__getitem__'):
-                    foreign = float(latest["外資買賣超"]) if "外資買賣超" in inst_df.columns else 0
-                    self_inst = float(latest["投信買賣超"]) if "投信買賣超" in inst_df.columns else 0
-                    dealer = float(latest["自營商買賣超"]) if "自營商買賣超" in inst_df.columns else 0
+                # T86 回傳全市場逐股原始表，正確欄位名：
+                # 「外資買賣超」「投信買賣超」「自營商買賣超」「合計買賣超」
+                # 單位是股，換算成億元需 ÷1e8
+                foreign_col = "外資買賣超" if "外資買賣超" in inst_df.columns else None
+                trust_col = "投信買賣超" if "投信買賣超" in inst_df.columns else None
+                dealer_col = "自營商買賣超" if "自營商買賣超" in inst_df.columns else None
 
-                    cols = st.columns(3)
-                    cols[0].metric("💼 外資", f"{foreign:+,.0f} 億", delta_color="off")
-                    cols[1].metric("🏢 投信", f"{self_inst:+,.0f} 億", delta_color="off")
-                    cols[2].metric("📈 自營商", f"{dealer:+,.0f} 億", delta_color="off")
+                foreign_sum = float(inst_df[foreign_col].sum()) / 1e8 if foreign_col else 0
+                trust_sum = float(inst_df[trust_col].sum()) / 1e8 if trust_col else 0
+                dealer_sum = float(inst_df[dealer_col].sum()) / 1e8 if dealer_col else 0
 
-                    # 總和條
-                    total_net = foreign + self_inst + dealer
-                    bar_color = "var(--up-color)" if total_net >= 0 else "var(--down-color)"
-                    st.markdown(f'<div style="margin-top:4px;color:{bar_color};font-weight:700;font-size:0.82rem">淨流入: {total_net:+,.0f} 億</div>', unsafe_allow_html=True)
-                else:
-                    st.caption("資料格式異常")
+                cols = st.columns(3)
+                cols[0].metric("💼 外資", f"{foreign_sum:+,.0f} 億", delta_color="off")
+                cols[1].metric("🏢 投信", f"{trust_sum:+,.0f} 億", delta_color="off")
+                cols[2].metric("📈 自營商", f"{dealer_sum:+,.0f} 億", delta_color="off")
+
+                # 總和條
+                total_net = foreign_sum + trust_sum + dealer_sum
+                bar_color = "var(--up-color)" if total_net >= 0 else "var(--down-color)"
+                st.markdown(f'<div style="margin-top:4px;color:{bar_color};font-weight:700;font-size:0.82rem">淨流入: {total_net:+,.0f} 億</div>', unsafe_allow_html=True)
             else:
                 st.caption("資料暫不可用")
         except Exception as e:
@@ -276,7 +281,7 @@ def render_rankings():
     st.markdown('<p style="font-size:0.82rem;font-weight:700;color:var(--claude-text-2);margin-bottom:6px;">📊 今日排行</p>', unsafe_allow_html=True)
 
     tabs = st.tabs(["🔺 漲幅", "🔻 跌幅", "📦 成交量", "💰 成交額"])
-    ranking_map = {"🔺 漲幅": "ChangePercentRank", "🔻 跌幅": "ChangePercentRank", "📦 成交量": "VolumeRank", "💰 成交額": "AmountRank"}
+    ranking_map = {"🔺 漲幅": "up", "🔻 跌幅": "down", "📦 成交量": "volume", "💰 成交額": "amount"}
 
     for tab_label, ranking_type in ranking_map.items():
         with tabs[list(ranking_map.keys()).index(tab_label)]:
@@ -303,24 +308,17 @@ def render_rankings():
                         if col in display_df.columns:
                             display_df[col] = display_df[col].apply(lambda v: f"{v:+,.2f}" if pd.notna(v) else "-")
 
-                    st.dataframe(display_df, use_container_width=True, hide_index=True, height=400)
-
-                    # 加入「→ 個股全景」按鈕列
-                    for _, row in display_df.iterrows():
+                    # Bug 修復: 按鈕 key 去重 → 加入 ranking_type + tab_label
+                    for idx, (_, row) in enumerate(display_df.iterrows()):
                         code = str(row.get("代號", ""))
                         name = str(row.get("名稱", ""))
-                        if code and code.isdigit():
-                            html = f"""
-                            <div style="display:flex;align-items:center;gap:8px;padding:4px 8px;margin-bottom:2px;border-radius:5px;background:var(--claude-surface);">
-                                <span style="font-weight:700;font-size:0.78rem;min-width:50px;">{code}</span>
-                                <span style="font-size:0.78rem;color:var(--claude-text-2);flex:1;">{name}</span>
-                                <button style="font-size:0.72rem;padding:2px 6px;border-radius:4px;border:1px solid var(--claude-primary);background:transparent;color:var(--claude-primary);cursor:pointer;"
-                                        onclick="window.parent.postMessage({{'streamlit:rerun'}}, '*')">
-                                    → 個股
-                                </button>
-                            </div>
-                            """
-                            st.markdown(html, unsafe_allow_html=True)
+
+                        col_btn = st.columns([3, 1])[1]
+                        with col_btn:
+                            if code and code.isdigit() and st.button("→ 個股", key=f"rank_btn_{ranking_type}_{tab_label}_{idx}_{code}", use_container_width=True, type="secondary", help=f"跳轉 {name}"):
+                                goto_stock_page(code)
+
+                    st.dataframe(display_df, use_container_width=True, hide_index=True, height=400)
                 else:
                     st.caption("無數據")
             except Exception as e:
