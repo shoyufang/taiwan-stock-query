@@ -26,13 +26,14 @@ from logging_config import main_logger
 # ──────────────────────────────────────────────
 
 def is_tw_stock(code: str) -> bool:
-    """純數字 = 台股"""
-    return code.isdigit() and len(code) <= 4
+    """台股：純數字（含 5-6 碼 ETF）"""
+    return code.isdigit()
 
 
 def _color_up(v) -> str:
+    """台股漲紅跌綠（改用 CSS 變數）"""
     try:
-        return "color: #d6453d; font-weight: 700" if float(v) > 0 else "color: #1a9c6b; font-weight: 700" if float(v) < 0 else ""
+        return "color: var(--up-color); font-weight: 700" if float(v) > 0 else "color: var(--down-color); font-weight: 700" if float(v) < 0 else ""
     except (ValueError, TypeError):
         return ""
 
@@ -76,12 +77,14 @@ def render_stock_header():
             st.warning(f"找不到 '{raw_input}' 對應的股票代號")
 
     if do_watchlist and raw_input:
+        from config import load_watchlist, save_watchlist
         code = resolve_code(raw_input)
         if code:
-            watchlist = st.session_state.config.get("watchlist", [])
-            if code not in watchlist:
-                watchlist.append(code)
-                st.session_state.config["watchlist"] = watchlist
+            wl_data = load_watchlist()
+            wl = wl_data.get("watchlist", [])
+            if code not in wl:
+                wl.append(code)
+                save_watchlist({"watchlist": wl})
                 st.success(f"已將 {code} 加入自選股")
             else:
                 st.info(f"{code} 已在自選股中")
@@ -111,9 +114,9 @@ def render_stock_header():
                 high = row.get("最高", 0)
                 low = row.get("最低", 0)
                 prev_close = row.get("昨收", close - change)
-                amplitude = _safe_div(close - low, prev_close, 2) if prev_close > 0 else 0
+                amplitude = _safe_div(high - low, prev_close, 2) if prev_close > 0 else 0
 
-                up_color = "#d6453d" if change >= 0 else "#1a9c6b"
+                up_color = "var(--up-color)" if change >= 0 else "var(--down-color)"
                 st.markdown(f"""
                 <div style="display:flex;align-items:center;gap:20px;padding:12px 16px;border-radius:10px;border:1px solid var(--claude-border);background:var(--claude-surface);margin-bottom:8px;">
                     <div>
@@ -136,15 +139,15 @@ def render_stock_header():
                 </div>
                 """, unsafe_allow_html=True)
         else:
-            # 美股/港股：yfinance
-            ticker = yf.T(f"{code}.US" if is_tw_stock(code) is False and not "." in code else code)
+            # Bug 4 修復: yf.T() → yf.Ticker(), NVDA 不要加 .US
+            ticker = yf.Ticker(code if "." in code else code)
             data = ticker.history(period="5d")
             if not data.empty:
                 close = float(data["Close"].iloc[-1])
                 prev = float(data["Close"].iloc[-2]) if len(data) > 1 else close
                 change = close - prev
                 pct = _safe_div(change, prev)
-                up_color = "#26C281" if change >= 0 else "#FF5252"  # 美股綠漲紅跌
+                up_color = "var(--up-color)" if change >= 0 else "var(--down-color)"  # 台股紅漲 / 美股由主題決定
 
                 st.markdown(f"""
                 <div style="display:flex;align-items:center;gap:20px;padding:12px 16px;border-radius:10px;border:1px solid var(--claude-border);background:var(--claude-surface);margin-bottom:8px;">
