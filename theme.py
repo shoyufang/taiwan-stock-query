@@ -1,7 +1,8 @@
 """
-主題系統 — 5 種配色主題 + CSS 注入
+主題系統 — 6 種配色主題 + CSS 注入 + 漲跌色系統
 """
 import streamlit as st
+import pandas as pd
 
 THEMES = {
     "🌅 Claude 暖橘": {
@@ -18,6 +19,10 @@ THEMES = {
         "glow":         "rgba(217,119,87,0.20)",
         "hover_tint":   "rgba(217,119,87,0.06)",
         "checkbox_tint":"rgba(217,119,87,0.08)",
+        "up":           "#d6453d",
+        "up_bg":        "rgba(214,69,61,.10)",
+        "down":         "#1a9c6b",
+        "down_bg":      "rgba(26,156,107,.10)",
     },
     "🌊 深海藍": {
         "bg":           "#0F172A",
@@ -33,6 +38,10 @@ THEMES = {
         "glow":         "rgba(59,130,246,0.25)",
         "hover_tint":   "rgba(59,130,246,0.08)",
         "checkbox_tint":"rgba(59,130,246,0.10)",
+        "up":           "#ff6b6b",
+        "up_bg":        "rgba(255,107,107,.10)",
+        "down":         "#36d399",
+        "down_bg":      "rgba(54,211,153,.10)",
     },
     "🟢 翡翠綠": {
         "bg":           "#111827",
@@ -48,6 +57,10 @@ THEMES = {
         "glow":         "rgba(16,185,129,0.25)",
         "hover_tint":   "rgba(16,185,129,0.08)",
         "checkbox_tint":"rgba(16,185,129,0.10)",
+        "up":           "#ff5252",
+        "up_bg":        "rgba(255,82,82,.10)",
+        "down":         "#26C281",
+        "down_bg":      "rgba(38,194,129,.10)",
     },
     "🟣 科技紫": {
         "bg":           "#0D0D1A",
@@ -63,6 +76,10 @@ THEMES = {
         "glow":         "rgba(139,92,246,0.25)",
         "hover_tint":   "rgba(139,92,246,0.08)",
         "checkbox_tint":"rgba(139,92,246,0.10)",
+        "up":           "#ff6b8a",
+        "up_bg":        "rgba(255,107,138,.10)",
+        "down":         "#66d9af",
+        "down_bg":      "rgba(102,217,175,.10)",
     },
     "🥇 奢華黑金": {
         "bg":           "#1C1917",
@@ -78,6 +95,29 @@ THEMES = {
         "glow":         "rgba(245,158,11,0.25)",
         "hover_tint":   "rgba(245,158,11,0.08)",
         "checkbox_tint":"rgba(245,158,11,0.10)",
+        "up":           "#ff8a65",
+        "up_bg":        "rgba(255,138,101,.10)",
+        "down":         "#81c784",
+        "down_bg":      "rgba(129,199,132,.10)",
+    },
+    "🌙 看盤深色": {
+        "bg":           "#12141A",
+        "sidebar":      "#181B22",
+        "surface":      "#1E222B",
+        "primary":      "#E8A04C",
+        "primary_dark": "#D08830",
+        "text":         "#E5E9F0",
+        "text2":        "#8B93A3",
+        "border":       "#2A2F3A",
+        "border_light": "#1E222B",
+        "shadow":       "rgba(0,0,0,0.55)",
+        "glow":         "rgba(232,160,76,0.25)",
+        "hover_tint":   "rgba(232,160,76,0.08)",
+        "checkbox_tint":"rgba(232,160,76,0.10)",
+        "up":           "#FF5252",
+        "up_bg":        "rgba(255,82,82,.10)",
+        "down":         "#26C281",
+        "down_bg":      "rgba(38,194,129,.10)",
     },
 }
 
@@ -97,6 +137,10 @@ def inject_theme_css(theme_name: str):
     border      = t["border"]
     border_l    = t["border_light"]
     shadow      = t["shadow"]
+    up_color    = t["up"]
+    up_bg       = t["up_bg"]
+    down_color  = t["down"]
+    down_bg     = t["down_bg"]
 
     st.markdown(f"""
 <style>
@@ -115,6 +159,11 @@ def inject_theme_css(theme_name: str):
     --claude-border:       {border};
     --claude-border-light: {border_l};
     --claude-shadow:       {shadow};
+    /* 漲跌語義色（台股慣例：紅漲綠跌） */
+    --up-color:            {up_color};
+    --up-bg:               {up_bg};
+    --down-color:          {down_color};
+    --down-bg:             {down_bg};
     --text-color:                  {text} !important;
     --background-color:            {bg} !important;
     --secondary-background-color:  {sidebar} !important;
@@ -336,7 +385,18 @@ hr {{ border: none !important; border-top: 1px solid var(--claude-border) !impor
     box-shadow: 0 1px 4px var(--claude-shadow) !important;
 }}
 [data-testid="stMetricLabel"] p {{ font-size: 0.73rem !important; color: var(--claude-text-2) !important; font-weight: 500 !important; }}
-[data-testid="stMetricValue"] div {{ font-size: 1.4rem !important; font-weight: 700 !important; color: var(--claude-text) !important; }}
+[data-testid="stMetricValue"] div {{ font-size: 1.4rem !important; font-weight: 700 !important; color: var(--claude-text) !important; font-variant-numeric: tabular-nums; }}
+
+/* 漲跌色語義 */
+.up-color {{ color: var(--up-color) !important; font-weight: 700; }}
+.down-color {{ color: var(--down-color) !important; font-weight: 700; }}
+.up-bg {{ background: var(--up-bg) !important; }}
+.down-bg {{ background: var(--down-bg) !important; }}
+
+/* 等寬數字 */
+[data-testid="stMetricValue"],
+[data-testid="stDataFrame"],
+.stMetric span {{ font-variant-numeric: tabular-nums; }}
 
 [data-testid="stDataFrame"] {{
     border-radius: 8px !important;
@@ -435,3 +495,30 @@ document.addEventListener('keydown', function(e) {{
 }});
 </script>
 """, unsafe_allow_html=True)
+
+
+def get_updown_colors(theme_name: str) -> dict:
+    """取得當前主題的漲跌色"""
+    t = THEMES.get(theme_name, THEMES["🌅 Claude 暖橘"])
+    return {"up": t["up"], "down": t["down"], "up_bg": t["up_bg"], "down_bg": t["down_bg"]}
+
+
+def style_updown(df: pd.DataFrame, columns: list) -> "pd.io.formats.style.Styler":
+    """DataFrame 漲跌欄上色（紅漲綠跌），返回 Styler"""
+    def _style(val, col):
+        try:
+            if col in df.columns and pd.notna(val):
+                fval = float(val)
+                if fval > 0:
+                    return f"color: var(--up-color); font-weight: 700"
+                elif fval < 0:
+                    return f"color: var(--down-color); font-weight: 700"
+        except (ValueError, TypeError):
+            pass
+        return ""
+
+    styler = df.style
+    for col in columns:
+        if col in df.columns:
+            styler = styler.applymap(lambda v: _style(v, col), subset=[col])
+    return styler
