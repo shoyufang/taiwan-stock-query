@@ -9,13 +9,7 @@ from datetime import datetime, timedelta
 from logging_config import main_logger
 import query_wrapper as qw
 from stock_lookup import resolve_code
-
-
-def _goto_stock(code: str):
-    """跳轉到個股全景頁"""
-    st.session_state["sp_code"] = code
-    st.session_state["selected_tab"] = "個股全景"
-    st.rerun()
+from tabs._shared import goto_stock_page
 
 
 def _color_up(v) -> str:

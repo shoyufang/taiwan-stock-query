@@ -8,6 +8,155 @@ from datetime import datetime
 from ui_components import display_result
 
 
+# ──────────────────────────────────────────────
+# 格式化函數（Phase E3 統一全站格式）
+# ──────────────────────────────────────────────
+
+def fmt_number(v, decimals=2) -> str:
+    """通用數字格式化（千分位 + 小數）"""
+    if pd.isna(v):
+        return "-"
+    try:
+        return f"{float(v):,.{decimals}f}"
+    except (ValueError, TypeError):
+        return str(v)
+
+
+def fmt_price(v) -> str:
+    """台股價格格式化（整數）"""
+    if pd.isna(v):
+        return "-"
+    try:
+        return f"{float(v):,.0f}"
+    except (ValueError, TypeError):
+        return str(v)
+
+
+def fmt_price_usd(v) -> str:
+    """美股價格格式化（美元，2 小數）"""
+    if pd.isna(v):
+        return "-"
+    try:
+        return f"${float(v):,.2f}"
+    except (ValueError, TypeError):
+        return f"${v}"
+
+
+def fmt_amount_yi(v) -> str:
+    """台灣金額格式化（億元）"""
+    if pd.isna(v):
+        return "-"
+    try:
+        return f"{float(v) / 1e8:,.1f} 億"
+    except (ValueError, TypeError):
+        return "-"
+
+
+def fmt_amount_wan(v) -> str:
+    """台灣金額格式化（萬元）"""
+    if pd.isna(v):
+        return "-"
+    try:
+        return f"{float(v) / 1e4:,.1f} 萬"
+    except (ValueError, TypeError):
+        return "-"
+
+
+def fmt_amount_billion(v) -> str:
+    """美股/國際金額格式化（十億）"""
+    if pd.isna(v):
+        return "-"
+    try:
+        return f"${float(v) / 1e9:,.1f} B"
+    except (ValueError, TypeError):
+        return str(v)
+
+
+def fmt_pct(v, decimals=2) -> str:
+    """百分比格式化"""
+    if pd.isna(v):
+        return "-"
+    try:
+        return f"{float(v):.{decimals}f}%"
+    except (ValueError, TypeError):
+        return str(v)
+
+
+def fmt_volume(v) -> str:
+    """成交量格式化（張）"""
+    if pd.isna(v):
+        return "-"
+    try:
+        val = float(v)
+        if val >= 1e8:
+            return f"{val / 1e8:,.1f} 億張"
+        elif val >= 1e4:
+            return f"{val / 1e4:,.1f} 萬張"
+        else:
+            return f"{val:,.0f} 張"
+    except (ValueError, TypeError):
+        return str(v)
+
+
+def fmt_market_cap(v) -> str:
+    """市值格式化（十億）"""
+    if pd.isna(v):
+        return "-"
+    try:
+        val = float(v)
+        if val >= 1e12:
+            return f"${val / 1e12:,.2f} T"
+        elif val >= 1e9:
+            return f"${val / 1e9:,.1f} B"
+        elif val >= 1e6:
+            return f"${val / 1e6:,.1f} M"
+        else:
+            return f"${val:,.0f}"
+    except (ValueError, TypeError):
+        return str(v)
+
+
+def _safe_div(a, b, decimals=2):
+    """安全除法"""
+    try:
+        if b == 0 or pd.isna(b):
+            return None
+        return round(float(a) / float(b) * 100, decimals)
+    except (ValueError, TypeError, ZeroDivisionError):
+        return None
+
+
+def _color_up(v) -> str:
+    """台股漲紅跌綠"""
+    try:
+        return "color: var(--up-color); font-weight: 700" if float(v) > 0 else "color: var(--down-color); font-weight: 700" if float(v) < 0 else ""
+    except (ValueError, TypeError):
+        return ""
+
+
+def _color_up_bg(v) -> str:
+    """台股漲紅跌綠背景"""
+    try:
+        return "background: var(--up-bg)" if float(v) > 0 else "background: var(--down-bg)" if float(v) < 0 else ""
+    except (ValueError, TypeError):
+        return ""
+
+
+# ──────────────────────────────────────────────
+# 全站統一跳轉（Phase E2 goto_stock_page）
+# ──────────────────────────────────────────────
+
+def goto_stock_page(code: str):
+    """全站通用：跳轉到個股全景頁並帶入代號"""
+    st.session_state["sp_code"] = code
+    st.session_state["selected_tab"] = "個股全景"
+    st.rerun()
+
+
+# ──────────────────────────────────────────────
+# 舊有函數保留
+# ──────────────────────────────────────────────
+
 def _qbtn_grid(options: list, state_key: str, n_cols: int = 4) -> str:
     """按鈕選單格：顯示 n_cols 欄的選項按鈕，當前選中顯示 primary 樣式，回傳選中項目。"""
     if state_key not in st.session_state or st.session_state[state_key] not in options:
@@ -127,12 +276,12 @@ def _render_batch_results(state_key: str, label_fn=None):
                         while sheet in used:
                             sheet = f"{base[:25]}_{i}"; i += 1
                         used.add(sheet)
-                        
+
                         # 複製 DataFrame 並清除時區資訊，避免 openpyxl 導出失敗
                         df_clean = dfx.copy()
                         # 確保欄位名稱全部為字串，防止 openpyxl 因 DatetimeIndex 欄位而崩潰
                         df_clean.columns = [str(c) for c in df_clean.columns]
-                        
+
                         for col in df_clean.columns:
                             try:
                                 if pd.api.types.is_datetime64_any_dtype(df_clean[col]):
@@ -146,7 +295,7 @@ def _render_batch_results(state_key: str, label_fn=None):
                             except Exception:
                                 pass
                         df_clean.to_excel(writer, sheet_name=sheet, index=False)
-                
+
                 # 確保 local 範圍內使用正確的 datetime
                 from datetime import datetime as dt_local
                 ts = dt_local.now().strftime("%Y%m%d_%H%M%S")
