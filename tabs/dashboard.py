@@ -33,7 +33,7 @@ def render_dashboard_fragment():
             
             # 溢價顏色 (正為暖橘，負為藍色)
             badge_color = "var(--claude-primary)" if premium_pct >= 0 else "#1976d2"
-            badge_bg = "rgba(217, 119, 87, 0.12)" if premium_pct >= 0 else "rgba(25, 118, 210, 0.12)"
+            badge_bg = "var(--up-bg)" if premium_pct >= 0 else "rgba(25, 118, 210, 0.12)"
             
             # 使用 HTML 繪製高質感的 Glassmorphic 卡片
             with cols[idx]:
@@ -111,9 +111,9 @@ def render_dashboard_fragment():
                 try:
                     if isinstance(val, (int, float)) and not pd.isna(val):
                         if val > 0:
-                            return 'color: #e63946; font-weight: 600'
+                            return 'color: var(--up-color); font-weight: 600'
                         elif val < 0:
-                            return 'color: #2a9d8f; font-weight: 600'
+                            return 'color: var(--down-color); font-weight: 600'
                 except:
                     pass
                 return ''
