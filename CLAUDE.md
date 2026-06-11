@@ -70,10 +70,31 @@ sudo docker logs sinopac-web --tail 50  # 查看 log
 | `sinopac_query.py` | 主工具，含全部函式 + 互動選單（選單 1–47） |
 | `查詢工具.bat` | 雙擊啟動 `sinopac_query.py` 的捷徑 |
 | `chart_kbar.py` | K 線圖（mplfinance），CLI 工具 |
-| `app.py` | Streamlit Web UI 應用（Phase 4+） |
+| `app.py` | Streamlit Web UI 應用（Phase 4+，PRO_TERMINAL_UX 導航） |
 | `query_wrapper.py` | 查詢包裝層 + 非同步批量查詢（Phase 6.1） |
 | `preload.py` | 背景預加載管理器（Phase 6.2） |
 | `technical_analysis.py` | Plotly 互動式K線圖 + 技術指標（Phase 7.5） |
+| `theme.py` | 6 主題系統 + 漲跌色 CSS 注入 + `get_updown_colors()` + `style_updown()` |
+| `tabs/` | 子模組目錄（空 `__init__.py` 避免循環匯入） |
+| `tabs/market_overview.py` | 市場總覽頁面 |
+| `tabs/stock_page.py` | 個股全景頁面 |
+| `tabs/screener_hub.py` | 選股中心（台股+美股+技術掃描） |
+| `tabs/global_markets.py` | 全球市場（美股+港股+期貨/匯率） |
+| `tabs/calendar_tab.py` | 投資行事曆 |
+| `tabs/watchlist_monitor.py` | 自選股監控（升級版） |
+| `tabs/dashboard.py` | 儀表板（ADR + 關注名單） |
+| `tabs/technical.py` | 技術分析 |
+| `tabs/taistock.py` | 台股市場 |
+| `tabs/twse.py` | TWSE |
+| `tabs/finmind.py` | FinMind |
+| `tabs/futures_forex.py` | 期貨匯率 |
+| `tabs/news.py` | 新聞 |
+| `tabs/tools.py` | 工具 |
+| `tabs/ai_chat.py` | DeepSeek AI |
+| `tabs/technical_scanner.py` | 技術掃描器 |
+| `tabs/portfolio_tracker.py` | 投資組合 |
+| `tabs/pdf_export.py` | PDF 報告 |
+| `tabs/health_monitor.py` | 效能監控 |
 
 **性能優化歷程**
 
@@ -97,7 +118,29 @@ sudo docker logs sinopac-web --tail 50  # 查看 log
   * 日期範圍篩選
   * 互動功能：放大/縮小、懸停提示、日期拖拉
   * 基礎統計（收盤價、漲跌、成交量）
-  * 查詢自動記錄到歷史
+   * 查詢自動記錄到歷史
+
+**Phase 8-12：專業看盤終端改造（PRO_TERMINAL_UX）**
+- `docs/plans/PRO_TERMINAL_UX_PLAN.md` — 完整改造計劃
+- **新導航架構**（17 → 8 項）：
+  - 看盤：市場總覽、個股全景、自選股
+  - 決策：選股中心、全球市場、投資行事曆
+  - 管理：AI 助理、投資組合
+  - 🗂️ 進階查詢（expander）：台股市場、TWSE、FinMind、技術分析、期貨/匯率、新聞
+  - ⚙️ 設定與工具（expander）：工具、PDF 報告、效能監控
+- **新 tabs 檔案**：
+  - `tabs/market_overview.py` — 市場總覽（指數條/漲跌家數/法人/排行/警示/新聞）
+  - `tabs/stock_page.py` — 個股全景（技術/籌碼/基本面/五檔大單/新聞AI）
+  - `tabs/screener_hub.py` — 選股中心（台股/美股/技術掃描）
+  - `tabs/global_markets.py` — 全球市場（美股/港股/期貨匯率）
+  - `tabs/calendar_tab.py` — 投資行事曆（台股法說/美股財報）
+- **視覺規範**：
+  - 6 個主題（新增 `🌙 看盤深色`）
+  - 漲跌 CSS 變數：`--up-color`（紅）、`--down-color`（綠）
+  - `theme.py`：`get_updown_colors()`、`style_updown()`
+- **舊鍵相容映射**：`TAB_COMPAT_MAP` 將 18 組舊導航鍵映射到新頁面
+- **`goto_stock_page(code)`**：全站通用跳轉個股全景（Phase C.3）
+- **預設自選股**：`["2330","2317","2454","2308","2382"]`
 
 **執行方式**
 ```bash
