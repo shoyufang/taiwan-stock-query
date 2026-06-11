@@ -54,7 +54,7 @@ def render_watchlist_monitor():
             label_visibility="collapsed"
         )
     with col_add:
-        if st.button("➕ 新增", use_container_width=True):
+        if st.button("➕ 新增", use_container_width=True, key="wm_add_btn"):
             if new_code:
                 codes = [c.strip() for c in new_code.split(",") if c.strip()]
                 for code in codes:
@@ -63,11 +63,11 @@ def render_watchlist_monitor():
                 save_watchlist({"watchlist": st.session_state.watchlist_codes})
                 st.rerun()
     with col_edit:
-        if st.button("✏️ 編輯名單", use_container_width=True):
+        if st.button("✏️ 編輯名單", use_container_width=True, key="wm_edit_btn"):
             st.session_state.show_wl_editor = True
             st.rerun()
     with col_clear:
-        if st.button("🗑️ 清空", use_container_width=True):
+        if st.button("🗑️ 清空", use_container_width=True, key="wm_clear_btn"):
             st.session_state.watchlist_codes = []
             st.rerun()
 
@@ -78,14 +78,14 @@ def render_watchlist_monitor():
             new_text = st.text_area("代號清單", value=codes_text, height=100, key="wl_editor_input")
             c1, c2 = st.columns(2)
             with c1:
-                if st.button("💾 儲存", use_container_width=True, type="primary"):
+                if st.button("💾 儲存", use_container_width=True, type="primary", key="wm_save_btn"):
                     codes = [c.strip() for c in new_text.split(",") if c.strip()]
                     st.session_state.watchlist_codes = codes
                     save_watchlist({"watchlist": codes})
                     del st.session_state.show_wl_editor
                     st.rerun()
             with c2:
-                if st.button("❌ 取消", use_container_width=True):
+                if st.button("❌ 取消", use_container_width=True, key="wm_cancel_btn"):
                     del st.session_state.show_wl_editor
                     st.rerun()
 

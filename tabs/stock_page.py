@@ -56,9 +56,9 @@ def render_stock_header():
             label_visibility="collapsed"
         )
     with col_btn1:
-        do_search = st.button("🔍 查詢", use_container_width=True, type="primary")
+        do_search = st.button("🔍 查詢", use_container_width=True, type="primary", key="sp_search_btn")
     with col_btn2:
-        do_watchlist = st.button("⭐ 加自選", use_container_width=True)
+        do_watchlist = st.button("⭐ 加自選", use_container_width=True, key="sp_watchlist_btn")
 
     code = ""
     name = ""
@@ -199,7 +199,7 @@ def render_technical_tab(code: str, is_tw: bool):
     with col_end:
         end = st.date_input("結束日期", end_date, key="sp_tech_end")
     with col_fetch:
-        fetch_btn = st.button("📈 載入 K 線", use_container_width=True, type="primary")
+        fetch_btn = st.button("📈 載入 K 線", use_container_width=True, type="primary", key="sp_kbar_btn")
 
     if not fetch_btn:
         st.caption("📌 點擊載入 K 線圖與技術指標")
@@ -384,7 +384,7 @@ def render_five_level_tab(code: str, is_tw: bool):
     with col_date:
         date_input = st.date_input("日期", datetime.now(), key="sp_5level_date")
     with col_go:
-        go_btn = st.button("🔍 查詢", use_container_width=True, type="primary")
+        go_btn = st.button("🔍 查詢", use_container_width=True, type="primary", key="sp_five_btn")
 
     if not go_btn:
         st.caption("💡 選擇日期與代號查詢五檔與大單")
@@ -435,7 +435,7 @@ def render_news_ai_tab(code: str, is_tw: bool):
     with col_code:
         code_input = st.text_input("代號/名稱", code, key="sp_news_code")
     with col_btn:
-        do_fetch = st.button("📰 查詢新聞", use_container_width=True, type="primary")
+        do_fetch = st.button("📰 查詢新聞", use_container_width=True, type="primary", key="sp_news_btn")
 
     if do_fetch:
         # 新聞
@@ -493,7 +493,8 @@ def render_news_ai_tab(code: str, is_tw: bool):
                 data=report,
                 file_name=f"stock_ai_{code_input or code}_{datetime.now().strftime('%Y%m%d')}.md",
                 mime="text/markdown",
-                use_container_width=True
+                use_container_width=True,
+                key="sp_news_dl"
             )
 
 

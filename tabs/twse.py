@@ -127,7 +127,7 @@ def render_twse_section():
             key="twse_batch_code", label_visibility="collapsed",
         )
     with btn_col:
-        run_batch = st.button("🔍 確認查詢", type="primary", use_container_width=True)
+        run_batch = st.button("🔍 確認查詢", type="primary", use_container_width=True, key="twse_run_btn")
 
     # 勾選摘要
     selected = [
