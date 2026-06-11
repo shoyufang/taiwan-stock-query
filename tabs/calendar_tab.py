@@ -1,8 +1,77 @@
 """
 投資行事曆 — 台股法說/除息 + 美股財報 + 華爾街共識
+Phase A: 暫時用 st.tabs 包既有 render
 """
 import streamlit as st
 
+
 def render_calendar_tab():
-    """投資行事曆頁面（Phase D.3 實作）。"""
-    st.caption("🔄 正在載入投資行事曆...")
+    """投資行事曆頁面（Phase D.3 實作）。Phase A: 委派至既有渲染器。"""
+    from tabs.us_calendar_tab import render_us_calendar_consensus
+
+    st.markdown("### 📅 投資行事曆")
+    st.caption("台股法說/除息 · 美股財報 · 華爾街共識")
+
+    tab_tw, tab_us = st.tabs(["🇹🇼 台股法說/除息", "🇺🇸 美股財報 & 共識"])
+
+    with tab_tw:
+        _render_tw_calendar()
+
+    with tab_us:
+        render_us_calendar_consensus()
+
+
+def _render_tw_calendar():
+    """台股法說/除息日曆 — 呼叫 tw_calendar 模組。"""
+    import tw_calendar as twc
+    import streamlit as st
+    import pandas as pd
+
+    st.markdown("#### 🇹🇼 台股法說會與除息日曆")
+    st.caption("基於 50 檔台股權值巨頭，提供法說會日期、預估 EPS、除息日")
+
+    with st.spinner("正在加載台股日曆數據..."):
+        try:
+            df_all = twc.get_tw_calendar_consensus_data(force_refresh=False)
+        except Exception as e:
+            st.error(f"加載數據失敗: {e}")
+            return
+
+    if df_all.empty:
+        st.error("❌ 無法取得台股日曆數據。請檢查網路或稍後再試。")
+        return
+
+    col_l, col_r = st.columns([4, 1])
+    with col_r:
+        force_refresh = st.button("🔄 強制重新整理", key="tw_cal_refresh",
+                                   use_container_width=True,
+                                   help="清空 24 小時快取並重新抓取")
+
+    if force_refresh:
+        try:
+            df_all = twc.get_tw_calendar_consensus_data(force_refresh=True)
+        except Exception as e:
+            st.error(f"重新整理失敗: {e}")
+            return
+
+    # 過濾近期（未來 30 天 + 過去 7 天）
+    from datetime import datetime, timedelta
+    now = datetime.now()
+    cutoff = now + timedelta(days=60)
+    df_recent = df_all[df_all["日期"] <= pd.Timestamp(cutoff)].copy()
+
+    if df_recent.empty:
+        st.info("近期無相關日程")
+        return
+
+    df_recent = df_recent.sort_values("日期", ascending=True)
+
+    # 格式化顯示
+    display_df = df_recent.copy()
+    for col in ["預估EPS", "預估營收"]:
+        if col in display_df.columns:
+            display_df[col] = display_df[col].apply(
+                lambda x: f"{x:.2f}" if pd.notna(x) else "-"
+            )
+
+    st.dataframe(display_df, use_container_width=True, hide_index=True)
