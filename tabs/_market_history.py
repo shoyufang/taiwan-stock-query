@@ -10,10 +10,10 @@ from pathlib import Path
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-from loguru import logger
 
 from query_wrapper import cached_query
 from theme import get_updown_colors
+from logging_config import main_logger
 
 # 找到 data 目錄（支援 repo 根與 NAS Docker 容器路徑）
 _DATA_DIR = None
@@ -33,9 +33,9 @@ def _find_data_dir():
     for p in candidates:
         if p.is_dir() and list(p.glob("*.csv")):
             _DATA_DIR = p
-            logger.debug(f"market_history: data_dir={_DATA_DIR}")
+            main_logger.debug(f"market_history: data_dir={_DATA_DIR}")
             return p
-    logger.warning("market_history: 找不到 data/market 目錄，將回傳空 DataFrame")
+    main_logger.warning("market_history: 找不到 data/market 目錄，將回傳空 DataFrame")
     _DATA_DIR = Path("")
     return _DATA_DIR
 
@@ -71,7 +71,7 @@ def load_market_history(days: int = 250) -> pd.DataFrame:
             frames.append(df)
             required_cols |= set(df.columns)
         except Exception as e:
-            logger.debug(f"market_history: 跳過 {csv_file.name}: {e}")
+            main_logger.debug(f"market_history: 跳過 {csv_file.name}: {e}")
             continue
 
     if not frames:
@@ -81,7 +81,7 @@ def load_market_history(days: int = 250) -> pd.DataFrame:
 
     # 確保 date 存在
     if "date" not in combined.columns:
-        logger.warning("market_history: CSV 中無 date 欄位")
+        main_logger.warning("market_history: CSV 中無 date 欄位")
         return pd.DataFrame()
 
     # 标准化日期

@@ -2,14 +2,13 @@
 Phase H: 產業對照表 + 族群熱力圖
 
 提供 代號 → 產業別 對照。
-資料來源：TWSE OpenAPI（每檔一筆，帶 cache）
+資料來源：TWSE OpenAPI（一次全表查詢，~2 秒）
 """
 import numpy as np
 
 import pandas as pd
-from loguru import logger
 
-from datasources.twse_client import query_twse_company
+from datasources.twse_client import query_twse_company_all
 from query_wrapper import cached_query
 
 
@@ -27,52 +26,24 @@ SECTOR_NAMES = {
 def get_sector_map() -> pd.DataFrame:
     """
     產業對照表：代號 → 產業別代碼。
-    每檔呼叫 query_twse_company（含內部 cache），快取命中極快。
+    一次呼叫 query_twse_company_all() 取得全表，~2 秒。
     回傳 DataFrame: [公司代號, 公司名稱, 產業別代碼, 來源]
     """
-    import query_wrapper as qw
-    daily = qw.query_twse_daily_all()
-    if daily.empty:
+    df = query_twse_company_all()
+    if df.empty:
         return pd.DataFrame(columns=["公司代號", "公司名稱", "產業別代碼", "來源"])
 
-    if "Code" in daily.columns:
-        all_codes = daily["Code"].astype(str).str.replace(r'[A-Z]+$', '', regex=True).str.strip().unique().tolist()
-    else:
-        all_codes = daily.iloc[:, 0].astype(str).str.zfill(4).unique().tolist()
-
-    rows = []
-    batch = []
-    for code in all_codes:
-        batch.append(code)
-        if len(batch) >= 100:
-            rows.extend(_batch_query(batch))
-            batch = []
-    if batch:
-        rows.extend(_batch_query(batch))
-
-    if not rows:
+    # 確保欄位存在
+    if "公司代號" not in df.columns:
         return pd.DataFrame(columns=["公司代號", "公司名稱", "產業別代碼", "來源"])
 
-    return pd.DataFrame(rows)
-
-
-def _batch_query(codes: list) -> list:
-    """批次查詢單檔基本資料"""
-    rows = []
-    for code in codes:
-        try:
-            df = query_twse_company(code)
-            if not df.empty and len(df) > 0:
-                row = df.iloc[0]
-                rows.append({
-                    "公司代號": str(row.iloc[0]).strip(),
-                    "公司名稱": str(row.iloc[1]).strip() if len(row) > 1 else "",
-                    "產業別代碼": str(row.iloc[3]).strip() if len(row) > 3 else "",
-                    "來源": "TWSE API",
-                })
-        except Exception:
-            continue
-    return rows
+    out = pd.DataFrame({
+        "公司代號": df["公司代號"].astype(str).str.strip(),
+        "公司名稱": df["公司名稱"].astype(str).str.strip() if "公司名稱" in df.columns else "",
+        "產業別代碼": df["產業別代碼"].astype(str).str.strip() if "產業別代碼" in df.columns else "",
+        "來源": "TWSE API",
+    })
+    return out
 
 
 def get_code_to_sector() -> dict:
@@ -155,8 +126,3 @@ def get_sector_heatmap_data() -> pd.DataFrame:
 def get_sector_name(sector_code: str) -> str:
     """產業別代碼 → 中文名稱（簡易映射）"""
     return SECTOR_NAMES.get(str(sector_code), str(sector_code))
-
-
-def get_sector_name(sector_code: str) -> str:
-    """產業別代碼 → 中文名稱（簡易映射）"""
-    return SECTOR_NAMES.get(sector_code, sector_code)

@@ -16,9 +16,9 @@ from pathlib import Path
 from datetime import date, timedelta
 
 import pandas as pd
-from loguru import logger
 
 from config import load_alerts, load_watchlist
+from logging_config import main_logger
 
 
 def _load_today_closing() -> pd.DataFrame:
@@ -74,14 +74,14 @@ def check_alerts() -> list:
 
     today_df = _load_today_closing()
     if today_df.empty:
-        logger.warning("alert_engine: 無當日收盤資料，跳過警示檢查")
+        main_logger.warning("alert_engine: 無當日收盤資料，跳過警示檢查")
         return []
 
     price_col = _find_price_col(today_df)
     pct_col = _find_pct_col(today_df)
 
     if not price_col:
-        logger.warning("alert_engine: 找不到收盤價欄位")
+        main_logger.warning("alert_engine: 找不到收盤價欄位")
         return []
 
     # 建立代號 → 行情 的字典

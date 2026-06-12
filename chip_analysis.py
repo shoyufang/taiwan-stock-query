@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Optional
 
 import pandas as pd
-from loguru import logger
+from logging_config import main_logger
 
 
 def _get_institutional_files() -> list:
@@ -44,7 +44,7 @@ def load_institutional_history(days: int = 20) -> pd.DataFrame:
                 continue
             frames.append(df)
         except Exception as e:
-            logger.debug(f"chip_analysis: 跳過 {f.name}: {e}")
+            main_logger.debug(f"chip_analysis: 跳過 {f.name}: {e}")
 
     if not frames:
         return pd.DataFrame()
@@ -87,7 +87,7 @@ def consecutive_buy_ranking(
     name_col = 1
 
     if len(df.columns) <= max(super_col, buy_col, code_col, name_col):
-        logger.warning(f"chip_analysis: 欄位不足（只有{len(df.columns)}列）")
+        main_logger.warning(f"chip_analysis: 欄位不足（只有{len(df.columns)}列）")
         return pd.DataFrame()
 
     # 提取需要的欄位

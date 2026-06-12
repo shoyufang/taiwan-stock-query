@@ -344,11 +344,15 @@ class DeepSeekEngine:
             return
             
         try:
+            from config import load_config
+            _DEFAULT_BASE_URL = "https://apihub.agnes-ai.com/v1"
+            cfg = load_config()
+            base_url = cfg.get("deepseek_base_url", _DEFAULT_BASE_URL) or _DEFAULT_BASE_URL
             self.client = OpenAI(
                 api_key=api_key,
-                base_url="https://api.deepseek.com"
+                base_url=base_url
             )
-            main_logger.info(f"DeepSeek Engine 初始化成功: {self.model_name}")
+            main_logger.info(f"DeepSeek Engine 初始化成功: {self.model_name} (base_url={base_url})")
         except Exception as e:
             main_logger.error(f"DeepSeek Engine 初始化失敗: {str(e)}")
             self.client = None
@@ -359,7 +363,12 @@ class DeepSeekEngine:
         if not api_key:
             return []
         try:
-            client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
+            from config import load_config
+            _DEFAULT_BASE_URL = "https://apihub.agnes-ai.com/v1"
+            cfg = load_config()
+            base_url = cfg.get("deepseek_base_url", _DEFAULT_BASE_URL) or _DEFAULT_BASE_URL
+            main_logger.info(f"正在從 {base_url} 獲取可用模型清單...")
+            client = OpenAI(api_key=api_key, base_url=base_url)
             main_logger.info("正在從 DeepSeek API 獲取可用模型清單...")
             models = client.models.list()
             model_ids = sorted([m.id for m in models.data])
