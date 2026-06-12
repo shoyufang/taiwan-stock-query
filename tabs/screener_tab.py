@@ -7,6 +7,7 @@ import pandas as pd
 from logging_config import main_logger
 import us_screener as usc
 import screener as sc
+import chip_analysis as chip_analysis_module
 
 
 def _us_screener_result_block(df: pd.DataFrame, label: str):
@@ -197,6 +198,7 @@ def render_screener():
     st.caption("模仿 XQ XScript Preset 選股邏輯，以 Python + FinMind + TWSE 實現")
 
     tab_a, tab_b, tab_c, tab_d = st.tabs(["A 技術面", "B 財報面", "C 籌碼面", "D 多因子組合"])
+    tab_e = st.tab("💰 籌碼選股")
 
     # ── A 技術面 ────────────────────────────────────────────────
     with tab_a:
@@ -376,3 +378,46 @@ def render_screener():
                 st.session_state["screener_d_result"] = result
 
         _screener_result_block(st.session_state.get("screener_d_result"), "多因子")
+
+    # ── E 籌碼選股 ────────────────────────────────────────────────
+    with tab_e:
+        st.markdown("#### 💰 籌碼選股 — 法人連買排行")
+        chip_col1, chip_col2 = st.columns([2, 1])
+        with chip_col1:
+            who = st.radio("法人", ["外資", "投信"], horizontal=True, key="chip_who")
+        with chip_col2:
+            min_days = st.slider("最少連買天數", 1, 10, 3, key="chip_min_days")
+
+        with st.expander("📊 外資 + 投信 雙買超", expanded=True):
+            try:
+                dual_df = chip_analysis_module.dual_buy_ranking(min_days=min_days, limit=30)
+                if not dual_df.empty:
+                    st.dataframe(dual_df, use_container_width=True, hide_index=True, height=300)
+                else:
+                    st.caption("籌碼資料累積中（目前 N 天，需 ≥ 3 天）")
+            except Exception as e:
+                main_logger.warning(f"籌碼選股雙買超查詢失敗: {e}")
+                st.caption("籌碼資料暫不可用")
+
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("**外資連買排行**")
+            try:
+                fw_df = chip_analysis_module.consecutive_buy_ranking("外資", min_days=min_days, limit=20)
+                if not fw_df.empty:
+                    st.dataframe(fw_df, use_container_width=True, hide_index=True, height=300)
+                else:
+                    st.caption("資料不足")
+            except Exception as e:
+                st.caption("查詢失敗")
+
+        with col2:
+            st.markdown("**投信連買排行**")
+            try:
+                tr_df = chip_analysis_module.consecutive_buy_ranking("投信", min_days=min_days, limit=20)
+                if not tr_df.empty:
+                    st.dataframe(tr_df, use_container_width=True, hide_index=True, height=300)
+                else:
+                    st.caption("資料不足")
+            except Exception as e:
+                st.caption("查詢失敗")
