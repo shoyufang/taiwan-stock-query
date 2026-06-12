@@ -246,6 +246,21 @@ def render_chips_tab(code: str):
     end_date = datetime.now()
     start_date = end_date - timedelta(days=60)
 
+    # Phase I.2: 籌碼摘要磚（連買天數 + 累計）
+    import chip_analysis as chip_mod
+    summary = chip_mod.get_individual_chip_summary(code)
+    if "error" not in summary or summary.get("error") == "error":
+        st.markdown("#### 📋 籌碼摘要")
+        if "error" in summary and summary["error"] != "error":
+            st.info(summary["error"])
+        else:
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("外資連買", f'{summary.get("外資連買", 0)} 天', delta_color="off")
+            c2.metric("外資累計", f'{summary.get("外資累計", 0):,.0f} 張', delta_color="off")
+            c3.metric("投信連買", f'{summary.get("投信連買", 0)} 天', delta_color="off")
+            c4.metric("投信累計", f'{summary.get("投信累計", 0):,.0f} 張', delta_color="off")
+        st.divider()
+
     col_start, col_end = st.columns(2)
     with col_start:
         start = st.date_input("開始日期", start_date, key="sp_chips_start")
