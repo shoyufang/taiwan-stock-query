@@ -306,22 +306,38 @@ def render_rankings():
                     show_cols = [c for c in cols_to_show if c in df.columns]
                     display_df = df[show_cols].head(15)
 
-                    # 漲跌欄上色
+                    # 漲跌欄上色（保留字串格式化）
                     for col in ["漲跌", "漲跌幅%"]:
                         if col in display_df.columns:
                             display_df[col] = display_df[col].apply(lambda v: f"{v:+,.2f}" if pd.notna(v) else "-")
 
-                    # Bug 修復: 按鈕 key 去重 → 加入 ranking_type + tab_label
-                    for idx, (_, row) in enumerate(display_df.iterrows()):
-                        code = str(row.get("代號", ""))
-                        name = str(row.get("名稱", ""))
+                    # 列選取模式：取代逐列按鈕
+                    col_cfg = {}
+                    if "成交金額" in display_df.columns:
+                        col_cfg["成交金額"] = st.column_config.NumberColumn("成交金額(元)", format="localized")
+                    if "成交量" in display_df.columns:
+                        col_cfg["成交量"] = st.column_config.NumberColumn("成交量", format="localized")
+                    if "收盤" in display_df.columns:
+                        col_cfg["收盤"] = st.column_config.NumberColumn("收盤", format="localized")
 
-                        col_btn = st.columns([3, 1])[1]
-                        with col_btn:
-                            if code and code.isdigit() and st.button("→ 個股", key=f"rank_btn_{ranking_type}_{tab_label}_{idx}_{code}", use_container_width=True, type="secondary", help=f"跳轉 {name}"):
-                                goto_stock_page(code)
-
-                    st.dataframe(display_df, use_container_width=True, hide_index=True, height=400)
+                    event = st.dataframe(
+                        display_df,
+                        use_container_width=True,
+                        hide_index=True,
+                        height=min(38 + 35 * len(display_df), 570),
+                        on_select="rerun",
+                        selection_mode="single-row",
+                        key=f"rank_tbl_{ranking_type}",
+                        column_config=col_cfg,
+                    )
+                    rows = event.selection.rows if event and hasattr(event, "selection") else []
+                    if rows:
+                        code = str(display_df.iloc[rows[0]].get("代號", ""))
+                        handled_key = f"rank_sel_handled_{ranking_type}"
+                        if code.isdigit() and st.session_state.get(handled_key) != (rows[0], code):
+                            st.session_state[handled_key] = (rows[0], code)
+                            goto_stock_page(code)
+                    st.caption("💡 點選任一列即可跳轉個股全景")
                     data_asof("排行", datetime.now())
                 else:
                     st.caption("無數據")
