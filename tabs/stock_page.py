@@ -555,6 +555,30 @@ def render_news_ai_tab(code: str, is_tw: bool):
                 use_container_width=True,
                 key="sp_news_dl"
             )
+            # Phase L.1: 加上當日盤勢對照（個股 vs 大盤相對強弱）
+            st.markdown("---")
+            try:
+                from deepseek_engine import generate_market_briefing
+                brief_key = f"ai_brief_{date.today().isoformat()}"
+                if brief_key not in st.session_state:
+                    # 快速組裝 context
+                    all_df = qw.query_twse_daily_all()
+                    context = {
+                        "index": {"name": "加權指數", "value": 0, "change": 0, "pct": 0},
+                        "breadth": {"up": 0, "down": 0, "volume": 0},
+                        "institutions": {"foreign": 0, "trust": 0, "dealer": 0},
+                        "top_sectors": [], "top_up": [], "disposition_count": 0,
+                    }
+                    if not all_df.empty and "漲跌幅%" in all_df.columns:
+                        up_c = int((all_df["漲跌幅%"] > 0).sum()) if pd.api.types.is_numeric_dtype(all_df["漲跌幅%"]) else 0
+                        down_c = int((all_df["漲跌幅%"] < 0).sum()) if pd.api.types.is_numeric_dtype(all_df["漲跌幅%"]) else 0
+                        context["breadth"] = {"up": up_c, "down": down_c, "volume": float(all_df["成交金額"].sum()) if "成交金額" in all_df.columns else 0}
+                    st.session_state[brief_key] = generate_market_briefing(context)
+                brief = st.session_state[brief_key]
+                if brief and not brief.startswith("⚠️") and not brief.startswith("❌"):
+                    st.info(f"**今日大盤參考：** {brief[:200]}...")
+            except Exception:
+                pass
 
 
 # ──────────────────────────────────────────────

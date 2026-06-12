@@ -689,3 +689,83 @@ def generate_us_stock_report(ticker: str) -> str:
     except Exception as e:
         main_logger.error(f"生成 AI 投資報告失敗: {e}")
         return f"❌ 呼叫 AI 引擎生成報告失敗：{e}"
+
+
+def generate_market_briefing(context: dict) -> str:
+    """
+    一鍵 AI 盤勢解讀。
+
+    context 由市場總覽現成資料組裝：
+      - index: {"name", "value", "change", "pct"}
+      - breadth: {"up", "down", "volume"}
+      - institutions: {"foreign", "trust", "dealer"}
+      - top_sectors: [{"name", "pct"}]
+      - top_up: [{"code", "name", "pct"}]
+      - disposition_count: int
+
+    Prompt 要求：繁體中文、200–300 字、結構為
+    「盤勢一句話定調 → 資金流向（法人+族群）→ 風險提示」
+    禁止投資建議字眼、語氣像券商晨報。
+    """
+    engine = get_deepseek_engine()
+    if not engine or not engine.client:
+        return "⚠️ 未偵測到有效的 DeepSeek API Key，請前往『設定』進行配置。"
+
+    # 組裝 context 文字
+    idx = context.get("index", {})
+    breadth = context.get("breadth", {})
+    inst = context.get("institutions", {})
+    sectors = context.get("top_sectors", [])
+    top_up = context.get("top_up", [])
+    disp_count = context.get("disposition_count", 0)
+
+    sector_text = ""
+    for s in sectors[:5]:
+        sector_text += f"- {s.get('name', '?')}: {s.get('pct', 0):+.2f}%\n"
+
+    top_up_text = ""
+    for t in top_up[:3]:
+        top_up_text += f"- {t.get('name', '?')} ({t.get('code', '?')}): {t.get('pct', 0):+.2f}%\n"
+
+    prompt = f"""
+你是一位頂尖的券商研究主管。請根據以下今日台股市場數據，撰寫一段 200–300 字的「盤勢解讀」。
+
+【大盤指數】
+{idx.get('name', '加權指數')}: {idx.get('value', 'N/A'):,.0f}（{idx.get('change', 0):+.0f} / {idx.get('pct', 0):+.2f}%）
+
+【市場寬度】
+上漲 {breadth.get('up', 0)} 檔 ｜ 下跌 {breadth.get('down', 0)} 檔 ｜ 成交金額 {breadth.get('volume', 0):,.0f} 億元
+
+【三大法人】
+外資: {inst.get('foreign', 0):+.0f} 億 ｜ 投信: {inst.get('trust', 0):+.0f} 億 ｜ 自營商: {inst.get('dealer', 0):+.0f} 億
+
+【最強族群】
+{sector_text if sector_text else '資料不足'}
+
+【漲幅前三】
+{top_up_text if top_up_text else '資料不足'}
+
+【處置股】
+今日新增 {disp_count} 檔
+
+---
+
+請依據上述數據撰寫一段專業的盤勢解讀。
+要求：
+1. 繁體中文
+2. 200–300 字
+3. 結構：「盤勢一句話定調 → 資金流向（法人+族群）→ 風險提示」
+4. 禁止出現「建議買進/賣出」等投資建議字眼
+5. 語氣像券商晨報，專業但不浮誇
+6. 直接輸出解讀文字，不需標題或前言
+"""
+
+    try:
+        response = engine.client.chat.completions.create(
+            model=engine.model_name,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return response.choices[0].message.content or "（AI 未回傳分析結果，請重試）"
+    except Exception as e:
+        main_logger.error(f"生成 AI 盤勢解讀失敗: {e}")
+        return f"❌ AI 盤勢解讀失敗：{e}"

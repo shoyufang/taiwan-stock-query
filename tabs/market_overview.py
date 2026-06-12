@@ -526,6 +526,69 @@ def render_market_overview():
     st.markdown("### 🏠 市場總覽")
     st.caption("一屏掌握大盤，10 秒判斷今天是什麼盤")
 
+    # AI 盤勢解讀按鈕（Phase L.1）
+    ai_brief_key = f"ai_brief_{date.today().isoformat()}"
+    if "ai_brief_result" not in st.session_state:
+        st.session_state["ai_brief_result"] = None
+
+    col_title, col_ai = st.columns([5, 1])
+    with col_title:
+        pass
+    with col_ai:
+        if st.button("🤖 AI 盤勢解讀", key="mo_ai_brief", use_container_width=True, type="primary"):
+            try:
+                from deepseek_engine import generate_market_briefing
+
+                # 組裝 context（複用已快取的資料，不重打 API）
+                all_df = qw.query_twse_daily_all()
+                inst_df = qw.query_twse_institutional()
+                disp_df = qw.query_twse_disposition()
+
+                context = {
+                    "index": {
+                        "name": "加權指數",
+                        "value": 0, "change": 0, "pct": 0,
+                    },
+                    "breadth": {"up": 0, "down": 0, "volume": 0},
+                    "institutions": {"foreign": 0, "trust": 0, "dealer": 0},
+                    "top_sectors": [],
+                    "top_up": [],
+                    "disposition_count": 0,
+                }
+
+                if not all_df.empty and "漲跌幅%" in all_df.columns:
+                    up_count = int((all_df["漲跌幅%"] > 0).sum()) if pd.api.types.is_numeric_dtype(all_df["漲跌幅%"]) else 0
+                    down_count = int((all_df["漲跌幅%"] < 0).sum()) if pd.api.types.is_numeric_dtype(all_df["漲跌幅%"]) else 0
+                    context["breadth"] = {
+                        "up": up_count, "down": down_count,
+                        "volume": float(all_df["成交金額"].sum()) if "成交金額" in all_df.columns else 0,
+                    }
+
+                if not inst_df.empty:
+                    fc = "外資買賣超" if "外資買賣超" in inst_df.columns else None
+                    tc = "投信買賣超" if "投信買賣超" in inst_df.columns else None
+                    dc = "自營商買賣超" if "自營商買賣超" in inst_df.columns else None
+                    context["institutions"] = {
+                        "foreign": float(inst_df[fc].sum()) / 1e8 if fc else 0,
+                        "trust": float(inst_df[tc].sum()) / 1e8 if tc else 0,
+                        "dealer": float(inst_df[dc].sum()) / 1e8 if dc else 0,
+                    }
+
+                context["disposition_count"] = len(disp_df) if not disp_df.empty else 0
+
+                st.session_state["ai_brief_result"] = generate_market_briefing(context)
+                st.rerun()
+            except Exception as e:
+                main_logger.warning(f"AI 盤勢解讀失敗: {e}")
+                st.session_state["ai_brief_result"] = f"⚠️ AI 盤勢解讀失敗：{e}"
+
+    # AI 盤勢解讀卡片
+    if st.session_state.get("ai_brief_result"):
+        with st.container(border=True):
+            st.markdown('<p style="font-size:0.85rem;font-weight:700;color:var(--claude-primary);">🤖 AI 盤勢解讀</p>', unsafe_allow_html=True)
+            st.markdown(st.session_state["ai_brief_result"])
+        st.divider()
+
     # 區塊 ①：全域搜尋 + 指數行情條（自動刷新）
     render_index_strip()
 
