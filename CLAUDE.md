@@ -90,11 +90,13 @@ sudo docker logs sinopac-web --tail 50  # 查看 log
 | `tabs/futures_forex.py` | 期貨匯率 |
 | `tabs/news.py` | 新聞 |
 | `tabs/tools.py` | 工具 |
-| `tabs/ai_chat.py` | DeepSeek AI |
+| `tabs/ai_chat.py` | Agnes AI 智能對話 |
 | `tabs/technical_scanner.py` | 技術掃描器 |
 | `tabs/portfolio_tracker.py` | 投資組合 |
 | `tabs/pdf_export.py` | PDF 報告 |
 | `tabs/health_monitor.py` | 效能監控 |
+| `ai_engine.py` | Agnes AI 引擎（原 deepseek_engine.py，含 DeepSeekEngine 別名） |
+| `deepseek_engine.py` | 相容墊片（`from ai_engine import ...`） |
 
 **性能優化歷程**
 
@@ -975,10 +977,10 @@ with st.sidebar: 最頂部
 - **Phase I — 籌碼深化**：`chip_analysis.py` 法人連買天數排行（讀 `data/twse/institutional/` 日檔累積，資料不足顯示「累積中」降級提示）、選股中心「💰 籌碼選股」tab、個股全景籌碼摘要磚（外資/投信連買天數、20日累計）。
 - **Phase J — 估值深化**：PE 河流圖（`query_per_pbr` 5 年歷史，百分位價格帶）+ 同業比較表（sector_map + `query_twse_valuation`，本股高亮）。
 - **Phase K — 警示系統**：`alert_engine.py`（price_above/below、pct_move、ma20_break、foreign_streak）、`~/.app_config/alerts.json`（NAS 上可用環境變數覆寫路徑）、自選股頁 🔔 popover 設定、daily_job 盤後觸發寄 HTML 郵件、報價牆視覺高亮。
-- **Phase L — AI 盤勢日報**：`deepseek_engine.generate_market_briefing(context)`，市場總覽「🤖 AI 盤勢解讀」按鈕，結果以日期為鍵快取於 session state。
+- **Phase L — AI 盤勢日報**：`ai_engine.generate_market_briefing(context)`，市場總覽「🤖 AI 盤勢解讀」按鈕，結果以日期為鍵快取於 session state。
 - **測試**：336 項全綠（含 `test_widget_keys.py` 防 DuplicateElementId 回歸——所有 Streamlit 元件強制帶唯一 key）。
 - **已知待修**：
-  1. `sector_map.get_sector_map()` 逐檔呼叫 `query_twse_company` 共 1,000+ 次（~800 秒）→ 應改用 `_twse_get("/opendata/t187ap03_L")` 一次取全表（twse_client.py:134 已有現成呼叫）。
-  2. `loguru` 被 4 個新模組 import 但不在 requirements.txt → 部署會炸，應改用 `logging_config.main_logger`。
+  1. ~~`sector_map.get_sector_map()` 逐檔呼叫 `query_twse_company` 共 1,000+ 次（~800 秒）~~ → ✅ 已改用 `query_twse_company_all()` 一次取全表（~2 秒）。
+  2. ~~`loguru` 被 4 個新模組 import~~ → ✅ 已全部改用 `logging_config.main_logger`。
   3. GitHub SSH：專用金鑰 `github_taiwan_stock` 已不存在，`~/.ssh/config` 已改指 `id_rsa`，需把 `id_rsa.pub` 加到 GitHub 帳號 SSH keys 後 push 才會通。
-  4. Streamlit Cloud 需在 Secrets 設 `DEEPSEEK_API_KEY` 才能用 AI 盤勢解讀（config.py 已支援自動讀取）。
+  4. Streamlit Cloud 需在 Secrets 設 `AGNES_API_KEY`（或舊名 `DEEPSEEK_API_KEY` 仍相容）才能用 AI 功能；`AGNES_MODEL`（或 `DEEPSEEK_MODEL`）、`AGNES_BASE_URL`（或 `DEEPSEEK_BASE_URL`）同理。
