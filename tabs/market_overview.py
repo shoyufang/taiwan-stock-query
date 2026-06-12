@@ -17,6 +17,7 @@ from datetime import datetime, timedelta, date
 
 import query_wrapper as qw
 from logging_config import main_logger
+from tabs._market_history import load_market_history, render_market_chart, breadth_sparkline, data_asof
 from tabs._shared import goto_stock_page
 
 # ── 匯率（修復 Bug 4: adr_query.get_usd_twd_rate 回傳 float 非 dict） ──
@@ -193,6 +194,7 @@ def render_market_breadth_and_institutions():
 
                 # 詳細資訊
                 st.caption(f"合計 {total} 檔 | 平盤 {flat_count} 檔")
+                data_asof("市場寬度", datetime.now())
             else:
                 st.caption("資料暫不可用")
         except Exception as e:
@@ -225,6 +227,7 @@ def render_market_breadth_and_institutions():
                 total_net = foreign_sum + trust_sum + dealer_sum
                 bar_color = "var(--up-color)" if total_net >= 0 else "var(--down-color)"
                 st.markdown(f'<div style="margin-top:4px;color:{bar_color};font-weight:700;font-size:0.82rem">淨流入: {total_net:+,.0f} 億</div>', unsafe_allow_html=True)
+                data_asof("三大法人", datetime.now())
             else:
                 st.caption("資料暫不可用")
         except Exception as e:
@@ -319,6 +322,7 @@ def render_rankings():
                                 goto_stock_page(code)
 
                     st.dataframe(display_df, use_container_width=True, hide_index=True, height=400)
+                    data_asof("排行", datetime.now())
                 else:
                     st.caption("無數據")
             except Exception as e:
@@ -336,6 +340,7 @@ def render_alerts():
 
     with row1:
         st.markdown('<p style="font-size:0.82rem;font-weight:700;color:var(--claude-text-2);margin-bottom:6px;">⚠️ 盤前警示</p>', unsafe_allow_html=True)
+        data_asof("警示", datetime.now())
 
         # 處置股
         try:
@@ -428,8 +433,22 @@ def render_market_overview():
     # 區塊 ①：全域搜尋 + 指數行情條（自動刷新）
     render_index_strip()
 
-    # 區塊 ②③：市場寬度 + 三大法人
+    # Phase G.1：大盤主圖（加權指數 + 三大法人累計）
+    st.markdown('<p style="font-size:0.82rem;font-weight:700;color:var(--claude-text-2);margin-bottom:6px;">📈 大盤走勢與法人累計</p>', unsafe_allow_html=True)
+    range_cols = st.columns([3, 1])
+    with range_cols[1]:
+        _range = st.radio("範圍", ["60 日", "120 日", "250 日"], horizontal=True, index=2, key="mh_range", label_visibility="collapsed")
+    _days = {"60 日": 60, "120 日": 120, "250 日": 250}[_range]
+    render_market_chart(days=_days)
+    st.divider()
+
+    # 區塊 ② + ③：市場寬度 + 三大法人
     render_market_breadth_and_institutions()
+
+    # Phase G.2：市場寬度歷史小圖
+    st.markdown('<p style="font-size:0.82rem;font-weight:700;color:var(--claude-text-2);margin-bottom:6px;">📊 法人合計趨勢（近 60 日）</p>', unsafe_allow_html=True)
+    breadth_sparkline(days=60)
+    st.divider()
 
     # 區塊 ④：ADR
     render_adr_section()

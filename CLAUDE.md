@@ -303,6 +303,7 @@ FINMIND_TOKEN = "<YOUR_FINMIND_TOKEN>"
 | Shioaji kbars 無日K參數 | API 只有分鐘K | `pd.DataFrame.resample("1D").agg(...)` 轉日K |
 | Futu `get_market_snapshot` hang | 需付費訂閱 | 改用 `request_history_kline`（不需訂閱） |
 | FinMind 期貨三大法人欄位 `name` 不存在 | 欄位名為 `institutional_investors` | 改用 `_finmind_api()` 直接呼叫 REST |
+| **Streamlit 元件炸點（StaleDataError / SessionStateError）** | `st.button()/st.text_input()` 等沒有 `key=`，Session State 撞鍵崩潰 | **全站補齊 `key=`** + **CI 防回歸** `tests/test_widget_keys.py` |
 
 ---
 
