@@ -2,7 +2,7 @@ import pytest
 from unittest.mock import patch, MagicMock
 from deepseek_engine import generate_us_stock_report
 
-@patch("deepseek_engine.get_deepseek_engine")
+@patch("ai_engine.get_deepseek_engine")
 @patch("us_stock_query.get_us_stock_info")
 @patch("us_stock_query.get_us_analyst_info")
 @patch("us_stock_query.get_us_holders")

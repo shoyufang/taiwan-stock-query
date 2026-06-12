@@ -1,5 +1,5 @@
 """
-新聞摘要與 DeepSeek AI 翻譯模組
+新聞摘要與 Agnes AI 翻譯模組
 """
 
 import streamlit as st
@@ -45,7 +45,7 @@ def _render_news_cards(df: pd.DataFrame):
 
 
 def _news_to_text(df: pd.DataFrame) -> str:
-    """把新聞 DataFrame 轉成純文字給 DeepSeek 摘要"""
+    """把新聞 DataFrame 轉成純文字給 AI 摘要"""
     lines = []
     for i, row in df.iterrows():
         lines.append(f"[{i + 1}] {row.get('時間', '')}  {row.get('來源', '')}")
@@ -57,26 +57,26 @@ def _news_to_text(df: pd.DataFrame) -> str:
 
 
 def _news_ai_summary_btn(df: pd.DataFrame, subject: str):
-    """在新聞列表下方顯示 DeepSeek 摘要按鈕與結果"""
+    """在新聞列表下方顯示 AI 摘要按鈕與結果"""
     st.divider()
     col_btn, col_hint = st.columns([2, 5])
     with col_btn:
-        do_summary = st.button("🤖 DeepSeek AI 摘要＆翻譯", key="news_ai_btn", use_container_width=True)
+        do_summary = st.button("🤖 Agnes AI 摘要＆翻譯", key="news_ai_btn", use_container_width=True)
     with col_hint:
         st.caption("一鍵將英文新聞翻譯成繁體中文，並給出投資觀點")
 
     # 顯示已有的摘要
     if st.session_state.get("_news_summary"):
-        with st.expander("📊 DeepSeek AI 分析結果", expanded=True):
+        with st.expander("📊 Agnes AI 分析結果", expanded=True):
             st.markdown(st.session_state["_news_summary"])
 
     if do_summary:
         engine = get_deepseek_engine()
         if not engine:
-            st.warning("請先在左側欄 ⚙️ 設定中填入 DeepSeek API Key")
+            st.warning("請先在左側欄 ⚙️ 設定中填入 Agnes AI API Key")
             return
         news_text = _news_to_text(df)
-        with st.spinner("🤖 DeepSeek AI 翻譯與分析中…"):
+        with st.spinner("🤖 Agnes AI 翻譯與分析中…"):
             result = engine.summarize_news(news_text, subject)
         if "error" in result:
             st.error(result["error"])
@@ -86,7 +86,7 @@ def _news_ai_summary_btn(df: pd.DataFrame, subject: str):
 
 
 def render_news():
-    """新聞（Yahoo Finance + DeepSeek AI 摘要）"""
+    """新聞（Yahoo Finance + Agnes AI 摘要）"""
     main_logger.info("渲染新聞 Tab")
 
     query_type = _qbtn_grid(["個股新聞", "大盤新聞"], "news_q", n_cols=2)
