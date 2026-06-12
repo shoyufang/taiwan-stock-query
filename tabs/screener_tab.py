@@ -249,17 +249,9 @@ def render_screener():
     main_logger.info("渲染選股 Tab")
     st.markdown("### 🔍 多因子選股")
 
-    # 選擇選股市場
-    market_mode = st.radio("選擇選股市場", ["台股選股", "美股選股"], horizontal=True, key="screener_market_mode")
-
-    if market_mode == "美股選股":
-        render_us_screener()
-        return
-
     st.caption("模仿 XQ XScript Preset 選股邏輯，以 Python + FinMind + TWSE 實現")
 
-    tab_a, tab_b, tab_c, tab_d = st.tabs(["A 技術面", "B 財報面", "C 籌碼面", "D 多因子組合"])
-    tab_e = st.tab("💰 籌碼選股")
+    tab_a, tab_b, tab_c, tab_d, tab_e = st.tabs(["A 技術面", "B 財報面", "C 籌碼面", "D 多因子組合", "💰 籌碼選股"])
 
     # ── A 技術面 ────────────────────────────────────────────────
     with tab_a:

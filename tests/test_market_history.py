@@ -43,8 +43,15 @@ def temp_market_dir(tmp_path):
 
 @pytest.fixture(autouse=True)
 def patch_data_dir(monkeypatch, temp_market_dir):
-    """patch _find_data_dir 回傳 temp 目錄"""
+    """patch _find_data_dir 回傳 temp 目錄，並清除快取避免跨測試污染"""
+    import tabs._market_history as mh
     monkeypatch.setattr("tabs._market_history._DATA_DIR", temp_market_dir)
+    # 清除 SQLite 快取
+    try:
+        from sqlite_cache import cache_manager
+        cache_manager.clear_all()
+    except Exception:
+        pass
     return temp_market_dir
 
 
