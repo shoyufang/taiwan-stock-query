@@ -24,9 +24,9 @@ DEFAULT_CONFIG = {
     "finmind_token": "",
     "notion_token": "",
     "notion_database_id": "",
-    "deepseek_api_key": "",
-    "deepseek_model": "agnes-2.0-flash",
-    "deepseek_base_url": "https://apihub.agnes-ai.com/v1",
+    "ai_api_key": "",
+    "ai_model": "agnes-2.0-flash",
+    "ai_base_url": "https://apihub.agnes-ai.com/v1",
     "export_format": "csv",
 }
 
@@ -51,9 +51,12 @@ class ConfigStore:
             import streamlit as st
             mapping = {
                 "FINMIND_TOKEN": "finmind_token",
-                "DEEPSEEK_API_KEY": "deepseek_api_key",
-                "DEEPSEEK_MODEL":   "deepseek_model",
-                "DEEPSEEK_BASE_URL": "deepseek_base_url",
+                "AGNES_API_KEY": "ai_api_key",
+                "DEEPSEEK_API_KEY": "ai_api_key",
+                "AGNES_MODEL": "ai_model",
+                "DEEPSEEK_MODEL": "ai_model",
+                "AGNES_BASE_URL": "ai_base_url",
+                "DEEPSEEK_BASE_URL": "ai_base_url",
             }
             return {cfg_key: st.secrets[secret_key]
                     for secret_key, cfg_key in mapping.items()
@@ -78,6 +81,32 @@ class ConfigStore:
 
         # Streamlit Secrets 最高優先（雲端部署時覆蓋本地值）
         config.update(self._load_streamlit_secrets())
+
+        # 一次性遷移：舊鍵 deepseek_* → 新鍵 ai_*（舊鍵保留不刪）
+        config = self._migrate_old_keys(config)
+
+        return config
+
+    def _migrate_old_keys(self, config: Dict[str, Any]) -> Dict[str, Any]:
+        """若舊鍵有值而新鍵為空，自動搬到新鍵並存檔。"""
+        old_key = "deepseek_api_key"
+        new_key = "ai_api_key"
+        model_key = "ai_model"
+        url_key = "ai_base_url"
+
+        needs_save = False
+        if config.get(old_key) and not config.get(new_key):
+            config[new_key] = config.pop(old_key)
+            needs_save = True
+        if config.get("deepseek_model") and not config.get(model_key):
+            config[model_key] = config.pop("deepseek_model")
+            needs_save = True
+        if config.get("deepseek_base_url") and not config.get(url_key):
+            config[url_key] = config.pop("deepseek_base_url")
+            needs_save = True
+
+        if needs_save:
+            self.save_config(config)
         return config
 
     def save_config(self, config: Dict[str, Any]):

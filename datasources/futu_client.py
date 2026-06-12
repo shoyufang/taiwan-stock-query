@@ -104,7 +104,7 @@ def query_futu_capital_distribution(code: str) -> pd.DataFrame:
     """資金分布（大/中/小戶）— 此功能需 FutuOpenD，目前不支援"""
     return pd.DataFrame({"說明": [
         "⚠️ 資金分布功能需要 FutuOpenD 才能使用。",
-        "可改用 DeepSeek AI 頁面詢問相關籌碼資訊，",
+        "可改用 Agnes AI 頁面詢問相關籌碼資訊，",
         "或參考 FinMind → 外資持股 / 融資融券 等替代數據。"
     ]})
 
@@ -113,7 +113,7 @@ def query_futu_capital_flow(code: str) -> pd.DataFrame:
     """資金流向（分鐘級）— 此功能需 FutuOpenD，目前不支援"""
     return pd.DataFrame({"說明": [
         "⚠️ 資金流向功能需要 FutuOpenD 才能使用。",
-        "可改用 DeepSeek AI 頁面詢問相關資訊。"
+        "可改用 Agnes AI 頁面詢問相關資訊。"
     ]})
 
 

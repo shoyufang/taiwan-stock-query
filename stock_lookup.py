@@ -237,7 +237,7 @@ def get_name_hint(raw: str) -> Optional[str]:
 def resolve_us_stock(raw: str) -> str:
     """
     將使用者輸入（中文/英文名稱或代號）解析為美股標準代號。
-    如果本地字典沒有，則背景呼叫 DeepSeek AI 自動翻譯。
+    如果本地字典沒有，則背景呼叫 Agnes AI 自動翻譯。
     """
     if not raw:
         return ""
@@ -262,7 +262,7 @@ def resolve_us_stock(raw: str) -> str:
             if s_lower in alias or alias in s_lower:
                 return ticker
             
-    # AI Fallback: 呼叫 DeepSeek
+    # AI Fallback: 呼叫 Agnes AI
     try:
         from deepseek_engine import get_deepseek_engine
         engine = get_deepseek_engine()

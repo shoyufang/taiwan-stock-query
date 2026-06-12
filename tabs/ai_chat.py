@@ -1,5 +1,5 @@
 """
-DeepSeek AI 投資助理 Chat UI 模組
+Agnes AI 投資助理 Chat UI 模組
 """
 
 import streamlit as st
@@ -9,18 +9,18 @@ from config import add_history
 
 
 def render_deepseek_chat():
-    """DeepSeek AI 智能對話 — Chat UI"""
-    main_logger.info("渲染 DeepSeek AI Chat Tab")
+    """Agnes AI 智能對話 — Chat UI"""
+    main_logger.info("渲染 Agnes AI Chat Tab")
 
     engine = get_deepseek_engine()
     if not engine:
-        st.markdown("## 🤖 DeepSeek AI")
-        st.warning("請先在左側欄 **⚙️ 系統設定** 中填入 DeepSeek API Key 與模型名稱，儲存後重新整理頁面。")
+        st.markdown("## 🤖 Agnes AI")
+        st.warning("請先在左側欄 **⚙️ 系統設定** 中填入 Agnes AI API Key 與模型名稱，儲存後重新整理頁面。")
         with st.expander("如何取得 API Key？"):
             st.markdown(
-                "1. 前往 [Google AI Studio](https://aistudio.google.com/app/apikey)\n"
-                "2. 建立 API Key（免費）\n"
-                "3. 複製後貼入左側欄 ⚙️ 設定，模型選 `deepseek-2.5-flash`\n"
+                "1. 前往 [Agnes AI Platform](https://apihub.agnes-ai.com)\n"
+                "2. 建立 API Key（免費註冊）\n"
+                "3. 複製後貼入左側欄 ⚙️ 設定，模型選 `agnes-2.0-flash`\n"
                 "4. 按儲存後重新整理"
             )
         return
@@ -37,7 +37,7 @@ def render_deepseek_chat():
                 color:#aaa; gap:12px;
             ">
                 <div style="font-size:3rem">🤖</div>
-                <div style="font-size:1.4rem; font-weight:600; color:#ddd;">DeepSeek AI 智能助手</div>
+                <div style="font-size:1.4rem; font-weight:600; color:#ddd;">Agnes AI 智能助手</div>
                 <div style="font-size:0.95rem; text-align:center; max-width:480px; line-height:1.8;">
                     可自動調用台股、港美股、FinMind、匯率等本地工具<br/>
                     並搜尋網路即時資訊。直接用中文提問。
@@ -80,7 +80,7 @@ def render_deepseek_chat():
             st.session_state.deepseek_chat_history = []
         st.session_state.deepseek_chat_history.append({"role": "user", "content": user_input})
 
-        with st.spinner("🤖 DeepSeek AI 思考中，正在調用工具與搜尋…"):
+        with st.spinner("🤖 Agnes AI 思考中，正在調用工具與搜尋…"):
             try:
                 response = engine.smart_query(user_input)
             except Exception as exc:
@@ -90,7 +90,7 @@ def render_deepseek_chat():
         if "model_fallback" in response:
             st.info(
                 f"⚠️ 原設定模型不可用，已自動切換至 `{response['model_fallback']}`。\n\n"
-                "建議在 **⚙️ 系統設定** 中將模型名稱更新為 `deepseek-2.5-flash`。",
+                "建議在 **⚙️ 系統設定** 中將模型名稱更新為 `agnes-2.0-flash`。",
                 icon="🔄",
             )
 
@@ -101,5 +101,5 @@ def render_deepseek_chat():
         )
 
         st.session_state.deepseek_chat_history.append({"role": "assistant", "content": ai_text})
-        add_history("DeepSeek AI", {"type": "deepseek_chat", "query": user_input[:40]})
+        add_history("Agnes AI", {"type": "deepseek_chat", "query": user_input[:40]})
         st.rerun()

@@ -312,7 +312,7 @@ with st.sidebar:
         st.metric("系統狀態", summary, emoji)
         st.divider()
         st.caption("🚀 v1.1 | Phase 7 智慧版")
-        st.caption("✅ 非同步預載 | SQLite 快取 | DeepSeek AI")
+        st.caption("✅ 非同步預載 | SQLite 快取 | Agnes AI")
 
     st.divider()
 
