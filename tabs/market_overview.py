@@ -422,6 +422,102 @@ def render_alerts():
 
 
 # ──────────────────────────────────────────────
+# Phase H.2: 族群輪動熱力圖
+# ──────────────────────────────────────────────
+
+def _render_sector_heatmap():
+    """族群輪動熱力圖 — Plotly Treemap"""
+    import plotly.graph_objects as go
+
+    try:
+        from sector_map import get_sector_heatmap_data, get_sector_name
+        import numpy as np
+
+        hm_df = get_sector_heatmap_data()
+        if hm_df.empty:
+            st.caption("族群資料暫不可用（需全市場行情 + 產業對照）")
+            return
+
+        # 過濾掉股票數 < 2 的產業（太小沒有代表性）
+        hm_df = hm_df[hm_df["股票數"] >= 2].copy()
+        if hm_df.empty:
+            st.caption("族群資料不足")
+            return
+
+        # 漲跌幅 → 顏色（紅漲綠跌，中性灰=0，±3% 飽和）
+        def _color(val):
+            try:
+                v = float(val)
+            except (ValueError, TypeError):
+                return "#888888"
+            if v > 3.0:
+                v = 3.0
+            elif v < -3.0:
+                v = -3.0
+            # 紅漲（正）綠跌（負）
+            if v >= 0:
+                r = int(255 * (1 - v / 3.0 * 0.5))
+                g = int(150)
+                b = int(100)
+                return f"rgba({r},{g},{b},0.85)"
+            else:
+                v = abs(v)
+                r = int(100)
+                g = int(255 * (1 - v / 3.0 * 0.5))
+                b = int(130)
+                return f"rgba({r},{g},{b},0.85)"
+
+        hm_df["color"] = hm_df["加權漲跌幅"].apply(_color)
+
+        # 圖文字摘要
+        if not hm_df.empty:
+            top_up = hm_df.loc[hm_df["加權漲跌幅"].idxmax()]
+            top_down = hm_df.loc[hm_df["加權漲跌幅"].idxmin()]
+            st.caption(
+                f"今日最強族群：{top_up['產業別代碼']} (+{float(top_up['加權漲跌幅']):.2f}%)  |  "
+                f"最弱族群：{top_down['產業別代碼']} ({float(top_down['加權漲跌幅']):.2f}%)"
+            )
+
+        fig = go.Figure(go.Treemap(
+            labels=hm_df["產業別代碼"],
+            values=hm_df["成交金額合計"] / 1e8,  # 轉成億
+            textinfo="label+values",
+            leaf=dict(
+                line=dict(width=1, color="rgba(128,128,128,0.3)"),
+                textfont=dict(size=10),
+            ),
+            branchvalues="remainder",
+            marker=dict(
+                colors=hm_df["color"],
+                line=dict(width=1, color="rgba(255,255,255,0.2)"),
+            ),
+            hovertemplate=(
+                "<b>%{label}</b><br>"
+                "成交金額: %{values:.1f} 億<br>"
+                "股票數: %{customdata}<br>"
+                "加權漲跌: %{customdata2}<br>"
+                "<extra></extra>"
+            ),
+            customdata=hm_df["股票數"].astype(str),
+            customdata2=hm_df["加權漲跌幅"].apply(lambda x: f"{float(x):+.2f}%"),
+        ))
+
+        fig.update_layout(
+            height=320,
+            margin=dict(l=10, r=10, t=10, b=10),
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            font=dict(size=10),
+        )
+
+        st.plotly_chart(fig, use_container_width=True, key="mo_sector_heatmap")
+
+    except Exception as e:
+        main_logger.warning(f"族群熱力圖渲染失敗: {e}")
+        st.caption("族群資料暫不可用")
+
+
+# ──────────────────────────────────────────────
 # 主渲染
 # ──────────────────────────────────────────────
 
@@ -448,6 +544,11 @@ def render_market_overview():
     # Phase G.2：市場寬度歷史小圖
     st.markdown('<p style="font-size:0.82rem;font-weight:700;color:var(--claude-text-2);margin-bottom:6px;">📊 法人合計趨勢（近 60 日）</p>', unsafe_allow_html=True)
     breadth_sparkline(days=60)
+    st.divider()
+
+    # Phase H.2：族群輪動熱力圖
+    st.markdown('<p style="font-size:0.82rem;font-weight:700;color:var(--claude-text-2);margin-bottom:6px;">🗺️ 族群輪動熱力圖</p>', unsafe_allow_html=True)
+    _render_sector_heatmap()
     st.divider()
 
     # 區塊 ④：ADR
