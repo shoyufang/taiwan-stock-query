@@ -369,6 +369,50 @@ def render_fundamentals_tab(code: str):
         main_logger.warning(f"股利查詢失敗 ({code}): {e}")
         st.caption("查詢失敗")
 
+    # ── PE 河流圖 ──
+    st.markdown("#### 📈 PE 河流圖（歷史估值帶）")
+    try:
+        from valuation_chart import plot_pe_river
+        pe_fig = plot_pe_river(code, years=3)
+        st.plotly_chart(pe_fig, use_container_width=True, key=f"sp_pe_river_{code}")
+    except Exception as e:
+        main_logger.warning(f"PE 河流圖失敗 ({code}): {e}")
+        st.caption("PE 河流圖資料不可用")
+
+    # ── 同業比較 ──
+    st.markdown("#### 🏢 同業估值比較")
+    try:
+        from valuation_chart import plot_peer_comparison
+        # 找同產業（用 sector_map 簡易版：硬編碼半導體同業）
+        peer_codes = []
+        try:
+            from sector_map import get_sector_map
+            sector_df = get_sector_map()
+            if not sector_df.empty:
+                my_sector = sector_df[sector_df["公司代號"] == code]["產業別代碼"].values
+                if len(my_sector) > 0:
+                    peers = sector_df[sector_df["產業別代碼"] == my_sector[0]]["公司代號"].head(5).tolist()
+                    if peers:
+                        peer_codes = [c for c in peers if c != code][:4]
+                        peer_codes.insert(0, code)
+        except Exception:
+            # Fallback: 硬編碼半導體同業
+            if code in ("2330",):
+                peer_codes = ["2330", "2454", "2303", "3037", "6507"]
+            elif code in ("2454",):
+                peer_codes = ["2454", "2330", "2303", "3037", "6507"]
+            else:
+                peer_codes = [code]
+
+        if len(peer_codes) > 1:
+            peer_fig = plot_peer_comparison(peer_codes)
+            st.plotly_chart(peer_fig, use_container_width=True, key=f"sp_peer_{code}")
+        else:
+            st.caption("同業比較資料不足")
+    except Exception as e:
+        main_logger.warning(f"同業比較失敗 ({code}): {e}")
+        st.caption("同業比較資料不可用")
+
     # ── 公司資料 ──
     st.markdown("#### 🏢 公司基本資料")
     try:
