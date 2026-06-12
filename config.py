@@ -243,6 +243,32 @@ def save_watchlist(watchlist: Dict[str, List[str]]):
     _active_store.save_watchlist(watchlist)
 
 
+def load_alerts() -> List[Dict[str, Any]]:
+    """讀取警示規則（JSON 檔案，容錯模式）"""
+    store = _active_store
+    alerts_file = store.config_dir / "alerts.json"
+    try:
+        if alerts_file.exists():
+            with open(alerts_file, "r", encoding="utf-8-sig") as f:
+                data = json.load(f)
+                if isinstance(data, list):
+                    return data
+        return []
+    except (json.JSONDecodeError, OSError, UnicodeDecodeError):
+        return []
+
+
+def save_alerts(alerts: List[Dict[str, Any]]):
+    """儲存警示規則"""
+    store = _active_store
+    alerts_file = store.config_dir / "alerts.json"
+    try:
+        with open(alerts_file, "w", encoding="utf-8") as f:
+            json.dump(alerts, f, ensure_ascii=False, indent=2)
+    except OSError as e:
+        main_logger.warning(f"save_alerts 失敗: {e}")
+
+
 class ConfigManager(ConfigStore):
     """相容性包裝器，將舊的類別呼叫導向至 ConfigStore，並在指定路徑時將活動儲存器切換至 self"""
 

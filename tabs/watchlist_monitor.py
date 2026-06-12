@@ -71,6 +71,56 @@ def render_watchlist_monitor():
             st.session_state.watchlist_codes = []
             st.rerun()
 
+    # ── 警示 Popover ──
+    with st.popover("🔔 管理警示", use_container_width=True):
+        try:
+            from config import load_alerts, save_alerts
+            import json
+            from datetime import datetime as dt2
+
+            current_alerts = load_alerts()
+            alert_dict = {}
+            for a in current_alerts:
+                code = str(a.get("code", ""))
+                if code not in alert_dict:
+                    alert_dict[code] = []
+                alert_dict[code].append(a)
+
+            if codes:
+                for code in codes:
+                    code = str(code).strip().zfill(4)
+                    st.markdown(f"**{code}**")
+                    existing = alert_dict.get(code, [])
+                    for i, a in enumerate(existing):
+                        st.caption(f"• {a['type']} ≥ {a['value']} {'✅' if a.get('enabled') else '❌'}")
+
+                    with st.expander("➕ 新增規則", expanded=False):
+                        atype = st.radio("類型", ["price_above", "price_below", "pct_move"],
+                                         horizontal=True, key=f"alert_type_{code}", label_visibility="collapsed")
+                        atype_label = {"price_above": "價格突破", "price_below": "價格跌破", "pct_move": "單日漲跌"}
+                        st.caption(atype_label.get(atype, atype))
+                        if atype == "pct_move":
+                            avalue = st.number_input("門檻 (%)", value=5.0, min_value=0.1, step=0.5, key=f"alert_val_{code}")
+                        else:
+                            avalue = st.number_input("價格/門檻", value=1000.0, min_value=0.1, step=10.0, key=f"alert_val_{code}")
+                        if st.button("📌 新增警示", key=f"alert_add_{code}", type="primary", use_container_width=True):
+                            if not any(a.get("code") == code and a.get("type") == atype for a in current_alerts):
+                                current_alerts.append({
+                                    "code": code, "type": atype, "value": avalue,
+                                    "enabled": True, "name": code,
+                                    "created": dt2.now().isoformat(),
+                                })
+                                save_alerts(current_alerts)
+                                st.rerun()
+                            else:
+                                st.warning("已存在相同規則")
+                    st.divider()
+            else:
+                st.caption("無自選股，無法新增警示")
+        except Exception as e:
+            main_logger.warning(f"警示管理失敗: {e}")
+            st.caption("警示管理暫時不可用")
+
     # ── 編輯名單 Popover ──
     if st.session_state.get("show_wl_editor"):
         with st.popover("✏️ 編輯自選股名單", use_container_width=True):
@@ -115,6 +165,20 @@ def render_watchlist_monitor():
     # 計算 52 週高點 % 和量比
     snap = _compute_extra_metrics(snap, codes)
 
+    # Phase K.3: 盤中視覺警示
+    triggered_alerts = {}
+    try:
+        from alert_engine import check_alerts_intraday
+        alert_map = check_alerts_intraday(codes)
+        if "_alerts" in alert_map:
+            for a in alert_map["_alerts"]:
+                code = str(a.get("code", "")).strip().zfill(4)
+                if code not in triggered_alerts:
+                    triggered_alerts[code] = []
+                triggered_alerts[code].append(a)
+    except Exception:
+        pass
+
     # 格式化顯示
     display_cols = ["代號", "名稱", "收盤", "漲跌", "漲跌幅%", "成交量"]
     display_cols = [c for c in display_cols if c in snap.columns]
@@ -132,8 +196,15 @@ def render_watchlist_monitor():
 
         up_color = "#d6453d" if float(change) >= 0 else "#1a9c6b" if str(change).lstrip("-").replace(".", "").isdigit() and float(change) != 0 else ""
 
+        alert_flag = ""
+        alert_bg = ""
+        if code in triggered_alerts:
+            alert_flag = "🔔 "
+            alert_bg = "rgba(255, 82, 82, 0.08)"
+
         html = f"""
-        <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:8px;border:1px solid var(--claude-border-light);margin-bottom:4px;background:var(--claude-surface);">
+        <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:8px;border:1px solid var(--claude-border-light);margin-bottom:4px;background:{alert_bg or 'var(--claude-surface)'};">
+            <span style="font-size:1.1rem;">{alert_flag}</span>
             <span style="font-weight:700;font-size:0.85rem;min-width:50px;">{code}</span>
             <span style="font-size:0.8rem;color:var(--claude-text-2);min-width:60px;">{name}</span>
             <span style="font-size:0.95rem;font-weight:700;color:{up_color};min-width:65px;text-align:right;">{close:,.0f}</span>
