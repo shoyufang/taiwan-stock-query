@@ -25,7 +25,8 @@ DEFAULT_CONFIG = {
     "notion_token": "",
     "notion_database_id": "",
     "deepseek_api_key": "",
-    "deepseek_model": "deepseek-v4-flash",
+    "deepseek_model": "agnes-2.0-flash",
+    "deepseek_base_url": "https://apihub.agnes-ai.com/v1",
     "export_format": "csv",
 }
 
@@ -52,6 +53,7 @@ class ConfigStore:
                 "FINMIND_TOKEN": "finmind_token",
                 "DEEPSEEK_API_KEY": "deepseek_api_key",
                 "DEEPSEEK_MODEL":   "deepseek_model",
+                "DEEPSEEK_BASE_URL": "deepseek_base_url",
             }
             return {cfg_key: st.secrets[secret_key]
                     for secret_key, cfg_key in mapping.items()

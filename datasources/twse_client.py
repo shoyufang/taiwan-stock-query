@@ -163,6 +163,54 @@ def query_twse_company(code: str) -> pd.DataFrame:
     return pd.DataFrame()
 
 
+def query_twse_company_all() -> pd.DataFrame:
+    """取得全部上市/上櫃/興櫃公司基本資料（一次呼叫，含產業別）。
+    回傳 DataFrame: [公司代號, 公司名稱, 產業別代碼]
+    """
+    # 方案 A: TWSE OpenAPI (上市)
+    try:
+        df = _twse_get("/opendata/t187ap03_L")
+        if not df.empty and "公司代號" in df.columns:
+            rows = []
+            for _, row in df.iterrows():
+                cid = str(row["公司代號"]).strip()
+                rows.append({
+                    "公司代號": cid,
+                    "公司名稱": str(row.get("公司名稱", "")).strip(),
+                    "產業別代碼": str(row.get("產業別", "")).strip(),
+                })
+            if rows:
+                return pd.DataFrame(rows)
+    except Exception as e:
+        main_logger.warning(f"TWSE OpenAPI 全表查詢失敗: {e}")
+
+    # 方案 B: MOPS CSV (上市 + 上櫃 + 興櫃)
+    import urllib3
+    from io import StringIO
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+    rows = []
+    for suffix in ["L", "O", "R"]:
+        url = f"https://mopsfin.twse.com.tw/opendata/t187ap03_{suffix}.csv"
+        try:
+            r = _SESSION.get(url, timeout=15, verify=False)
+            r.raise_for_status()
+            r.encoding = "utf-8-sig"
+            df_csv = pd.read_csv(StringIO(r.text))
+            if not df_csv.empty and "公司代號" in df_csv.columns:
+                for _, row in df_csv.iterrows():
+                    cid = str(row["公司代號"]).strip()
+                    rows.append({
+                        "公司代號": cid,
+                        "公司名稱": str(row.get("公司名稱", "")).strip(),
+                        "產業別代碼": str(row.get("產業別", "")).strip(),
+                    })
+        except Exception:
+            continue
+
+    return pd.DataFrame(rows)
+
+
 def query_twse_disposition() -> pd.DataFrame:
     """公布處置有價證券（當前生效清單）"""
     df = _twse_old("announcement/punish")

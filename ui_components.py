@@ -492,6 +492,7 @@ def render_settings_panel(config: Dict[str, Any], in_sidebar: bool = True) -> Di
 
             st.markdown("**DeepSeek AI**")
             deepseek_api_key = st.text_input("DeepSeek API Key", value=config.get("deepseek_api_key", ""), type="password", key="deepseek_api_key_input", placeholder="sk-...")
+            deepseek_base_url = st.text_input("AI Base URL", value=config.get("deepseek_base_url", "https://apihub.agnes-ai.com/v1"), key="deepseek_base_url_input", placeholder="https://apihub.agnes-ai.com/v1")
             
             # 初始化可用模型列表
             from deepseek_engine import DeepSeekEngine
@@ -551,6 +552,7 @@ def render_settings_panel(config: Dict[str, Any], in_sidebar: bool = True) -> Di
                     config["notion_token"] = notion_token
                     config["notion_database_id"] = notion_db_id
                     config["deepseek_api_key"] = deepseek_api_key
+                    config["deepseek_base_url"] = deepseek_base_url
                     config["deepseek_model"] = final_model if final_model != "(點擊上方按鈕獲取)" else ""
                     from config import save_config
                     save_config(config)

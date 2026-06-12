@@ -967,3 +967,18 @@ with st.sidebar: 最頂部
   - **單元測試全綠通過**：
     * 新增 `tests/test_shioaji_market.py`。
     * `pytest` 跑綠 **266 項測試 (100% 全數綠燈通過，無任何 Regression，相容性達極致)**！
+
+### 2026-06-12 Claude+Antigravity Session（第二期深化 Phase G–L 完整交付）
+- **計劃文件**：`docs/plans/PRO_TERMINAL_PHASE2_PLAN.md`
+- **Phase G — 市場總覽加「形」**：`tabs/_market_history.py` 讀取 `data/market/*.csv`（2021 起 1,300+ 交易日），大盤主圖（Plotly 雙軸：指數線 + 法人累計買賣超面積）、60/120/250 日切換、寬度小圖、`data_asof()` 全站資料時效標示。
+- **Phase H — 族群熱力圖**：`sector_map.py`（代號→產業別）+ 市場總覽 Treemap 熱力圖（大小=成交額、色=漲跌幅）+ 選股中心族群篩選。
+- **Phase I — 籌碼深化**：`chip_analysis.py` 法人連買天數排行（讀 `data/twse/institutional/` 日檔累積，資料不足顯示「累積中」降級提示）、選股中心「💰 籌碼選股」tab、個股全景籌碼摘要磚（外資/投信連買天數、20日累計）。
+- **Phase J — 估值深化**：PE 河流圖（`query_per_pbr` 5 年歷史，百分位價格帶）+ 同業比較表（sector_map + `query_twse_valuation`，本股高亮）。
+- **Phase K — 警示系統**：`alert_engine.py`（price_above/below、pct_move、ma20_break、foreign_streak）、`~/.app_config/alerts.json`（NAS 上可用環境變數覆寫路徑）、自選股頁 🔔 popover 設定、daily_job 盤後觸發寄 HTML 郵件、報價牆視覺高亮。
+- **Phase L — AI 盤勢日報**：`deepseek_engine.generate_market_briefing(context)`，市場總覽「🤖 AI 盤勢解讀」按鈕，結果以日期為鍵快取於 session state。
+- **測試**：336 項全綠（含 `test_widget_keys.py` 防 DuplicateElementId 回歸——所有 Streamlit 元件強制帶唯一 key）。
+- **已知待修**：
+  1. `sector_map.get_sector_map()` 逐檔呼叫 `query_twse_company` 共 1,000+ 次（~800 秒）→ 應改用 `_twse_get("/opendata/t187ap03_L")` 一次取全表（twse_client.py:134 已有現成呼叫）。
+  2. `loguru` 被 4 個新模組 import 但不在 requirements.txt → 部署會炸，應改用 `logging_config.main_logger`。
+  3. GitHub SSH：專用金鑰 `github_taiwan_stock` 已不存在，`~/.ssh/config` 已改指 `id_rsa`，需把 `id_rsa.pub` 加到 GitHub 帳號 SSH keys 後 push 才會通。
+  4. Streamlit Cloud 需在 Secrets 設 `DEEPSEEK_API_KEY` 才能用 AI 盤勢解讀（config.py 已支援自動讀取）。
