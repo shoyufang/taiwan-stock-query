@@ -11,7 +11,8 @@ import chip_analysis as chip_analysis_module
 
 
 def _us_screener_result_block(df: pd.DataFrame, label: str):
-    """顯示美股選股結果並提供 Excel 下載"""
+    """顯示美股選股結果並提供 Excel 下載，支援列選取跳轉"""
+    from tabs._shared import goto_stock_page
     if df is None or df.empty:
         st.info("無符合條件的美股")
         return
@@ -22,8 +23,23 @@ def _us_screener_result_block(df: pd.DataFrame, label: str):
     if "市值" in display_df.columns:
         display_df["市值"] = display_df["市值"].apply(lambda x: f"${x / 10**9:.1f} B" if pd.notna(x) and x > 0 else "$0 B")
 
-    st.dataframe(display_df, use_container_width=True, hide_index=True)
-    st.markdown("💡 **操作提示**：複製股票代號 (例如 `NVDA`, `TSM`) 至 **【技術分析】** 或 **【美股專區】** 可查看即時 K 線圖與 AI 智能分析報告！")
+    event = st.dataframe(
+        display_df,
+        use_container_width=True,
+        hide_index=True,
+        height=min(38 + 35 * min(len(display_df), 15), 570),
+        on_select="rerun",
+        selection_mode="single-row",
+        key=f"us_screener_tbl_{label}",
+    )
+    rows = event.selection.rows if event and hasattr(event, "selection") else []
+    if rows:
+        code = str(display_df.iloc[rows[0]].get("代號", ""))
+        handled_key = f"us_screener_sel_handled_{label}"
+        if code and st.session_state.get(handled_key) != (rows[0], code):
+            st.session_state[handled_key] = (rows[0], code)
+            goto_stock_page(code)
+    st.caption("💡 點選任一列即可跳轉個股全景")
 
     try:
         import io
@@ -147,12 +163,35 @@ def render_us_screener():
 
 
 def _screener_result_block(df: pd.DataFrame, label: str):
-    """顯示選股結果並提供 Excel 下載"""
+    """顯示選股結果並提供 Excel 下載，支援列選取跳轉個股"""
+    from tabs._shared import goto_stock_page
     if df is None or df.empty:
         st.info("無符合條件的股票")
         return
     st.success(f"找到 **{len(df)}** 檔符合「{label}」")
-    st.dataframe(df, use_container_width=True, hide_index=True)
+
+    col_cfg = {}
+    code_col = "代號" if "代號" in df.columns else None
+
+    event = st.dataframe(
+        df,
+        use_container_width=True,
+        hide_index=True,
+        height=min(38 + 35 * min(len(df), 15), 570),
+        on_select="rerun",
+        selection_mode="single-row",
+        key=f"screener_tbl_{label}",
+        column_config=col_cfg,
+    )
+    rows = event.selection.rows if event and hasattr(event, "selection") else []
+    if rows and code_col:
+        code = str(df.iloc[rows[0]].get(code_col, ""))
+        handled_key = f"screener_sel_handled_{label}"
+        if code.isdigit() and st.session_state.get(handled_key) != (rows[0], code):
+            st.session_state[handled_key] = (rows[0], code)
+            goto_stock_page(code)
+    st.caption("💡 點選任一列即可跳轉個股全景")
+
     try:
         import io
         buf = io.BytesIO()
@@ -164,6 +203,28 @@ def _screener_result_block(df: pd.DataFrame, label: str):
                            key=f"dl_{label}")
     except Exception:
         pass
+
+
+def _chip_ranking_table(df: pd.DataFrame, key_suffix: str):
+    """籌碼排行表格，支援列選取跳轉個股"""
+    from tabs._shared import goto_stock_page
+    event = st.dataframe(
+        df,
+        use_container_width=True,
+        hide_index=True,
+        height=min(38 + 35 * min(len(df), 15), 570),
+        on_select="rerun",
+        selection_mode="single-row",
+        key=f"chip_tbl_{key_suffix}",
+    )
+    rows = event.selection.rows if event and hasattr(event, "selection") else []
+    if rows:
+        code = str(df.iloc[rows[0]].get("代號", ""))
+        handled_key = f"chip_sel_handled_{key_suffix}"
+        if code.isdigit() and st.session_state.get(handled_key) != (rows[0], code):
+            st.session_state[handled_key] = (rows[0], code)
+            goto_stock_page(code)
+    st.caption("💡 點選任一列即可跳轉個股全景")
 
 
 def _universe_sidebar(prefix: str):
@@ -392,7 +453,7 @@ def render_screener():
             try:
                 dual_df = chip_analysis_module.dual_buy_ranking(min_days=min_days, limit=30)
                 if not dual_df.empty:
-                    st.dataframe(dual_df, use_container_width=True, hide_index=True, height=300)
+                    _chip_ranking_table(dual_df, "chip_dual")
                 else:
                     st.caption("籌碼資料累積中（目前 N 天，需 ≥ 3 天）")
             except Exception as e:
@@ -405,7 +466,7 @@ def render_screener():
             try:
                 fw_df = chip_analysis_module.consecutive_buy_ranking("外資", min_days=min_days, limit=20)
                 if not fw_df.empty:
-                    st.dataframe(fw_df, use_container_width=True, hide_index=True, height=300)
+                    _chip_ranking_table(fw_df, "chip_foreign")
                 else:
                     st.caption("資料不足")
             except Exception as e:
@@ -416,7 +477,7 @@ def render_screener():
             try:
                 tr_df = chip_analysis_module.consecutive_buy_ranking("投信", min_days=min_days, limit=20)
                 if not tr_df.empty:
-                    st.dataframe(tr_df, use_container_width=True, hide_index=True, height=300)
+                    _chip_ranking_table(tr_df, "chip_trust")
                 else:
                     st.caption("資料不足")
             except Exception as e:

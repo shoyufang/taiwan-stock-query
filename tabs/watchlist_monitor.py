@@ -183,44 +183,46 @@ def render_watchlist_monitor():
     display_cols = ["代號", "名稱", "收盤", "漲跌", "漲跌幅%", "成交量"]
     display_cols = [c for c in display_cols if c in snap.columns]
 
-    # 加個股全景按鈕
+    # 加入警示旗標
+    alert_flags = []
     for _, row in snap.iterrows():
-        code = str(row.get("代號", ""))
-        name = row.get("名稱", "")
-        close = row.get("收盤", 0)
-        change = row.get("漲跌", 0)
-        pct = row.get("漲跌幅%", 0)
-        volume = row.get("成交量", 0)
-        dist_52w = row.get("距52週高%", None)
-        vol_ratio = row.get("量比", None)
-
-        up_color = "#d6453d" if float(change) >= 0 else "#1a9c6b" if str(change).lstrip("-").replace(".", "").isdigit() and float(change) != 0 else ""
-
-        alert_flag = ""
-        alert_bg = ""
+        code = str(row.get("代號", "")).strip().zfill(4)
         if code in triggered_alerts:
-            alert_flag = "🔔 "
-            alert_bg = "rgba(255, 82, 82, 0.08)"
+            alert_flags.append("🔔 觸發")
+        else:
+            alert_flags.append("")
+    snap["警示"] = alert_flags
 
-        html = f"""
-        <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:8px;border:1px solid var(--claude-border-light);margin-bottom:4px;background:{alert_bg or 'var(--claude-surface)'};">
-            <span style="font-size:1.1rem;">{alert_flag}</span>
-            <span style="font-weight:700;font-size:0.85rem;min-width:50px;">{code}</span>
-            <span style="font-size:0.8rem;color:var(--claude-text-2);min-width:60px;">{name}</span>
-            <span style="font-size:0.95rem;font-weight:700;color:{up_color};min-width:65px;text-align:right;">{close:,.0f}</span>
-            <span style="font-size:0.82rem;font-weight:600;color:{up_color};min-width:65px;text-align:right;">{change:+,.0f}</span>
-            <span style="font-size:0.82rem;font-weight:600;color:{up_color};min-width:60px;text-align:right;">{pct:+.2f}%</span>
-            <span style="font-size:0.75rem;color:var(--claude-text-2);min-width:65px;text-align:right;">{volume:,}</span>
-            {"<span style='font-size:0.75rem;color:#d6453d;'>(%s)</span>" % str(dist_52w) if dist_52w is not None else ""}
-            {"<span style='font-size:0.75rem;color:#1a9c6b;'>(%s)</span>" % str(vol_ratio) if vol_ratio is not None else ""}
-            <button style="font-size:0.75rem;padding:2px 8px;border-radius:5px;border:1px solid var(--claude-primary);background:transparent;color:var(--claude-primary);cursor:pointer;"
-                    onclick="window.parent.postMessage({{'streamlit:rerun'}}, '*')"
-                    data-code="{code}">→ 個股</button>
-        </div>
-        """
-        st.markdown(html, unsafe_allow_html=True)
+    # 加入額外指標
+    if "距52週高%" in snap.columns:
+        display_cols.insert(2, "距52週高%")
+    if "量比" in snap.columns:
+        display_cols.insert(2, "量比")
 
-    st.caption(f"⏱️ 每 30 秒自動刷新 | → 個股 = 跳轉個股全景頁")
+    col_cfg = {}
+    if "收盤" in display_cols:
+        col_cfg["收盤"] = st.column_config.NumberColumn("收盤", format="localized")
+    if "成交量" in display_cols:
+        col_cfg["成交量"] = st.column_config.NumberColumn("成交量", format="localized")
+
+    event = st.dataframe(
+        snap[display_cols],
+        use_container_width=True,
+        hide_index=True,
+        height=min(38 + 35 * min(len(snap), 15), 570),
+        on_select="rerun",
+        selection_mode="single-row",
+        key="watchlist_tbl",
+        column_config=col_cfg,
+    )
+    rows = event.selection.rows if event and hasattr(event, "selection") else []
+    if rows:
+        code = str(snap.iloc[rows[0]].get("代號", ""))
+        handled_key = "watchlist_sel_handled"
+        if code.isdigit() and st.session_state.get(handled_key) != (rows[0], code):
+            st.session_state[handled_key] = (rows[0], code)
+            goto_stock_page(code)
+    st.caption(f"⏱️ 每 30 秒自動刷新 | 💡 點選任一列即可跳轉個股全景")
 
 
 def _fetch_yfinance_watchlist(codes: list) -> pd.DataFrame:
