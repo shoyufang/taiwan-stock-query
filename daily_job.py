@@ -615,6 +615,47 @@ def main():
         save_curr_codes(curr_codes)
         save_csv(disp_df, "disposition")
 
+    # Step 5b: 自選股警示（Phase K）
+    try:
+        from alert_engine import check_alerts
+        triggered = check_alerts()
+        if triggered:
+            alert_df = pd.DataFrame(triggered)
+            alert_df = alert_df.rename(columns={
+                "message": "警示內容",
+                "type": "類型",
+                "value": "觸發值",
+                "current": "當前值",
+            })
+            html_body_alerts = f"""
+            <html>
+            <head><meta charset="utf-8"><style>
+                body {{ font-family: Arial, sans-serif; background: #f5f5f5; margin: 0; padding: 20px; }}
+                .container {{ background: #fff; border-radius: 8px; padding: 20px; max-width: 700px; margin: 0 auto; box-shadow: 0 2px 4px rgba(0,0,0,.1); }}
+                .header {{ color: #e67e22; font-size: 16px; font-weight: bold; margin-bottom: 15px; }}
+                table {{ border-collapse: collapse; width: 100%; margin-top: 10px; }}
+                th {{ background: #f8f8f8; text-align: left; padding: 8px; border-bottom: 2px solid #ddd; }}
+                td {{ padding: 6px 8px; border-bottom: 1px solid #eee; }}
+            </style></head>
+            <body>
+                <div class="container">
+                    <div class="header">📣 自選股警示 {TODAY}（{len(triggered)} 項觸發）</div>
+                    {df_to_html_table(alert_df)}
+                    <div style="margin-top:15px;color:#999;font-size:12px;">此為系統自動通知</div>
+                </div>
+            </body></html>
+            """
+            send_email(
+                subject=f"📣 自選股警示 {TODAY} 觸發 {len(triggered)} 項",
+                body=html_body_alerts.strip(),
+                html=True,
+            )
+        else:
+            print("  無警示觸發")
+    except Exception as e:
+        main_logger = __import__('logging_config', fromlist=['main_logger']).main_logger
+        main_logger.warning(f"警示檢查失敗: {e}")
+
     # Step 6：TWSE 每日完整快取（供 Streamlit 直接讀取）
     fetch_twse_daily_cache()
 
