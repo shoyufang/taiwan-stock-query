@@ -178,7 +178,7 @@ def inject_theme_css(theme_name: str):
     background-color: {bg} !important;
 }}
 [data-testid="stHeader"] {{
-    background-color: {bg} !important;
+    background: transparent !important;
 }}
 [data-testid="stMain"] {{
     background-color: {bg} !important;
@@ -228,7 +228,7 @@ html, body, [class*="css"] {{
     font-family: 'Inter','Segoe UI',-apple-system,sans-serif;
     color: {text};
 }}
-.block-container {{ padding-top: 1.4rem !important; }}
+.block-container {{ padding-top: 3rem !important; }}
 h1 {{ font-size: 1.45rem !important; margin-bottom: 0 !important; font-weight: 700 !important; letter-spacing: -0.02em; color: {text} !important; }}
 h2 {{ font-size: 1.1rem !important; font-weight: 600 !important; color: {text} !important; }}
 h3 {{ font-size: 0.95rem !important; font-weight: 600 !important; color: {text} !important; }}
