@@ -52,6 +52,7 @@ FINMIND_TOKEN         = os.environ.get("FINMIND_TOKEN", "")
 GMAIL_USER            = os.environ.get("GMAIL_USER", "")
 GMAIL_APP_PASSWORD    = os.environ.get("GMAIL_APP_PASSWORD", "")
 NOTIFY_EMAIL          = os.environ.get("NOTIFY_EMAIL", "") or GMAIL_USER
+PG_URL                = os.environ.get("PG_URL", "")
 
 NOTION_HEADERS = {
     "Authorization": f"Bearer {NOTION_TOKEN}",
@@ -512,6 +513,18 @@ def main():
     if not NOTION_TOKEN:
         print("⚠️  提示：NOTION_TOKEN 未設定，將會略過 Notion 寫入部份\n")
 
+    # 初始化 PG（有設定才啟用）
+    pg = None
+    if PG_URL:
+        try:
+            import pg_db as _pg
+            _pg.PG_URL = PG_URL
+            if _pg.ensure_tables():
+                pg = _pg
+                print("  ✅ PostgreSQL 連線就緒\n")
+        except Exception as e:
+            print(f"  ⚠️  PG 初始化失敗: {e}\n")
+
     print("📊 Step 1/5  抓取大盤資料...")
     data = fetch_market()
 
@@ -523,6 +536,8 @@ def main():
                    if k in data}
     summary_row["date"] = TODAY
     save_csv(pd.DataFrame([summary_row]), "market")
+    if pg:
+        pg.upsert_market(data, TODAY)
 
     print("\n🔍 Step 3/5  籌碼選股（外資＋投信雙買超）...")
     screener_df = run_screener(data)
@@ -535,6 +550,8 @@ def main():
         saved = write_screener(screener_df)
         print(f"  ✅ 已存入 {saved}/{len(screener_df)} 筆")
         save_csv(screener_df, "screener")
+        if pg:
+            pg.upsert_screener(screener_df, TODAY)
     else:
         print("  今日無符合選股條件的股票")
 
@@ -614,6 +631,8 @@ def main():
 
         save_curr_codes(curr_codes)
         save_csv(disp_df, "disposition")
+        if pg:
+            pg.upsert_disposition(disp_df, TODAY)
 
     # Step 5b: 自選股警示（Phase K）
     try:
