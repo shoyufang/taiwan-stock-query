@@ -1,6 +1,15 @@
-import pytest
 import sys
 import os
+import tempfile as _tempfile
+
+# 必須在任何會 import sqlite_cache（或其他讀取 APP_CACHE_DIR 的模組）之前設定，
+# 因為 CACHE_DIR/CACHE_DB 是模組載入當下就算好的常數，之後改環境變數無效。
+# 沒有這個隔離，測試會直接讀寫正式環境的 ~/.app_config/cache.db，污染真實
+# 快取資料，也是導致「全套跑才炸、單獨跑正常」的根因之一（2026-07-07 審查發現）。
+_TEST_CACHE_DIR = _tempfile.mkdtemp(prefix="sinopac_test_cache_")
+os.environ["APP_CACHE_DIR"] = _TEST_CACHE_DIR
+
+import pytest
 import json
 import tempfile
 from unittest.mock import Mock, MagicMock, patch

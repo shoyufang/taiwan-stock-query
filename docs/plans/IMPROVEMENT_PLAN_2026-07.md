@@ -40,15 +40,28 @@
   process 內後續收集的所有測試檔案，這才是「336 全綠」本機驗不了的真因
   （不是環境缺依賴）。已修復（改用 save/restore pattern），collection 錯誤
   8→0。
-- ✅ **附帶抓到並修復 2 個生產環境真炸點**：
+- ✅ **附帶抓到並修復 3 個生產環境/測試環境真炸點**：
   1. `tabs/calendar_tab.py`：`投資行事曆→台股法說/除息` 分頁對不存在的
      「日期」欄位做比較，**每個使用者點進去必炸**（KeyError）。已修為用
      「財報公佈日」/「除息日」計算排序欄位。
-  2. 【待修，已記錄】`tabs/market_overview.py:616` 與
-     `tabs/us_calendar_tab.py:96` 在全套測試下才會炸——推測是另一種
-     全域狀態污染（session_state 或快取單例跨測試殘留），在單檔隔離執行時
-     100% 正常，混進全套隨機炸不同分頁。診斷需要更多時間，**未修**，
-     下次處理。
+  2. ✅ `market_overview.py`/`us_calendar_tab.py` 在全套測試下才會炸的真因：
+     `test_dashboard_pinning.py`/`test_dispatch_registry.py` 在 mock streamlit
+     生效期間真的執行 `from app import ...`，導致 `app.py` 整條 import chain
+     （`dispatch.py`、`tabs.market_overview` 等）被**永久初始化並快取進
+     `sys.modules`**——這些子模組自己的 `import streamlit as st` 從此永遠
+     綁定假物件，只還原 `sys.modules['streamlit']` 救不了已快取的子模組。
+     修法：兩個測試檔案的 mock 使用結束後，除了還原 `sys.modules['streamlit']`，
+     還清掉所有專案自有模組（排除測試檔案自己）的 sys.modules 快取，逼後續
+     import（例如 test_render_smoke.py 的 AppTest）重新執行、綁定回真正的
+     streamlit。3 輪全套測試驗證 `test_render_smoke.py` 穩定 9/9 全過。
+  3. 順手發現 `sqlite_cache.py` 的快取路徑（`~/.app_config/cache.db`）
+     沒有測試隔離，所有測試都讀寫正式環境同一個快取檔案。已在
+     `tests/conftest.py` 頂層加上 session 級隔離（`APP_CACHE_DIR` 指向臨時
+     目錄，必須在任何模組 import 之前設定才有效）。
+- 🟡 **新發現、屬既有問題非本次引入**：`test_us_calendar.py`/
+  `test_us_screener.py`/`test_us_stock.py` 偶發失敗，根因是 yfinance API
+  rate limit（"Too Many Requests"）——測試直接打真實網路 API 沒有 mock，
+  本質上就是 flaky。未修，建議歸入 P3.1（補測試 mock）一併處理。
 
 ---
 

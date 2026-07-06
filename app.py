@@ -7,6 +7,7 @@ import pandas as pd
 from datetime import date, timedelta, datetime
 from typing import Dict, Any
 import sys
+import os
 import threading
 import asyncio
 
@@ -64,6 +65,12 @@ def _preload_kick_flag():
     return {"started": False}
 
 def _kick_preload_background():
+    # pytest 的 AppTest 每個測試各自建一個全新執行環境，st.cache_resource 的
+    # 守衛旗標不像正式部署那樣跨執行個體持久，會導致每個測試都各自產生一條
+    # 背景執行緒且永遠無法回收，累積後與 pytest 拆卸 log handle 的時序相撞
+    # 而崩潰（2026-07-07 審查發現）。測試環境下直接跳過背景預載。
+    if os.environ.get("PYTEST_CURRENT_TEST"):
+        return
     flag = _preload_kick_flag()
     if flag["started"]:
         return
