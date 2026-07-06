@@ -21,6 +21,7 @@ env/
 *.json
 !package.json
 !disposition_cache.json
+!.claude/launch.json
 
 # SQLite 緩存
 *.db
