@@ -54,24 +54,33 @@ def _render_tw_calendar():
             st.error(f"重新整理失敗: {e}")
             return
 
-    # 過濾近期（未來 30 天 + 過去 7 天）
+    # 過濾近期（未來 60 天）— 取「財報公佈日」與「除息日」較近者作為排序依據
     from datetime import datetime, timedelta
     now = datetime.now()
-    cutoff = now + timedelta(days=60)
-    df_recent = df_all[df_all["日期"] <= pd.Timestamp(cutoff)].copy()
+    cutoff = pd.Timestamp(now + timedelta(days=60))
+
+    def _parse(col: str) -> pd.Series:
+        return pd.to_datetime(df_all[col], errors="coerce") if col in df_all.columns else pd.Series(pd.NaT, index=df_all.index)
+
+    earnings_dt = _parse("財報公佈日")
+    exdiv_dt = _parse("除息日")
+    df_all = df_all.copy()
+    df_all["_最近日期"] = earnings_dt.combine(exdiv_dt, lambda a, b: min(x for x in (a, b) if pd.notna(x)) if pd.notna(a) or pd.notna(b) else pd.NaT)
+
+    df_recent = df_all[df_all["_最近日期"].isna() | (df_all["_最近日期"] <= cutoff)].copy()
 
     if df_recent.empty:
         st.info("近期無相關日程")
         return
 
-    df_recent = df_recent.sort_values("日期", ascending=True)
+    df_recent = df_recent.sort_values("_最近日期", ascending=True, na_position="last")
 
     # 格式化顯示
-    display_df = df_recent.copy()
-    for col in ["預估EPS", "預估營收"]:
+    display_df = df_recent.drop(columns=["_最近日期"]).copy()
+    for col in ["預估下季EPS", "預估營收(B元)"]:
         if col in display_df.columns:
             display_df[col] = display_df[col].apply(
-                lambda x: f"{x:.2f}" if pd.notna(x) else "-"
+                lambda x: f"{x:.2f}" if isinstance(x, (int, float)) and pd.notna(x) else "-"
             )
 
     st.dataframe(display_df, use_container_width=True, hide_index=True)

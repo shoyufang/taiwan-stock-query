@@ -69,7 +69,10 @@ session_state.config = {
 session_state.bookmarks = []
 mock_st.session_state = session_state
 
-# 將 mock 註冊到 sys.modules 中
+# 將 mock 註冊到 sys.modules 中（僅供本檔匯入期間使用，匯入完畢後立即還原，
+# 避免污染 sys.modules 導致同一 pytest process 內後續收集的其他測試檔案
+# 拿到假的 streamlit 模組，見 2026-07-07 審查發現）
+_real_streamlit = sys.modules.get('streamlit')
 sys.modules['streamlit'] = mock_st
 
 import pytest
@@ -77,8 +80,15 @@ import streamlit as st
 import pandas as pd
 from datetime import date
 
-# 導入待測函數
+# 導入待測函數（app.py 匯入時期需要 mock streamlit，匯入完成後其內部的
+# streamlit 參照已綁定完成，之後還原 sys.modules 不影響 app 或本檔案）
 from app import execute_query_by_params
+
+# 還原 sys.modules，讓後續收集的其他測試檔案拿到真正的 streamlit
+if _real_streamlit is not None:
+    sys.modules['streamlit'] = _real_streamlit
+else:
+    sys.modules.pop('streamlit', None)
 
 @pytest.mark.unit
 class TestDashboardPinning:

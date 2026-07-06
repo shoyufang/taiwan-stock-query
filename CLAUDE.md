@@ -63,40 +63,67 @@ sudo docker logs sinopac-web --tail 50  # 查看 log
 
 **目的**：整合多個 API 的台股（及港美股）查詢工具，以互動選單操作。
 
-**主要檔案**
+**主要檔案**（2026-07-07 實測更新，反映 datasources 分層現況）
+
+> ⚠️ `sinopac_query.py` 已不是主工具，只是 12 行相容墊片
+> （`from datasources import *` + `import cli`）。查詢邏輯全在
+> `datasources/`，互動選單在 `cli.py`。舊版本描述已作廢，請以此表為準。
 
 | 檔案 | 說明 |
 |---|---|
-| `sinopac_query.py` | 主工具，含全部函式 + 互動選單（選單 1–47） |
-| `查詢工具.bat` | 雙擊啟動 `sinopac_query.py` 的捷徑 |
+| `sinopac_query.py` | 相容墊片（12 行），僅供舊 import 路徑與測試 mock 使用 |
+| `cli.py` | 互動選單本體（選單 1–47），原 sinopac_query.py 的選單邏輯搬到這 |
+| `datasources/` | 查詢邏輯套件，依資料源拆分 |
+| `datasources/shioaji_client.py` | 永豐金 Shioaji 查詢（594 行） |
+| `datasources/finmind_client.py` | FinMind 查詢（438 行） |
+| `datasources/twse_client.py` | TWSE OpenAPI + 舊版 rwd API（342 行） |
+| `datasources/futu_client.py` | 富途 Futu OpenAPI（194 行） |
+| `datasources/news_client.py` | yfinance 新聞（73 行） |
+| `查詢工具.bat` | 雙擊啟動 `python sinopac_query.py`（實際跑 cli.main()）的捷徑 |
 | `chart_kbar.py` | K 線圖（mplfinance），CLI 工具 |
-| `app.py` | Streamlit Web UI 應用（Phase 4+，PRO_TERMINAL_UX 導航） |
-| `query_wrapper.py` | 查詢包裝層 + 非同步批量查詢（Phase 6.1） |
-| `preload.py` | 背景預加載管理器（Phase 6.2） |
-| `technical_analysis.py` | Plotly 互動式K線圖 + 技術指標（Phase 7.5） |
-| `theme.py` | 6 主題系統 + 漲跌色 CSS 注入 + `get_updown_colors()` + `style_updown()` |
-| `tabs/` | 子模組目錄（空 `__init__.py` 避免循環匯入） |
-| `tabs/market_overview.py` | 市場總覽頁面 |
-| `tabs/stock_page.py` | 個股全景頁面 |
-| `tabs/screener_hub.py` | 選股中心（台股+美股+技術掃描） |
+| `app.py` | Streamlit Web UI 入口，導航 + TAB_RENDERERS 分發（447 行，健康） |
+| `dispatch.py` | 查詢分派 registry（書籤/歷史重放用） |
+| `query_wrapper.py` | 查詢包裝層 + 快取 + 非同步批量查詢（1,424 行，已知偏大待拆） |
+| `caching.py` | `@cached_query` 裝飾器（st.cache_data + SQLite 雙層） |
+| `sqlite_cache.py` | SQLite 永久快取底層（`~/.app_config/cache.db`） |
+| `preload.py` | 背景預加載管理器 |
+| `pg_db.py` | PostgreSQL 寫入（market_daily/screener_daily/disposition 三表，NAS 專用） |
+| `technical_analysis.py` | Plotly 互動式K線圖 + 技術指標 |
+| `valuation_chart.py` | PE 河流圖 + 同業比較 |
+| `chip_analysis.py` | 法人連買天數籌碼分析 |
+| `alert_engine.py` | 價格/法人警示引擎 |
+| `sector_map.py` | 股票代號→產業別對照 |
+| `screener.py` | 台股多因子選股邏輯 |
+| `us_screener.py` | 美股多因子選股（50 檔權值股池） |
+| `us_calendar.py` / `tw_calendar.py` | 美股/台股財報行事曆與共識 |
+| `adr_query.py` | 台美 ADR 折溢價 |
+| `us_stock_query.py` | 美股查詢輔助 |
+| `stock_lookup.py` | 中文股票名稱 → 代號解析 |
+| `ai_engine.py` | Agnes AI 引擎 |
+| `deepseek_engine.py` | 相容墊片（`from ai_engine import ...`），確認全案無引用後可刪 |
+| `theme.py` | 6 主題系統 + 漲跌色 CSS 注入 |
+| `ui_components.py` | 顯示元件 + 側邊欄 + 美股/Shioaji 專屬渲染（1,156 行，已知職責混雜待拆） |
+| `config.py` | 設定讀取（env → st.secrets → config.json），含舊 `ConfigManager` 相容類 |
+| `utils.py` / `error_handler.py` / `logging_config.py` / `health_check.py` | 共用工具 |
+| `tabs/` | 頁面子模組（空 `__init__.py` 避免循環匯入），共 25 個檔案 |
+| `tabs/market_overview.py` | 市場總覽 |
+| `tabs/stock_page.py` | 個股全景 |
+| `tabs/screener_hub.py` / `tabs/screener_tab.py` | 選股中心 |
 | `tabs/global_markets.py` | 全球市場（美股+港股+期貨/匯率） |
-| `tabs/calendar_tab.py` | 投資行事曆 |
-| `tabs/watchlist_monitor.py` | 自選股監控（升級版） |
-| `tabs/dashboard.py` | 儀表板（ADR + 關注名單） |
+| `tabs/calendar_tab.py` / `tabs/us_calendar_tab.py` | 投資行事曆 |
+| `tabs/watchlist_monitor.py` | 自選股監控 |
+| `tabs/dashboard.py` | 儀表板 |
 | `tabs/technical.py` | 技術分析 |
 | `tabs/taistock.py` | 台股市場 |
-| `tabs/twse.py` | TWSE |
-| `tabs/finmind.py` | FinMind |
-| `tabs/futures_forex.py` | 期貨匯率 |
-| `tabs/news.py` | 新聞 |
-| `tabs/tools.py` | 工具 |
+| `tabs/twse.py` / `tabs/finmind.py` / `tabs/futures_forex.py` | TWSE / FinMind / 期貨匯率 |
+| `tabs/news.py` / `tabs/tools.py` | 新聞 / 工具 |
 | `tabs/ai_chat.py` | Agnes AI 智能對話 |
 | `tabs/technical_scanner.py` | 技術掃描器 |
 | `tabs/portfolio_tracker.py` | 投資組合 |
 | `tabs/pdf_export.py` | PDF 報告 |
 | `tabs/health_monitor.py` | 效能監控 |
-| `ai_engine.py` | Agnes AI 引擎（原 deepseek_engine.py，含 DeepSeekEngine 別名） |
-| `deepseek_engine.py` | 相容墊片（`from ai_engine import ...`） |
+| `tabs/hk_stocks.py` / `tabs/us_stocks.py` | 港股/美股 |
+| `tabs/_shared.py` / `tabs/_market_history.py` | 內部共用（非頁面，不掛導航） |
 
 **性能優化歷程**
 
