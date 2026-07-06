@@ -99,11 +99,41 @@
     pytest/ruff 過。瀏覽器實測時發現這個文字輸入框的 fill 有 React 狀態
     同步的工具限制（非本次程式碼改動造成，未觸及輸入處理邏輯），改用
     UI checkbox 標籤渲染正確作為輔助驗證證據。
-  - **進度：12/53 函式遷移完成**，裝飾器設計已驗證涵蓋三種已知樣板變體
-    （標準、帶輸入驗證、無 cache-hit 追蹤）。剩餘 41 個函式需要後續 session
-    逐批遷移，每批遷移後建議都跑一次瀏覽器實測（尤其是含 `{"error":...}`
-    dict 契約的 TWSE 群組 4-5 個函式，這批的錯誤契約統一是原計畫的核心目標，
-    比其他函式風險更高，需要對齊全部呼叫端）。
+  - **第三批（TWSE 擴充查詢群組，20 函式）**：新增 `simple_tracked_query(
+    history_category, history_payload)` 裝飾器，對應 TWSE 擴充查詢群組
+    最簡化樣板（原本就沒有計時/perf_tracker/log，只有 try/except+add_history）。
+    遷移 19 個函式（`query_twse_mi_index`/`query_twse_stock_day_avg`/
+    `query_twse_monthly`/`query_twse_annual`/`query_twse_qfiis_cat`/
+    `query_twse_qfiis_top20`/`query_twse_newlisting`/`query_twse_suspend_listing`/
+    `query_twse_apply_listing_local`/`query_twse_apply_listing_foreign`/
+    `query_twse_news_list`/`query_twse_event_list`/`query_twse_dividend_policy`/
+    `query_twse_fund_basic`/`query_twse_monthly_revenue`/`query_twse_income_statement`/
+    `query_twse_balance_sheet_openapi`/`query_twse_etf_rank`/`query_twse_esg`）
+    + `query_twse_company`（標準 `tracked_query`，`track_cache_hit=False`）。
+    - **意外抓到一個預先存在、與本次改動無關的生產 bug**：驗證腳本發現
+      `sinopac_query.query_twse_mi_index` 等 20 個函式**完全不存在**——
+      根因是 `datasources/__init__.py` 的 TWSE 顯式 re-export 清單只列了
+      7 個舊函式，從沒同步更新過 `twse_client.py` 早就存在的 20 個新函式。
+      這代表**這 20 種 TWSE 查詢（大盤指數/外資持股前20/股利分派/處置股外
+      的擴充查詢等）從一開始就必定 `AttributeError` 進 except，一直悄悄
+      回傳「查詢失敗」**，跟架構審查點出的「TWSE 抓取邏輯雙寫、修一邊忘
+      一邊」是同一類問題的新案例。已修：`datasources/__init__.py` 補齊
+      20 個函式的 import（純新增，低風險）。
+    - 驗證：獨立腳本用獨立 `APP_CACHE_DIR` + 先測錯誤路徑再測成功路徑
+      （避開 `st.cache_data` 記憶體快取與 SQLite 快取的干擾），全部 20 個
+      函式的正常/錯誤路徑與 `add_history` payload 逐一比對過關；全套
+      pytest + ruff lint 通過；**瀏覽器實測 TWSE 分頁**勾選「大盤指數、
+      外資持股前20、股利分派」（3 個原本必壞的函式）並確認查詢，
+      3 個結果面板都成功顯示「📊 查詢結果」而非錯誤訊息，證實這個
+      預先存在的 bug 真的被修好了。
+  - **進度：32/53 函式遷移完成**，裝飾器設計已驗證涵蓋 3 種已知樣板變體
+    （標準、帶輸入驗證、無 cache-hit 追蹤、最簡化無計時）。剩餘 21 個函式
+    需要後續 session 逐批遷移，優先處理仍剩的 dict `{"error":...}` 契約
+    4 個函式（`query_twse_daily_all`/`query_twse_valuation`/
+    `query_twse_institutional`/`query_twse_margin`，皆有「本地 CSV 快取
+    優先」的特殊控制流程，結構跟標準樣板不同，需要對齊全部呼叫端的
+    dict/DataFrame 混用契約）與 `query_twse_disposition`/`query_twse_notice`
+    （亦有本地快取優先，但錯誤契約已是 DataFrame）。
 
 ---
 

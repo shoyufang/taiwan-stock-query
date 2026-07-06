@@ -186,6 +186,28 @@ def tracked_query(name: str, label: str, history_category: str, history_payload,
         return wrapper
     return decorator
 
+
+def simple_tracked_query(history_category: str, history_payload):
+    """
+    包裝 query_X 系列最簡化樣板：僅 try/except + add_history + 統一錯誤處理，
+    無計時/perf_tracker/log（TWSE 擴充查詢群組本來就沒有這些，2026-07-07
+    審查後抽出，行為對齊原樣板）。
+
+    history_category: add_history 第一參數（例："TWSE"）
+    history_payload: callable(*args, **kwargs) -> dict，組出 add_history 第二參數
+    """
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            try:
+                result = func(*args, **kwargs)
+                add_history(history_category, history_payload(*args, **kwargs))
+                return result
+            except Exception as e:
+                return pd.DataFrame({"錯誤": [str(e)]})
+        return wrapper
+    return decorator
+
 # ══════════════════════════════════════════════════════════
 # 台股市場相關查詢
 # ══════════════════════════════════════════════════════════
@@ -771,19 +793,16 @@ def query_twse_margin(code: Optional[str] = None) -> pd.DataFrame:
 def _cached_twse_company(code: str) -> pd.DataFrame:
     return sq.query_twse_company(code)
 
+@tracked_query(
+    name="query_twse_company", label="TWSE 公司基本資料",
+    history_category="台股市場",
+    history_payload=lambda code: {"type": "twse_company", "code": code},
+    cache_key_fn=lambda code: code,
+    track_cache_hit=False,
+)
 def query_twse_company(code: str) -> pd.DataFrame:
     """查詢公司基本資料"""
-    start_time = time.time()
-    main_logger.info(f"查詢 TWSE 公司基本資料: {code}")
-    try:
-        result = _cached_twse_company(code)
-        elapsed_ms = (time.time() - start_time) * 1000
-        perf_tracker.record_query_time("query_twse_company", elapsed_ms)
-        add_history("台股市場", {"type": "twse_company", "code": code})
-        return result
-    except Exception as e:
-        main_logger.error(f"查詢公司基本資料失敗: {str(e)}")
-        return pd.DataFrame({"錯誤": [str(e)]})
+    return _cached_twse_company(code)
 
 @cached_query(ttl=300, sqlite_ttl=300, name="twse_disposition")
 def _cached_twse_disposition() -> pd.DataFrame:
@@ -837,229 +856,210 @@ def query_twse_notice() -> pd.DataFrame:
 def _cached_twse_mi_index() -> pd.DataFrame:
     return sq.query_twse_mi_index()
 
+@simple_tracked_query(
+    history_category="TWSE",
+    history_payload=lambda: {"type": "twse_mi_index"},
+)
 def query_twse_mi_index() -> pd.DataFrame:
-    try:
-        r = _cached_twse_mi_index()
-        add_history("TWSE", {"type": "twse_mi_index"})
-        return r
-    except Exception as e:
-        return pd.DataFrame({"錯誤": [str(e)]})
+    return _cached_twse_mi_index()
 
 @cached_query(ttl=300, sqlite_ttl=300, name="twse_stock_day_avg")
 def _cached_twse_stock_day_avg(code) -> pd.DataFrame:
     return sq.query_twse_stock_day_avg(code)
 
+@simple_tracked_query(
+    history_category="TWSE",
+    history_payload=lambda code=None: {"type": "twse_stock_day_avg", "code": code},
+)
 def query_twse_stock_day_avg(code=None) -> pd.DataFrame:
-    try:
-        r = _cached_twse_stock_day_avg(code)
-        add_history("TWSE", {"type": "twse_stock_day_avg", "code": code})
-        return r
-    except Exception as e:
-        return pd.DataFrame({"錯誤": [str(e)]})
+    return _cached_twse_stock_day_avg(code)
 
 @cached_query(ttl=300, sqlite_ttl=300, name="twse_monthly")
 def _cached_twse_monthly(code) -> pd.DataFrame:
     return sq.query_twse_monthly(code)
 
+@simple_tracked_query(
+    history_category="TWSE",
+    history_payload=lambda code=None: {"type": "twse_monthly", "code": code},
+)
 def query_twse_monthly(code=None) -> pd.DataFrame:
-    try:
-        r = _cached_twse_monthly(code)
-        add_history("TWSE", {"type": "twse_monthly", "code": code})
-        return r
-    except Exception as e:
-        return pd.DataFrame({"錯誤": [str(e)]})
+    return _cached_twse_monthly(code)
 
 @cached_query(ttl=300, sqlite_ttl=300, name="twse_annual")
 def _cached_twse_annual(code) -> pd.DataFrame:
     return sq.query_twse_annual(code)
 
+@simple_tracked_query(
+    history_category="TWSE",
+    history_payload=lambda code=None: {"type": "twse_annual", "code": code},
+)
 def query_twse_annual(code=None) -> pd.DataFrame:
-    try:
-        r = _cached_twse_annual(code)
-        add_history("TWSE", {"type": "twse_annual", "code": code})
-        return r
-    except Exception as e:
-        return pd.DataFrame({"錯誤": [str(e)]})
+    return _cached_twse_annual(code)
 
 @cached_query(ttl=300, sqlite_ttl=300, name="twse_qfiis_cat")
 def _cached_twse_qfiis_cat() -> pd.DataFrame:
     return sq.query_twse_qfiis_cat()
 
+@simple_tracked_query(
+    history_category="TWSE",
+    history_payload=lambda: {"type": "twse_qfiis_cat"},
+)
 def query_twse_qfiis_cat() -> pd.DataFrame:
-    try:
-        r = _cached_twse_qfiis_cat()
-        add_history("TWSE", {"type": "twse_qfiis_cat"})
-        return r
-    except Exception as e:
-        return pd.DataFrame({"錯誤": [str(e)]})
+    return _cached_twse_qfiis_cat()
 
 @cached_query(ttl=300, sqlite_ttl=300, name="twse_qfiis_top20")
 def _cached_twse_qfiis_top20() -> pd.DataFrame:
     return sq.query_twse_qfiis_top20()
 
+@simple_tracked_query(
+    history_category="TWSE",
+    history_payload=lambda: {"type": "twse_qfiis_top20"},
+)
 def query_twse_qfiis_top20() -> pd.DataFrame:
-    try:
-        r = _cached_twse_qfiis_top20()
-        add_history("TWSE", {"type": "twse_qfiis_top20"})
-        return r
-    except Exception as e:
-        return pd.DataFrame({"錯誤": [str(e)]})
+    return _cached_twse_qfiis_top20()
 
 @cached_query(ttl=3600, sqlite_ttl=3600, name="twse_newlisting")
 def _cached_twse_newlisting() -> pd.DataFrame:
     return sq.query_twse_newlisting()
 
+@simple_tracked_query(
+    history_category="TWSE",
+    history_payload=lambda: {"type": "twse_newlisting"},
+)
 def query_twse_newlisting() -> pd.DataFrame:
-    try:
-        r = _cached_twse_newlisting()
-        add_history("TWSE", {"type": "twse_newlisting"})
-        return r
-    except Exception as e:
-        return pd.DataFrame({"錯誤": [str(e)]})
+    return _cached_twse_newlisting()
 
 @cached_query(ttl=86400, sqlite_ttl=86400, name="twse_suspend_listing")
 def _cached_twse_suspend_listing() -> pd.DataFrame:
     return sq.query_twse_suspend_listing()
 
+@simple_tracked_query(
+    history_category="TWSE",
+    history_payload=lambda: {"type": "twse_suspend_listing"},
+)
 def query_twse_suspend_listing() -> pd.DataFrame:
-    try:
-        r = _cached_twse_suspend_listing()
-        add_history("TWSE", {"type": "twse_suspend_listing"})
-        return r
-    except Exception as e:
-        return pd.DataFrame({"錯誤": [str(e)]})
+    return _cached_twse_suspend_listing()
 
 @cached_query(ttl=86400, sqlite_ttl=86400, name="twse_apply_listing_local")
 def _cached_twse_apply_listing_local() -> pd.DataFrame:
     return sq.query_twse_apply_listing_local()
 
+@simple_tracked_query(
+    history_category="TWSE",
+    history_payload=lambda: {"type": "twse_apply_local"},
+)
 def query_twse_apply_listing_local() -> pd.DataFrame:
-    try:
-        r = _cached_twse_apply_listing_local()
-        add_history("TWSE", {"type": "twse_apply_local"})
-        return r
-    except Exception as e:
-        return pd.DataFrame({"錯誤": [str(e)]})
+    return _cached_twse_apply_listing_local()
 
 @cached_query(ttl=86400, sqlite_ttl=86400, name="twse_apply_listing_foreign")
 def _cached_twse_apply_listing_foreign() -> pd.DataFrame:
     return sq.query_twse_apply_listing_foreign()
 
+@simple_tracked_query(
+    history_category="TWSE",
+    history_payload=lambda: {"type": "twse_apply_foreign"},
+)
 def query_twse_apply_listing_foreign() -> pd.DataFrame:
-    try:
-        r = _cached_twse_apply_listing_foreign()
-        add_history("TWSE", {"type": "twse_apply_foreign"})
-        return r
-    except Exception as e:
-        return pd.DataFrame({"錯誤": [str(e)]})
+    return _cached_twse_apply_listing_foreign()
 
 @cached_query(ttl=1800, sqlite_ttl=1800, name="twse_news_list")
 def _cached_twse_news_list() -> pd.DataFrame:
     return sq.query_twse_news_list()
 
+@simple_tracked_query(
+    history_category="TWSE",
+    history_payload=lambda: {"type": "twse_news"},
+)
 def query_twse_news_list() -> pd.DataFrame:
-    try:
-        r = _cached_twse_news_list()
-        add_history("TWSE", {"type": "twse_news"})
-        return r
-    except Exception as e:
-        return pd.DataFrame({"錯誤": [str(e)]})
+    return _cached_twse_news_list()
 
 @cached_query(ttl=1800, sqlite_ttl=1800, name="twse_event_list")
 def _cached_twse_event_list() -> pd.DataFrame:
     return sq.query_twse_event_list()
 
+@simple_tracked_query(
+    history_category="TWSE",
+    history_payload=lambda: {"type": "twse_events"},
+)
 def query_twse_event_list() -> pd.DataFrame:
-    try:
-        r = _cached_twse_event_list()
-        add_history("TWSE", {"type": "twse_events"})
-        return r
-    except Exception as e:
-        return pd.DataFrame({"錯誤": [str(e)]})
+    return _cached_twse_event_list()
 
 @cached_query(ttl=86400, sqlite_ttl=86400, name="twse_dividend_policy")
 def _cached_twse_dividend_policy() -> pd.DataFrame:
     return sq.query_twse_dividend_policy()
 
+@simple_tracked_query(
+    history_category="TWSE",
+    history_payload=lambda: {"type": "twse_dividend_policy"},
+)
 def query_twse_dividend_policy() -> pd.DataFrame:
-    try:
-        r = _cached_twse_dividend_policy()
-        add_history("TWSE", {"type": "twse_dividend_policy"})
-        return r
-    except Exception as e:
-        return pd.DataFrame({"錯誤": [str(e)]})
+    return _cached_twse_dividend_policy()
 
 @cached_query(ttl=86400, sqlite_ttl=86400, name="twse_fund_basic")
 def _cached_twse_fund_basic() -> pd.DataFrame:
     return sq.query_twse_fund_basic()
 
+@simple_tracked_query(
+    history_category="TWSE",
+    history_payload=lambda: {"type": "twse_fund_basic"},
+)
 def query_twse_fund_basic() -> pd.DataFrame:
-    try:
-        r = _cached_twse_fund_basic()
-        add_history("TWSE", {"type": "twse_fund_basic"})
-        return r
-    except Exception as e:
-        return pd.DataFrame({"錯誤": [str(e)]})
+    return _cached_twse_fund_basic()
 
 @cached_query(ttl=86400, sqlite_ttl=86400, name="twse_monthly_revenue")
 def _cached_twse_monthly_revenue() -> pd.DataFrame:
     return sq.query_twse_monthly_revenue()
 
+@simple_tracked_query(
+    history_category="TWSE",
+    history_payload=lambda: {"type": "twse_monthly_revenue"},
+)
 def query_twse_monthly_revenue() -> pd.DataFrame:
-    try:
-        r = _cached_twse_monthly_revenue()
-        add_history("TWSE", {"type": "twse_monthly_revenue"})
-        return r
-    except Exception as e:
-        return pd.DataFrame({"錯誤": [str(e)]})
+    return _cached_twse_monthly_revenue()
 
 @cached_query(ttl=86400, sqlite_ttl=86400, name="twse_income_statement")
 def _cached_twse_income_statement(industry: str) -> pd.DataFrame:
     return sq.query_twse_income_statement(industry)
 
+@simple_tracked_query(
+    history_category="TWSE",
+    history_payload=lambda industry="ci": {"type": "twse_income_statement", "industry": industry},
+)
 def query_twse_income_statement(industry: str = "ci") -> pd.DataFrame:
-    try:
-        r = _cached_twse_income_statement(industry)
-        add_history("TWSE", {"type": "twse_income_statement", "industry": industry})
-        return r
-    except Exception as e:
-        return pd.DataFrame({"錯誤": [str(e)]})
+    return _cached_twse_income_statement(industry)
 
 @cached_query(ttl=86400, sqlite_ttl=86400, name="twse_balance_sheet_openapi")
 def _cached_twse_balance_sheet_openapi(industry: str) -> pd.DataFrame:
     return sq.query_twse_balance_sheet_openapi(industry)
 
+@simple_tracked_query(
+    history_category="TWSE",
+    history_payload=lambda industry="ci": {"type": "twse_balance_sheet", "industry": industry},
+)
 def query_twse_balance_sheet_openapi(industry: str = "ci") -> pd.DataFrame:
-    try:
-        r = _cached_twse_balance_sheet_openapi(industry)
-        add_history("TWSE", {"type": "twse_balance_sheet", "industry": industry})
-        return r
-    except Exception as e:
-        return pd.DataFrame({"錯誤": [str(e)]})
+    return _cached_twse_balance_sheet_openapi(industry)
 
 @cached_query(ttl=86400, sqlite_ttl=86400, name="twse_etf_rank")
 def _cached_twse_etf_rank() -> pd.DataFrame:
     return sq.query_twse_etf_rank()
 
+@simple_tracked_query(
+    history_category="TWSE",
+    history_payload=lambda: {"type": "twse_etf_rank"},
+)
 def query_twse_etf_rank() -> pd.DataFrame:
-    try:
-        r = _cached_twse_etf_rank()
-        add_history("TWSE", {"type": "twse_etf_rank"})
-        return r
-    except Exception as e:
-        return pd.DataFrame({"錯誤": [str(e)]})
+    return _cached_twse_etf_rank()
 
 @cached_query(ttl=86400, sqlite_ttl=86400, name="twse_esg")
 def _cached_twse_esg(topic_id: int) -> pd.DataFrame:
     return sq.query_twse_esg(topic_id)
 
+@simple_tracked_query(
+    history_category="TWSE",
+    history_payload=lambda topic_id: {"type": "twse_esg", "topic_id": topic_id},
+)
 def query_twse_esg(topic_id: int) -> pd.DataFrame:
-    try:
-        r = _cached_twse_esg(topic_id)
-        add_history("TWSE", {"type": "twse_esg", "topic_id": topic_id})
-        return r
-    except Exception as e:
-        return pd.DataFrame({"錯誤": [str(e)]})
+    return _cached_twse_esg(topic_id)
 
 # ══════════════════════════════════════════════════════════
 # 期貨與匯率相關查詢 (1 hour cache: FinMind data)
