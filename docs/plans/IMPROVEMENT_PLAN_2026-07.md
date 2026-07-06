@@ -72,6 +72,29 @@
   `test_us_screener.py`/`test_us_stock.py` 偶發失敗，根因是 yfinance API
   rate limit（"Too Many Requests"）——測試直接打真實網路 API 沒有 mock，
   本質上就是 flaky。未修，建議歸入 P3.1（補測試 mock）一併處理。
+- ✅ **P2.1 啟動（第一批，query_wrapper.py 瘦身）**：因 test_query_wrapper.py
+  安全網比預期薄弱（`TestRankingQuery` 整組斷言被註解掉，等於沒在驗證行為），
+  改用「小批次 + 瀏覽器實測」策略而非一次機械改寫全部 53 個函式。
+  - 在 `query_wrapper.py` 新增 `tracked_query(name, label, history_category,
+    history_payload, cache_key_fn, track_cache_hit=True)` 裝飾器，抽出
+    「計時 + cache-hit 記錄 + perf_tracker + log + add_history + 統一錯誤
+    處理」樣板，回傳型別維持 `pd.DataFrame`（錯誤時附「錯誤」欄位），
+    與原樣板行為完全對齊。
+  - 遷移 3 個代表性函式驗證裝飾器涵蓋所有已知變體：`query_ranking`
+    （有輸入驗證guard，抽成 `_query_ranking_tracked` 避免驗證失敗也被
+    誤記錄 history/perf）、`query_snapshot`（標準樣板）、`query_dividend`
+    （`track_cache_hit=False` 變體，原本就沒有手動 cache-hit 追蹤層）。
+  - 驗證：`pytest tests/test_query_wrapper.py` 24 過；獨立 Python 腳本比對
+    無效輸入/正常路徑的 side effect 呼叫次數與原邏輯一致；**啟動真實
+    Streamlit app 用瀏覽器實際點擊「台股市場→漲幅排行+個股即時快照」**，
+    確認結果正確渲染、無崩潰，console log 顯示 cache-hit/miss 與計時正常
+    （cache hit 時 0.8ms、miss 時 374ms，數字合理）。全套 pytest + ruff
+    lint 通過。
+  - **進度：3/53 函式遷移完成**，裝飾器設計已驗證涵蓋三種已知樣板變體
+    （標準、帶輸入驗證、無 cache-hit 追蹤）。剩餘 50 個函式需要後續 session
+    逐批遷移，每批遷移後建議都跑一次瀏覽器實測（尤其是含 `{"error":...}`
+    dict 契約的 TWSE 群組 4-5 個函式，這批的錯誤契約統一是原計畫的核心目標，
+    比其他函式風險更高，需要對齊全部呼叫端）。
 
 ---
 

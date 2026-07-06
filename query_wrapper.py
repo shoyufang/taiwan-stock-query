@@ -6,6 +6,7 @@ Phase 7.6: 本地 TWSE CSV 快取優先讀取
 """
 
 import os
+import functools
 import pandas as pd
 from datetime import datetime, date
 from typing import Optional, List, Dict, Any, Callable, Tuple
@@ -144,6 +145,47 @@ def _check_cache_hit(func_name: str, cache_key: str) -> bool:
         _query_cache[func_name][cache_key] = current_time
         return False
 
+
+def tracked_query(name: str, label: str, history_category: str, history_payload,
+                   cache_key_fn=None, track_cache_hit: bool = True):
+    """
+    包裝 query_X 系列共同的「計時 + cache-hit 記錄 + perf_tracker + log + add_history +
+    統一錯誤處理」樣板（2026-07-07 審查後抽出，逐步取代手寫版本，行為對齊原樣板：
+    一律回傳 pd.DataFrame，錯誤時回傳附「錯誤」欄位的 DataFrame）。
+
+    name: cache-hit 追蹤與 perf_tracker 用的識別名（等同原 query_X 函式名）
+    label: log 訊息用的中文標籤（例："排行"、"快照"）
+    history_category: add_history 第一參數（例："台股市場"）
+    history_payload: callable(*args, **kwargs) -> dict，組出 add_history 第二參數
+    cache_key_fn: callable(*args, **kwargs) -> str；track_cache_hit=True 時必填，
+                  也用於 log 訊息顯示
+    track_cache_hit: 是否做 _check_cache_hit/_record_cache_hit
+                     （部分舊函式本來就沒有這層手動追蹤，設 False 對齊）
+    """
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            start_time = time.time()
+            key = cache_key_fn(*args, **kwargs) if cache_key_fn else ""
+            if track_cache_hit:
+                is_hit = _check_cache_hit(name, key)
+                _record_cache_hit(name, key, is_hit)
+                main_logger.info(f"查詢{label}: {key} ({'CACHE HIT' if is_hit else 'CACHE MISS'})")
+            else:
+                main_logger.info(f"查詢{label}: {key}")
+            try:
+                result = func(*args, **kwargs)
+                elapsed_ms = (time.time() - start_time) * 1000
+                perf_tracker.record_query_time(name, elapsed_ms)
+                main_logger.info(f"{label}查詢完成: {len(result)} 筆, 耗時 {elapsed_ms:.1f}ms")
+                add_history(history_category, history_payload(*args, **kwargs))
+                return result
+            except Exception as e:
+                main_logger.error(f"查詢{label}失敗: {str(e)}")
+                return pd.DataFrame({"錯誤": [str(e)]})
+        return wrapper
+    return decorator
+
 # ══════════════════════════════════════════════════════════
 # 台股市場相關查詢
 # ══════════════════════════════════════════════════════════
@@ -166,31 +208,25 @@ def _cached_ranking(ranking_type: str, limit: int) -> pd.DataFrame:
     """Streamlit cached ranking query with SQLite fallback"""
     return _cached_ranking_internal(ranking_type, limit)
 
+@tracked_query(
+    name="query_ranking", label="排行",
+    history_category="台股市場",
+    history_payload=lambda ranking_type, limit=10: {"type": "ranking", "ranking_type": ranking_type},
+    cache_key_fn=lambda ranking_type, limit=10: f"{ranking_type}:{limit}",
+)
+def _query_ranking_tracked(ranking_type: str, limit: int = 10) -> pd.DataFrame:
+    return _cached_ranking(ranking_type, limit)
+
 def query_ranking(ranking_type: str, limit: int = 10) -> pd.DataFrame:
     """
     查詢市場排行
     ranking_type: "up" (漲幅), "down" (跌幅), "volume" (成交量), "amount" (成交金額)
     """
-    start_time = time.time()
-    cache_key = f"{ranking_type}:{limit}"
-    is_cache_hit = _check_cache_hit("query_ranking", cache_key)
-    _record_cache_hit("query_ranking", cache_key, is_cache_hit)
-    main_logger.info(f"查詢排行: {ranking_type}, limit={limit} ({'CACHE HIT' if is_cache_hit else 'CACHE MISS'})")
-
+    # 驗證留在裝飾器外層：無效類型不記錄 perf/history，維持原本行為
     if ranking_type not in ["up", "down", "volume", "amount"]:
         main_logger.warning(f"無效排行類型: {ranking_type}")
         return pd.DataFrame()
-
-    try:
-        result = _cached_ranking(ranking_type, limit)
-        elapsed_ms = (time.time() - start_time) * 1000
-        perf_tracker.record_query_time("query_ranking", elapsed_ms)
-        main_logger.info(f"排行查詢完成: {len(result)} 筆, 耗時 {elapsed_ms:.1f}ms")
-        add_history("台股市場", {"type": "ranking", "ranking_type": ranking_type})
-        return result
-    except Exception as e:
-        main_logger.error(f"查詢排行失敗: {str(e)}")
-        return pd.DataFrame({"錯誤": [str(e)]})
+    return _query_ranking_tracked(ranking_type, limit)
 
 @cached_query(ttl=300, sqlite_ttl=300, name="snapshot")
 def _cached_snapshot(codes_tuple: tuple) -> pd.DataFrame:
@@ -198,23 +234,15 @@ def _cached_snapshot(codes_tuple: tuple) -> pd.DataFrame:
     codes = list(codes_tuple)
     return sq.query_snapshot(codes)
 
+@tracked_query(
+    name="query_snapshot", label="快照",
+    history_category="台股市場",
+    history_payload=lambda codes: {"type": "snapshot", "codes": codes},
+    cache_key_fn=lambda codes: str(tuple(codes)),
+)
 def query_snapshot(codes: List[str]) -> pd.DataFrame:
     """查詢個股即時快照"""
-    start_time = time.time()
-    cache_key = str(tuple(codes))
-    is_cache_hit = _check_cache_hit("query_snapshot", cache_key)
-    _record_cache_hit("query_snapshot", cache_key, is_cache_hit)
-    main_logger.info(f"查詢快照: {codes} ({'CACHE HIT' if is_cache_hit else 'CACHE MISS'})")
-    try:
-        result = _cached_snapshot(tuple(codes))
-        elapsed_ms = (time.time() - start_time) * 1000
-        perf_tracker.record_query_time("query_snapshot", elapsed_ms)
-        main_logger.info(f"快照查詢完成: {len(result)} 筆, 耗時 {elapsed_ms:.1f}ms")
-        add_history("台股市場", {"type": "snapshot", "codes": codes})
-        return result
-    except Exception as e:
-        main_logger.error(f"查詢快照失敗: {str(e)}")
-        return pd.DataFrame({"錯誤": [str(e)]})
+    return _cached_snapshot(tuple(codes))
 
 @st.cache_data(ttl=86400, show_spinner=False)  # 1 day: Historical K-bars
 def _cached_kbar(code: str, start_str: str, end_str: str) -> pd.DataFrame:
@@ -646,22 +674,18 @@ def _cached_dividend(code: str, start_str: str, end_str: str) -> pd.DataFrame:
     """Internal cached dividend query with SQLite fallback"""
     return sq.query_dividend(code, start_str, end_str)
 
+@tracked_query(
+    name="query_dividend", label="股利政策",
+    history_category="FinMind",
+    history_payload=lambda code, start_date, end_date: {"type": "dividend", "code": code},
+    cache_key_fn=lambda code, start_date, end_date: code,
+    track_cache_hit=False,
+)
 def query_dividend(code: str, start_date: date, end_date: date) -> pd.DataFrame:
     """查詢股利政策"""
-    start_time = time.time()
-    main_logger.info(f"查詢股利政策: {code}")
-    try:
-        start_str = start_date.strftime("%Y-%m-%d")
-        end_str = end_date.strftime("%Y-%m-%d")
-        result = _cached_dividend(code, start_str, end_str)
-        elapsed_ms = (time.time() - start_time) * 1000
-        perf_tracker.record_query_time("query_dividend", elapsed_ms)
-        main_logger.info(f"股利政策查詢完成: {len(result)} 筆, 耗時 {elapsed_ms:.1f}ms")
-        add_history("FinMind", {"type": "dividend", "code": code})
-        return result
-    except Exception as e:
-        main_logger.error(f"查詢股利政策失敗: {str(e)}")
-        return pd.DataFrame({"錯誤": [str(e)]})
+    start_str = start_date.strftime("%Y-%m-%d")
+    end_str = end_date.strftime("%Y-%m-%d")
+    return _cached_dividend(code, start_str, end_str)
 
 # ══════════════════════════════════════════════════════════
 # TWSE 相關查詢 (5 min cache: Real-time daily data)
