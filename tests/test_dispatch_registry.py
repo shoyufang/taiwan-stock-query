@@ -35,13 +35,21 @@ mock_st.selectbox = lambda label, options=None, *args, **kwargs: options[0] if o
 mock_st.multiselect = lambda label, options=None, default=None, *args, **kwargs: default if default is not None else []
 mock_st.date_input = lambda label, value=None, *args, **kwargs: value
 
-sys.modules['streamlit'] = mock_st
-
 import pytest
 
 @pytest.mark.unit
 def test_registry_exists_and_covers_known_types():
-    from app import QUERY_DISPATCH
+    # sys.modules['streamlit'] 只在 import app 期間替換成 mock，用完立即還原，
+    # 避免污染同一 pytest process 內後續收集的其他測試檔案（2026-07-07 審查發現）
+    _real_streamlit = sys.modules.get('streamlit')
+    sys.modules['streamlit'] = mock_st
+    try:
+        from app import QUERY_DISPATCH
+    finally:
+        if _real_streamlit is not None:
+            sys.modules['streamlit'] = _real_streamlit
+        else:
+            sys.modules.pop('streamlit', None)
     for qt in ["ranking", "snapshot", "kbar", "ticks", "institutional"]:
         assert qt in QUERY_DISPATCH, f"registry 缺少 {qt}"
         assert callable(QUERY_DISPATCH[qt])

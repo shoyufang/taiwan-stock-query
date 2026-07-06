@@ -56,3 +56,6 @@ T4_10142/
 
 # pytest
 .pytest_cache/
+
+# 工具殘留
+.firecrawl/
