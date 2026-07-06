@@ -44,16 +44,26 @@
   1. `tabs/calendar_tab.py`：`投資行事曆→台股法說/除息` 分頁對不存在的
      「日期」欄位做比較，**每個使用者點進去必炸**（KeyError）。已修為用
      「財報公佈日」/「除息日」計算排序欄位。
-  2. ✅ `market_overview.py`/`us_calendar_tab.py` 在全套測試下才會炸的真因：
+  2. 🟡 `market_overview.py`/`us_calendar_tab.py` 在全套測試下才會炸的真因：
      `test_dashboard_pinning.py`/`test_dispatch_registry.py` 在 mock streamlit
      生效期間真的執行 `from app import ...`，導致 `app.py` 整條 import chain
      （`dispatch.py`、`tabs.market_overview` 等）被**永久初始化並快取進
      `sys.modules`**——這些子模組自己的 `import streamlit as st` 從此永遠
      綁定假物件，只還原 `sys.modules['streamlit']` 救不了已快取的子模組。
-     修法：兩個測試檔案的 mock 使用結束後，除了還原 `sys.modules['streamlit']`，
-     還清掉所有專案自有模組（排除測試檔案自己）的 sys.modules 快取，逼後續
-     import（例如 test_render_smoke.py 的 AppTest）重新執行、綁定回真正的
-     streamlit。3 輪全套測試驗證 `test_render_smoke.py` 穩定 9/9 全過。
+     **嘗試過的修法（已還原，未採用）**：在兩個測試檔案的 mock 使用結束後
+     連鎖清掉所有專案自有模組的 sys.modules 快取，本機驗證 3 輪
+     `test_render_smoke.py` 穩定 9/9，但推上 CI 後才發現**引入 12+ 個新
+     regression**（`test_caching.py`/`test_tw_calendar.py`/`test_us_calendar.py`/
+     `test_us_screener.py`/`test_shioaji_market.py`/`test_market_history.py`
+     等）——因為連鎖清除破壞了同一測試檔案內 `@patch(...)` 裝飾器與已匯入
+     函式物件之間的模組實例一致性（已匯入的函式仍綁定「清除前」的舊模組，
+     但 `@patch` 卻對「清除後重新匯入」的新模組生效，兩者對不上）。
+     **已退回為僅還原 `sys.modules['streamlit']`（不連鎖清除）**，本機驗證
+     退回後測試套件回到修復前的基準（僅 `test_render_smoke.py` 3 個既有
+     失敗，無新增 regression）。這 3 個失敗本身**已確認是測試環境限定**
+     （AppTest 不像正式部署那樣讓 `st.cache_resource` 跨執行個體持久），
+     不影響真實使用者，留待下次用更謹慎的隔離手法（例如把這兩個測試檔案
+     強制丟進獨立 subprocess 執行）處理。
   3. 順手發現 `sqlite_cache.py` 的快取路徑（`~/.app_config/cache.db`）
      沒有測試隔離，所有測試都讀寫正式環境同一個快取檔案。已在
      `tests/conftest.py` 頂層加上 session 級隔離（`APP_CACHE_DIR` 指向臨時
