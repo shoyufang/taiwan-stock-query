@@ -472,132 +472,108 @@ def _cached_institutional(code: str, start_str: str, end_str: str) -> pd.DataFra
     """Internal cached institutional query with SQLite fallback"""
     return sq.query_institutional(code, start_str, end_str)
 
+@tracked_query(
+    name="query_institutional_investors", label="三大法人明細",
+    history_category="FinMind",
+    history_payload=lambda code, start_date, end_date: {"type": "institutional", "code": code},
+    cache_key_fn=lambda code, start_date, end_date: code,
+    track_cache_hit=False,
+)
 def query_institutional_investors(code: str, start_date: date, end_date: date) -> pd.DataFrame:
     """查詢三大法人明細"""
-    start_time = time.time()
-    main_logger.info(f"查詢三大法人明細: {code}, {start_date} ~ {end_date}")
-    try:
-        start_str = start_date.strftime("%Y-%m-%d")
-        end_str = end_date.strftime("%Y-%m-%d")
-        result = _cached_institutional(code, start_str, end_str)
-        elapsed_ms = (time.time() - start_time) * 1000
-        perf_tracker.record_query_time("query_institutional_investors", elapsed_ms)
-        main_logger.info(f"三大法人查詢完成: {len(result)} 筆, 耗時 {elapsed_ms:.1f}ms")
-        add_history("FinMind", {"type": "institutional", "code": code})
-        return result
-    except Exception as e:
-        main_logger.error(f"查詢三大法人明細失敗: {str(e)}")
-        return pd.DataFrame({"錯誤": [str(e)]})
+    start_str = start_date.strftime("%Y-%m-%d")
+    end_str = end_date.strftime("%Y-%m-%d")
+    return _cached_institutional(code, start_str, end_str)
 
 @cached_query(ttl=3600, sqlite_ttl=3600, name="institutional_summary")
 def _cached_institutional_summary(code: str, start_str: str, end_str: str) -> pd.DataFrame:
     """Internal cached institutional summary query with SQLite fallback"""
     return sq.query_institutional_summary(code, start_str, end_str)
 
+@tracked_query(
+    name="query_institutional_summary", label="三大法人合計",
+    history_category="FinMind",
+    history_payload=lambda code, start_date, end_date: {"type": "institutional_summary", "code": code},
+    cache_key_fn=lambda code, start_date, end_date: code,
+    track_cache_hit=False,
+)
 def query_institutional_summary(code: str, start_date: date, end_date: date) -> pd.DataFrame:
     """查詢三大法人合計"""
-    start_time = time.time()
-    main_logger.info(f"查詢三大法人合計: {code}")
-    try:
-        start_str = start_date.strftime("%Y-%m-%d")
-        end_str = end_date.strftime("%Y-%m-%d")
-        result = _cached_institutional_summary(code, start_str, end_str)
-        elapsed_ms = (time.time() - start_time) * 1000
-        perf_tracker.record_query_time("query_institutional_summary", elapsed_ms)
-        main_logger.info(f"三大法人合計查詢完成: {len(result)} 筆, 耗時 {elapsed_ms:.1f}ms")
-        add_history("FinMind", {"type": "institutional_summary", "code": code})
-        return result
-    except Exception as e:
-        main_logger.error(f"查詢三大法人合計失敗: {str(e)}")
-        return pd.DataFrame({"錯誤": [str(e)]})
+    start_str = start_date.strftime("%Y-%m-%d")
+    end_str = end_date.strftime("%Y-%m-%d")
+    return _cached_institutional_summary(code, start_str, end_str)
 
 @cached_query(ttl=3600, sqlite_ttl=3600, name="day_trading")
 def _cached_day_trading(code: str, start_str: str, end_str: str) -> pd.DataFrame:
     """Internal cached day trading query with SQLite fallback"""
     return sq.query_day_trading(code, start_str, end_str)
 
+@tracked_query(
+    name="query_day_trading_volume", label="當沖交易",
+    history_category="FinMind",
+    history_payload=lambda code, start_date, end_date: {"type": "day_trading", "code": code},
+    cache_key_fn=lambda code, start_date, end_date: code,
+    track_cache_hit=False,
+)
 def query_day_trading_volume(code: str, start_date: date, end_date: date) -> pd.DataFrame:
     """查詢當沖交易量"""
-    start_time = time.time()
-    main_logger.info(f"查詢當沖交易: {code}")
-    try:
-        start_str = start_date.strftime("%Y-%m-%d")
-        end_str = end_date.strftime("%Y-%m-%d")
-        result = _cached_day_trading(code, start_str, end_str)
-        elapsed_ms = (time.time() - start_time) * 1000
-        perf_tracker.record_query_time("query_day_trading_volume", elapsed_ms)
-        main_logger.info(f"當沖交易查詢完成: {len(result)} 筆, 耗時 {elapsed_ms:.1f}ms")
-        add_history("FinMind", {"type": "day_trading", "code": code})
-        return result
-    except Exception as e:
-        main_logger.error(f"查詢當沖交易失敗: {str(e)}")
-        return pd.DataFrame({"錯誤": [str(e)]})
+    start_str = start_date.strftime("%Y-%m-%d")
+    end_str = end_date.strftime("%Y-%m-%d")
+    return _cached_day_trading(code, start_str, end_str)
 
 @cached_query(ttl=3600, sqlite_ttl=3600, name="margin_short")
 def _cached_margin_short(code: str, start_str: str, end_str: str) -> pd.DataFrame:
     """Internal cached margin short query with SQLite fallback"""
     return sq.query_margin_short(code, start_str, end_str)
 
+@tracked_query(
+    name="query_margin_short", label="融資融券",
+    history_category="FinMind",
+    history_payload=lambda code, start_date, end_date: {"type": "margin_short", "code": code},
+    cache_key_fn=lambda code, start_date, end_date: code,
+    track_cache_hit=False,
+)
 def query_margin_short(code: str, start_date: date, end_date: date) -> pd.DataFrame:
     """查詢融資融券餘額"""
-    start_time = time.time()
-    main_logger.info(f"查詢融資融券: {code}")
-    try:
-        start_str = start_date.strftime("%Y-%m-%d")
-        end_str = end_date.strftime("%Y-%m-%d")
-        result = _cached_margin_short(code, start_str, end_str)
-        elapsed_ms = (time.time() - start_time) * 1000
-        perf_tracker.record_query_time("query_margin_short", elapsed_ms)
-        main_logger.info(f"融資融券查詢完成: {len(result)} 筆, 耗時 {elapsed_ms:.1f}ms")
-        add_history("FinMind", {"type": "margin_short", "code": code})
-        return result
-    except Exception as e:
-        main_logger.error(f"查詢融資融券失敗: {str(e)}")
-        return pd.DataFrame({"錯誤": [str(e)]})
+    start_str = start_date.strftime("%Y-%m-%d")
+    end_str = end_date.strftime("%Y-%m-%d")
+    return _cached_margin_short(code, start_str, end_str)
 
 @cached_query(ttl=3600, sqlite_ttl=3600, name="shareholding")
 def _cached_shareholding(code: str, start_str: str, end_str: str) -> pd.DataFrame:
     """Internal cached shareholding query with SQLite fallback"""
     return sq.query_shareholding(code, start_str, end_str)
 
+@tracked_query(
+    name="query_foreign_shareholding", label="外資持股",
+    history_category="FinMind",
+    history_payload=lambda code, start_date, end_date: {"type": "shareholding", "code": code},
+    cache_key_fn=lambda code, start_date, end_date: code,
+    track_cache_hit=False,
+)
 def query_foreign_shareholding(code: str, start_date: date, end_date: date) -> pd.DataFrame:
     """查詢外資持股比例"""
-    start_time = time.time()
-    main_logger.info(f"查詢外資持股: {code}")
-    try:
-        start_str = start_date.strftime("%Y-%m-%d")
-        end_str = end_date.strftime("%Y-%m-%d")
-        result = _cached_shareholding(code, start_str, end_str)
-        elapsed_ms = (time.time() - start_time) * 1000
-        perf_tracker.record_query_time("query_foreign_shareholding", elapsed_ms)
-        main_logger.info(f"外資持股查詢完成: {len(result)} 筆, 耗時 {elapsed_ms:.1f}ms")
-        add_history("FinMind", {"type": "shareholding", "code": code})
-        return result
-    except Exception as e:
-        main_logger.error(f"查詢外資持股失敗: {str(e)}")
-        return pd.DataFrame({"錯誤": [str(e)]})
+    start_str = start_date.strftime("%Y-%m-%d")
+    end_str = end_date.strftime("%Y-%m-%d")
+    return _cached_shareholding(code, start_str, end_str)
 
 @cached_query(ttl=3600, sqlite_ttl=3600, name="securities_lending")
 def _cached_securities_lending(code: str, start_str: str, end_str: str) -> pd.DataFrame:
     """Internal cached securities lending query with SQLite fallback"""
     return sq.query_securities_lending(code, start_str, end_str)
 
+@tracked_query(
+    name="query_securities_lending", label="借券成交",
+    history_category="FinMind",
+    history_payload=lambda code, start_date, end_date: {"type": "securities_lending", "code": code},
+    cache_key_fn=lambda code, start_date, end_date: code,
+    track_cache_hit=False,
+)
 def query_securities_lending(code: str, start_date: date, end_date: date) -> pd.DataFrame:
     """查詢借券成交"""
-    start_time = time.time()
-    main_logger.info(f"查詢借券成交: {code}")
-    try:
-        start_str = start_date.strftime("%Y-%m-%d")
-        end_str = end_date.strftime("%Y-%m-%d")
-        result = _cached_securities_lending(code, start_str, end_str)
-        elapsed_ms = (time.time() - start_time) * 1000
-        perf_tracker.record_query_time("query_securities_lending", elapsed_ms)
-        main_logger.info(f"借券成交查詢完成: {len(result)} 筆, 耗時 {elapsed_ms:.1f}ms")
-        add_history("FinMind", {"type": "securities_lending", "code": code})
-        return result
-    except Exception as e:
-        main_logger.error(f"查詢借券成交失敗: {str(e)}")
-        return pd.DataFrame({"錯誤": [str(e)]})
+    start_str = start_date.strftime("%Y-%m-%d")
+    end_str = end_date.strftime("%Y-%m-%d")
+    return _cached_securities_lending(code, start_str, end_str)
 
 # ══════════════════════════════════════════════════════════
 # FinMind 基本面相關查詢 (1 week cache: Fundamental data)
@@ -608,66 +584,54 @@ def _cached_month_revenue(code: str, start_str: str, end_str: str) -> pd.DataFra
     """Internal cached month revenue query with SQLite fallback"""
     return sq.query_month_revenue(code, start_str, end_str)
 
+@tracked_query(
+    name="query_month_revenue", label="月營收",
+    history_category="FinMind",
+    history_payload=lambda code, start_date, end_date: {"type": "month_revenue", "code": code},
+    cache_key_fn=lambda code, start_date, end_date: code,
+    track_cache_hit=False,
+)
 def query_month_revenue(code: str, start_date: date, end_date: date) -> pd.DataFrame:
     """查詢月營收"""
-    start_time = time.time()
-    main_logger.info(f"查詢月營收: {code}")
-    try:
-        start_str = start_date.strftime("%Y-%m-%d")
-        end_str = end_date.strftime("%Y-%m-%d")
-        result = _cached_month_revenue(code, start_str, end_str)
-        elapsed_ms = (time.time() - start_time) * 1000
-        perf_tracker.record_query_time("query_month_revenue", elapsed_ms)
-        main_logger.info(f"月營收查詢完成: {len(result)} 筆, 耗時 {elapsed_ms:.1f}ms")
-        add_history("FinMind", {"type": "month_revenue", "code": code})
-        return result
-    except Exception as e:
-        main_logger.error(f"查詢月營收失敗: {str(e)}")
-        return pd.DataFrame({"錯誤": [str(e)]})
+    start_str = start_date.strftime("%Y-%m-%d")
+    end_str = end_date.strftime("%Y-%m-%d")
+    return _cached_month_revenue(code, start_str, end_str)
 
 @cached_query(ttl=604800, sqlite_ttl=604800, name="financial_statement")
 def _cached_financial_statement(code: str, start_str: str, end_str: str) -> pd.DataFrame:
     """Internal cached financial statement query with SQLite fallback"""
     return sq.query_financial_statement(code, start_str, end_str)
 
+@tracked_query(
+    name="query_financial_statement", label="綜合損益表",
+    history_category="FinMind",
+    history_payload=lambda code, start_date, end_date: {"type": "financial_statement", "code": code},
+    cache_key_fn=lambda code, start_date, end_date: code,
+    track_cache_hit=False,
+)
 def query_financial_statement(code: str, start_date: date, end_date: date) -> pd.DataFrame:
     """查詢綜合損益表"""
-    start_time = time.time()
-    main_logger.info(f"查詢綜合損益表: {code}")
-    try:
-        start_str = start_date.strftime("%Y-%m-%d")
-        end_str = end_date.strftime("%Y-%m-%d")
-        result = _cached_financial_statement(code, start_str, end_str)
-        elapsed_ms = (time.time() - start_time) * 1000
-        perf_tracker.record_query_time("query_financial_statement", elapsed_ms)
-        main_logger.info(f"綜合損益表查詢完成: {len(result)} 筆, 耗時 {elapsed_ms:.1f}ms")
-        add_history("FinMind", {"type": "financial_statement", "code": code})
-        return result
-    except Exception as e:
-        main_logger.error(f"查詢綜合損益表失敗: {str(e)}")
-        return pd.DataFrame({"錯誤": [str(e)]})
+    start_str = start_date.strftime("%Y-%m-%d")
+    end_str = end_date.strftime("%Y-%m-%d")
+    return _cached_financial_statement(code, start_str, end_str)
 
 @cached_query(ttl=604800, sqlite_ttl=604800, name="balance_sheet")
 def _cached_balance_sheet(code: str, start_str: str, end_str: str) -> pd.DataFrame:
     """Internal cached balance sheet query with SQLite fallback"""
     return sq.query_balance_sheet(code, start_str, end_str)
 
+@tracked_query(
+    name="query_balance_sheet", label="資產負債表",
+    history_category="FinMind",
+    history_payload=lambda code, start_date, end_date: {"type": "balance_sheet", "code": code},
+    cache_key_fn=lambda code, start_date, end_date: code,
+    track_cache_hit=False,
+)
 def query_balance_sheet(code: str, start_date: date, end_date: date) -> pd.DataFrame:
     """查詢資產負債表"""
-    start_time = time.time()
-    main_logger.info(f"查詢資產負債表: {code}")
-    try:
-        start_str = start_date.strftime("%Y-%m-%d")
-        end_str = end_date.strftime("%Y-%m-%d")
-        result = _cached_balance_sheet(code, start_str, end_str)
-        elapsed_ms = (time.time() - start_time) * 1000
-        perf_tracker.record_query_time("query_balance_sheet", elapsed_ms)
-        main_logger.info(f"資產負債表查詢完成: {len(result)} 筆, 耗時 {elapsed_ms:.1f}ms")
-        add_history("FinMind", {"type": "balance_sheet", "code": code})
-        return result
-    except Exception as e:
-        main_logger.error(f"查詢資產負債表失敗: {str(e)}")
-        return pd.DataFrame({"錯誤": [str(e)]})
+    start_str = start_date.strftime("%Y-%m-%d")
+    end_str = end_date.strftime("%Y-%m-%d")
+    return _cached_balance_sheet(code, start_str, end_str)
 
 @cached_query(ttl=604800, sqlite_ttl=604800, name="dividend")
 def _cached_dividend(code: str, start_str: str, end_str: str) -> pd.DataFrame:
