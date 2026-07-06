@@ -14,7 +14,7 @@
 import streamlit as st
 import pandas as pd
 import yfinance as yf
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 
 from stock_lookup import resolve_code, get_name_hint
 import query_wrapper as qw
