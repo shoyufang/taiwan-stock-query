@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 from typing import Dict, List, Any
 from datetime import datetime
+from logging_config import main_logger
 
 # 保留模組層級預設常數以相容舊有參考
 CONFIG_DIR = Path.home() / ".app_config"
