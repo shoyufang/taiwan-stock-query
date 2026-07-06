@@ -80,27 +80,15 @@ import streamlit as st
 import pandas as pd
 from datetime import date
 
-# 導入待測函數（app.py 匯入時期需要 mock streamlit）
+# 導入待測函數（app.py 匯入時期需要 mock streamlit，匯入完成後其內部的
+# streamlit 參照已綁定完成，之後還原 sys.modules 不影響 app 或本檔案）
 from app import execute_query_by_params
 
-# 還原 sys.modules['streamlit']，並清掉這次匯入連帶初始化的所有專案自有模組
-# （app.py 整條 import chain，例如 tabs.market_overview）。這些子模組自己的
-# `import streamlit as st` 在首次匯入當下就綁死了，只還原 sys.modules['streamlit']
-# 救不了它們——必須連同清掉快取，逼之後（例如 test_render_smoke.py 的 AppTest）
-# 重新匯入才能拿到綁定到真正 streamlit 的乾淨模組（2026-07-07 審查發現，
-# 修復 KeyError: <MockStreamlit ...> 這類跨測試檔案汙染）。
+# 還原 sys.modules，讓後續收集的其他測試檔案拿到真正的 streamlit
 if _real_streamlit is not None:
     sys.modules['streamlit'] = _real_streamlit
 else:
     sys.modules.pop('streamlit', None)
-
-_project_root_abs = os.path.abspath(_project_root)
-for _name, _mod in list(sys.modules.items()):
-    if _name == "utils" or _name == __name__ or _name.startswith("tests") or _name.startswith("test_") or _name == "conftest":
-        continue
-    _f = getattr(_mod, "__file__", None)
-    if _f and os.path.abspath(_f).startswith(_project_root_abs):
-        del sys.modules[_name]
 
 @pytest.mark.unit
 class TestDashboardPinning:
