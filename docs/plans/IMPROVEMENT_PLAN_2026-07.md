@@ -90,8 +90,17 @@
     確認結果正確渲染、無崩潰，console log 顯示 cache-hit/miss 與計時正常
     （cache hit 時 0.8ms、miss 時 374ms，數字合理）。全套 pytest + ruff
     lint 通過。
-  - **進度：3/53 函式遷移完成**，裝飾器設計已驗證涵蓋三種已知樣板變體
-    （標準、帶輸入驗證、無 cache-hit 追蹤）。剩餘 50 個函式需要後續 session
+  - **第二批**：FinMind 籌碼/基本面群組 9 個函式一次遷移（`query_institutional_investors`/
+    `query_institutional_summary`/`query_day_trading_volume`/`query_margin_short`/
+    `query_foreign_shareholding`/`query_securities_lending`/`query_month_revenue`/
+    `query_financial_statement`/`query_balance_sheet`），與 `query_dividend`
+    完全同款式（`track_cache_hit=False`），驗證方式相同：獨立腳本比對全部
+    9 個函式的正常/錯誤路徑（用不同代號避開 SQLite 快取干擾）+ 全套
+    pytest/ruff 過。瀏覽器實測時發現這個文字輸入框的 fill 有 React 狀態
+    同步的工具限制（非本次程式碼改動造成，未觸及輸入處理邏輯），改用
+    UI checkbox 標籤渲染正確作為輔助驗證證據。
+  - **進度：12/53 函式遷移完成**，裝飾器設計已驗證涵蓋三種已知樣板變體
+    （標準、帶輸入驗證、無 cache-hit 追蹤）。剩餘 41 個函式需要後續 session
     逐批遷移，每批遷移後建議都跑一次瀏覽器實測（尤其是含 `{"error":...}`
     dict 契約的 TWSE 群組 4-5 個函式，這批的錯誤契約統一是原計畫的核心目標，
     比其他函式風險更高，需要對齊全部呼叫端）。
