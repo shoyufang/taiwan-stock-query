@@ -215,12 +215,56 @@ Actions 備援（20:05）同日都成功時，後者必因 non-fast-forward 紅�
 - [ ] 對齊全部 tabs/dispatch 的錯誤處理路徑（有 test_query_wrapper.py 保護）
 - [ ] 預期 1,424 → ~500-600 行；可再按資料源拆 `query_wrapper/` 套件與 datasources 鏡像
 
-### 2.2 daily_job 改用 datasources/twse_client【驗證】
+### 2.2 daily_job 改用 datasources/twse_client【驗證】— 2026-07-07 深入調查，暫緩
+
 TWSE 端點表雙寫：twse_client.py 與 daily_job.py:404 各一份，
-daily_job.py:147 還在呼叫**已知廢棄**的 openapi T86 端點。
-「修一邊忘另一邊」已實際發生過（T86 事件）。
-- [ ] daily_job import twse_client，端點定義單一來源
-- [ ] 改完在本機實跑 `python daily_job.py` 驗證，再上 NAS
+`fetch_market()`（daily_job.py:147，Step 1 大盤快照用）還在呼叫**已知廢棄**
+的 openapi T86 端點；`fetch_twse_daily_cache()`（daily_job.py:404，Step 6
+CSV 快取用）**已經修好**，用的是 rwd 版正確端點。
+
+**原以為是簡單換 URL，深入調查後發現需要精確欄位對映＋有一個獨立的單位
+不一致 bug，暫緩不做**：
+
+1. **欄位對映（已查證 TWSE 官方文件，可直接用）**：rwd T86
+   （`https://www.twse.com.tw/rwd/zh/fund/T86?date=YYYYMMDD&selectType=ALL`）
+   回傳 19 欄，依序為：
+   ```
+   0 證券代號  1 證券名稱
+   2 外陸資買進股數(不含外資自營商)  3 外陸資賣出股數(不含外資自營商)
+   4 外陸資買賣超股數(不含外資自營商)          ← 一般認定的「外資買賣超」
+   5 外資自營商買進股數  6 外資自營商賣出股數  7 外資自營商買賣超股數
+   8 投信買進股數  9 投信賣出股數  10 投信買賣超股數
+   11 自營商買賣超股數（合計）
+   12-14 自營商買賣超股數(自行買賣) 買進/賣出/買賣超
+   15-17 自營商買賣超股數(避險) 買進/賣出/買賣超
+   18 三大法人買賣超股數（合計）
+   ```
+   對應 `run_screener()`/`fetch_market()` 需要的英文欄位：
+   `Code`=欄0、`Name`=欄1、`ForeignInvestmentNetBuySell`=欄4、
+   `InvestmentTrustNetBuySell`=欄10、`DealerNetBuySell`=欄11。
+   rwd 回傳值為**原始股數**（字串含千分位逗號，需 `str.replace(",","")` 轉數字）。
+
+2. **獨立發現的單位不一致 bug（跟本項無關，但會被本項的修復觸發）**：
+   `fetch_market()` 的彙總印出 `f"外資 {...} 億股"`（`sum()/10000`），
+   代表原始（已死）openapi 欄位假設是**股數**；但 `run_screener()`
+   （daily_job.py ~Step 3）逐股顯示卻直接 `int(r["ForeignInvestmentNetBuySell"])`
+   標成「外資買賣超**(張)**」（張=1000股）未除以 1000。
+   因為 `t86_df` 從 2026-05-18 起就一直是空的（Step 0 大洞，本次已修好
+   pipeline 斷線），`run_screener()` 這段程式碼**從沒真的用真資料跑過**，
+   這個潛在的股/張標示錯誤一直是休眠狀態。若現在只接欄位對映不修這個，
+   彙總數字會對，但選股信件的逐股表格數字會差 1000 倍。
+
+3. **決策（已詢問使用者）**：兩個 bug 互相牽動，且無法在當下等到真實
+   交易日跑一次完整驗證數字，風險偏財務正確性，**暫緩不動**，
+   留待專門 session 處理，屆時：
+   - 用上面已查證的欄位對映改寫 `fetch_market()` 的 T86 段落
+   - 同時決定並修正股/張的單位標示（建議統一成「股」，`run_screener()`
+     的顯示欄位改標「外資買賣超(股)」，不要除以 1000，避免動到
+     `fetch_market()` 彙總那邊已經正確的「億股」語意）
+   - 改完找一個真實交易日跑 `python daily_job.py`，人工核對輸出的
+     外資/投信買賣超數字是否與 TWSE 官網當日 T86 頁面數字一致再上線
+   - `_TWSE_DAILY_ENDPOINTS`（Step 6）的重複端點定義可以之後一併消除，
+     改成呼叫同一個共用的 T86 fetch 函式
 
 ### 2.3 快取收斂【驗證】
 四種快取路徑並存：sqlite_cache 手寫呼叫、`@cached_query` 裝飾器、
