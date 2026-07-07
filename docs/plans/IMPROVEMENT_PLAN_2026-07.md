@@ -274,10 +274,15 @@ CSV 快取用）**已經修好**，用的是 rwd 版正確端點。
 - [ ] 在 daily_job 尾端或 app 啟動時呼叫 `sqlite_cache.clear_expired()`
       （函式存在但全案無人呼叫，cache.db 現 648KB 不急但會緩慢累積）
 
-### 2.4 ui_components.py 拆檔（機械搬移，低風險）【驗證】
+### 2.4 ui_components.py 拆檔（機械搬移，低風險）【已完成 2026-07-07】
 1,156 行三種職責：通用顯示 / 側邊欄設定 / 美股+Shioaji 專屬渲染。
-- [ ] 拆 `ui/display.py`、`ui/sidebar.py`、`ui/us.py`、`ui/shioaji.py`
-- [ ] ui_components.py 留 re-export 墊片維持相容
+- [x] 拆 `ui/display.py`(366行)、`ui/sidebar.py`(374行)、`ui/us.py`(176行)、
+      `ui/shioaji.py`(267行)
+- [x] `ui_components.py` 瘦身為 41 行 re-export 墊片，全部 13 個既有呼叫端
+      （app.py、dispatch.py、tabs/* 等）零改動維持相容
+- 驗證：全套 pytest（含 test_ui_components.py/test_ui_integration.py 61 項）
+  + ruff lint 通過；瀏覽器實測「台股市場→個股日K」勾選+查詢，結果面板正常
+  出現、server log 無 traceback（僅既有無關的 yfinance ^TPEX 錯誤）。
 
 ### 2.5 yfinance 統一封裝【驗證】
 15 個檔案各自 import yfinance，其中 5 個 tabs 直呼 = 繞過快取層重複請求。
