@@ -678,6 +678,13 @@ def main():
     # Step 6：TWSE 每日完整快取（供 Streamlit 直接讀取）
     fetch_twse_daily_cache()
 
+    # Step 7：清理 SQLite 過期快取（每日一次，避免 cache.db 無限緩慢增長）
+    try:
+        from sqlite_cache import clear_expired_cache
+        clear_expired_cache()
+    except Exception as e:
+        print(f"  ⚠️  清理過期快取失敗: {e}")
+
     print(f"\n✅ 完成  {TODAY}\n")
 
 
