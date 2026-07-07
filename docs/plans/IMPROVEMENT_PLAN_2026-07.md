@@ -266,13 +266,14 @@ CSV 快取用）**已經修好**，用的是 rwd 版正確端點。
    - `_TWSE_DAILY_ENDPOINTS`（Step 6）的重複端點定義可以之後一併消除，
      改成呼叫同一個共用的 T86 fetch 函式
 
-### 2.3 快取收斂【驗證】
+### 2.3 快取收斂【部分完成 2026-07-07】
 四種快取路徑並存：sqlite_cache 手寫呼叫、`@cached_query` 裝飾器、
 裸 `@st.cache_data`（query_wrapper.py:219）、`_read_twse_local()` CSV 讀取。
-- [ ] 全數收斂到 `@cached_query`
-- [ ] CSV fallback 移入 twse_client 作為 fetch 層邏輯
-- [ ] 在 daily_job 尾端或 app 啟動時呼叫 `sqlite_cache.clear_expired()`
-      （函式存在但全案無人呼叫，cache.db 現 648KB 不急但會緩慢累積）
+- [ ] 全數收斂到 `@cached_query`（暫緩，中工程，未做）
+- [ ] CSV fallback 移入 twse_client 作為 fetch 層邏輯（暫緩，未做）
+- [x] `daily_job.py` Step 7 加呼叫 `sqlite_cache.clear_expired_cache()`
+      （每日執行一次，避免 cache.db 無多人呼叫、無限緩慢增長；
+      驗證：獨立呼叫確認清理正常執行，全套 pytest + ruff 過）
 
 ### 2.4 ui_components.py 拆檔（機械搬移，低風險）【已完成 2026-07-07】
 1,156 行三種職責：通用顯示 / 側邊欄設定 / 美股+Shioaji 專屬渲染。
