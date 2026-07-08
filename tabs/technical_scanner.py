@@ -6,16 +6,7 @@ import pandas as pd
 import yfinance as yf
 from datetime import datetime, timedelta
 from logging_config import main_logger
-
-
-# 台股 50 權值股代號
-TW_BLUE_CHIPS = [
-    "2330", "2317", "2454", "2303", "2412", "2881", "2882", "2884", "2886", "2891",
-    "2892", "2880", "2888", "2889", "2890", "2893", "2894", "2895", "2896", "2897",
-    "1301", "1303", "1326", "1402", "2301", "2302", "2308", "2324", "2345", "2353",
-    "2354", "2356", "2357", "2379", "2395", "2409", "2498", "2534", "2542", "2723",
-    "2801", "2809", "2812", "2823", "2832", "2834", "2838", "2849", "2850", "2851"
-]
+from stock_pools import TW_TOP50 as TW_BLUE_CHIPS
 
 
 def render_technical_scanner():

@@ -12,15 +12,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Dict, Any, Optional
 from logging_config import main_logger
 from sqlite_cache import get_cache, set_cache
-
-# 50 檔最具代表性的台股權值股 (台灣 50 指數成分股及熱門藍籌)
-TW_SCREENER_POOL = [
-    "2330", "2317", "2454", "2308", "2881", "2882", "2382", "2301", "2357", "2891",
-    "2303", "3711", "2412", "2886", "2002", "1216", "2327", "2603", "2609", "2615",
-    "5880", "2892", "2885", "3008", "3045", "2395", "4938", "2884", "2880", "1301",
-    "1303", "1326", "1101", "2912", "6505", "2408", "2379", "3037", "3034", "2377",
-    "2353", "2324", "3231", "3481", "2409", "1605", "2618", "2610", "9904", "1402"
-]
+from stock_pools import TW_TOP50 as TW_SCREENER_POOL
 
 def _fetch_single_tw_calendar_consensus(code: str) -> Optional[dict]:
     """獲取單檔台股的財報/法說會日程與除息日資訊"""

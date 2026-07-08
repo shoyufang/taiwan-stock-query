@@ -11,24 +11,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Dict, Any, Optional
 from logging_config import main_logger
 from sqlite_cache import get_cache, set_cache
-
-# 50 檔最具代表性的美股權值股與藍籌巨頭
-US_SCREENER_POOL = [
-    # M7
-    "AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "TSLA",
-    # 半導體
-    "TSM", "AMD", "INTC", "ASML", "QCOM", "AVGO", "MU", "TXN",
-    # 科技/軟體
-    "NFLX", "CRM", "ADBE", "ORCL", "CSCO", "ACN",
-    # 消費/零售
-    "KO", "PEP", "WMT", "COST", "PG", "NKE", "MCD", "SBUX",
-    # 金融
-    "JPM", "BAC", "MS", "GS", "WFC", "V", "MA", "BRK-B",
-    # 生技/醫藥
-    "LLY", "JNJ", "PFE", "MRK", "UNH", "ABBV",
-    # 能源/工業/其他
-    "XOM", "CVX", "CAT", "GE", "HON", "BA", "DIS"
-]
+from stock_pools import US_TOP50 as US_SCREENER_POOL
 
 def _fetch_ticker_metrics(ticker: str) -> Optional[dict]:
     """獲取單檔美股的關鍵篩選指標"""
