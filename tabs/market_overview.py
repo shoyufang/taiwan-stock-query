@@ -12,7 +12,6 @@
 
 import streamlit as st
 import pandas as pd
-import yfinance as yf
 from datetime import datetime, timedelta, date
 
 import query_wrapper as qw
@@ -80,12 +79,10 @@ def render_index_strip():
     # ── 指數行情條 ──
     c1, c2, c3, c4, c5 = st.columns(5)
 
-    # 加權指數（即時 yfinance）
-    # Bug 1 修復: yf.T() → yf.Ticker()
+    # 加權指數（yfinance，5分鐘快取）
     with c1:
         try:
-            twii = yf.Ticker("^TWII")
-            data = twii.history(period="5d")
+            data = qw.query_yfinance_index("^TWII")
             if not data.empty:
                 price = data["Close"].iloc[-1]
                 prev = data["Close"].iloc[-2] if len(data) > 1 else price
@@ -102,11 +99,10 @@ def render_index_strip():
         except Exception:
             st.metric("📈 加權指數", "—", "資料暫不可用")
 
-    # 櫃買指數（Bug 1 修復）
+    # 櫃買指數
     with c2:
         try:
-            tpei = yf.Ticker("^TPEx")
-            data = tpei.history(period="5d")
+            data = qw.query_yfinance_index("^TPEx")
             if not data.empty:
                 price = data["Close"].iloc[-1]
                 prev = data["Close"].iloc[-2] if len(data) > 1 else price
@@ -123,7 +119,7 @@ def render_index_strip():
             tx_df = qw.query_futures_daily("TX", date.today() - timedelta(days=1), date.today())
             if not tx_df.empty:
                 tx_close = float(tx_df.iloc[-1]["收盤"])
-                twii_df = yf.Ticker("^TWII").history(period="2d")  # Bug 1 修復
+                twii_df = qw.query_yfinance_index("^TWII", period="2d")
                 if not twii_df.empty:
                     index_close = float(twii_df["Close"].iloc[-1])
                     diff = tx_close - index_close
@@ -142,11 +138,10 @@ def render_index_strip():
         except Exception:
             st.metric("💵 USD/TWD", "32.2000", "快取值")
 
-    # 費半 + 那指（Bug 1 修復）
+    # 費半 + 那指
     with c5:
         try:
-            sox = yf.Ticker("^SOX")
-            data = sox.history(period="5d")
+            data = qw.query_yfinance_index("^SOX")
             if not data.empty:
                 price = data["Close"].iloc[-1]
                 prev = data["Close"].iloc[-2] if len(data) > 1 else price
