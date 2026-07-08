@@ -14,13 +14,11 @@ from tabs._shared import _render_batch_results
 def _us_stock_dispatch(item: str, ticker: str, start_date, end_date):
     """分派美股市場查詢。"""
     if item == "大盤指數快照":
-        import yfinance as yf
         indices = {"S&P 500": "^GSPC", "那斯達克": "^IXIC", "道瓊工業": "^DJI"}
         res = []
         for name, symbol in indices.items():
             try:
-                tkr = yf.Ticker(symbol)
-                hist = tkr.history(period="2d")
+                hist = qw.query_yfinance_index(symbol, period="2d")
                 if len(hist) >= 2:
                     prev_c = hist['Close'].iloc[0]
                     curr_c = hist['Close'].iloc[1]

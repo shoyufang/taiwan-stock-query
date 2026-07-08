@@ -171,7 +171,7 @@ def display_table(df: pd.DataFrame):
                 pass
             return ''
 
-        styled = df.style.applymap(color_change, subset=change_cols)
+        styled = df.style.map(color_change, subset=change_cols)
         st.dataframe(styled, use_container_width=True, height=400)
     else:
         st.dataframe(df, use_container_width=True, height=400)
