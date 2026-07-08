@@ -520,5 +520,5 @@ def style_updown(df: pd.DataFrame, columns: list) -> "pd.io.formats.style.Styler
     styler = df.style
     for col in columns:
         if col in df.columns:
-            styler = styler.applymap(lambda v: _style(v, col), subset=[col])
+            styler = styler.map(lambda v: _style(v, col), subset=[col])
     return styler

@@ -13,7 +13,6 @@
 
 import streamlit as st
 import pandas as pd
-import yfinance as yf
 from datetime import datetime, timedelta, date
 
 from stock_lookup import resolve_code, get_name_hint
@@ -139,9 +138,7 @@ def render_stock_header():
                 </div>
                 """, unsafe_allow_html=True)
         else:
-            # Bug 4 修復: yf.T() → yf.Ticker(), NVDA 不要加 .US
-            ticker = yf.Ticker(code if "." in code else code)
-            data = ticker.history(period="5d")
+            data = qw.query_yfinance_index(code, period="5d")
             if not data.empty:
                 close = float(data["Close"].iloc[-1])
                 prev = float(data["Close"].iloc[-2]) if len(data) > 1 else close

@@ -312,11 +312,34 @@ CSV 快取用）**已經修好**，用的是 rwd 版正確端點。
   正確即時數字（加權指數 45,734、費城半導體 12,426.4）。
   （`^TPEx` 卡片空白是**既有行為**，`if not data.empty` 沒有 else
   fallback，跟這次加的快取包裝無關，不在本次範圍內修。）
-- **其餘檔案（us_stocks.py/stock_page.py/adr_query.py/us_screener.py 等
-  約 13 個）未評估**，留待後續 session 逐一判斷是否需要加快取或已有
-  合理 fallback 設計。不建議直接建 `datasources/yfinance_client.py`
-  統一封裝——各檔呼叫模式差異大，統一封裝的抽象成本可能高於效益，
-  下次先個別盤點再決定要不要抽公版。
+- [x] **第二批評估（2026-07-08）**：
+  - `tabs/us_stocks.py`「大盤指數快照」（S&P500/那斯達克/道瓊，無快取）
+    改用 `qw.query_yfinance_index()`；「個股歷史K線」已有「先試
+    query_wrapper 快取再 fallback」的合理設計，不動。
+  - `tabs/stock_page.py` 個股報價卡（單一股票 `.history(period="5d")`
+    無快取）同樣改用 `qw.query_yfinance_index()`，移除變成沒用到的
+    `import yfinance as yf`。
+  - `adr_query.py`：`get_adr_snapshots()`/`get_usd_twd_rate()` 本身已有
+    60秒/5分鐘 SQLite 快取包住整個函式，不是繞過問題，不用動。
+  - **意外抓到一個影響面很廣的真炸點**：瀏覽器實測「大盤指數快照」時
+    整頁崩潰——`AttributeError: 'Styler' object has no attribute
+    'applymap'`。根因是 pandas 3.0（`requirements.txt` 鎖定
+    `pandas>=3.0.2,<4`）**徹底移除**了 `Styler.applymap`（2.1版就已
+    deprecated，3.0正式砍掉），但 `ui/display.py`（R2.4 從
+    ui_components.py 原封不動搬過來的舊 code）與 `theme.py` 都還在用
+    `.applymap(...)`。**這代表任何頁面顯示含漲跌/change欄位的表格、
+    走 `display_table()` 或 `theme.py` 樣式函式，都會整頁崩潰**——
+    影響面遠比這次要測的美股快照大，是本輪目前為止波及最廣的一個
+    潛在炸點。已改 `.applymap(` → `.map(`（pandas 官方指定替代寫法，
+    行為完全一致）。`tabs/dashboard.py` 也有一處相同寫法，但該檔已在
+    R1 標記為孤兒待刪，未修（修了也是死碼）。
+    驗證：獨立腳本確認 `Styler.map()` 在 pandas 3.0.3 產生一致的
+    HTML 樣式輸出；全套 pytest + ruff lint 過；瀏覽器實測「大盤指數
+    快照」查詢從崩潰變成正確顯示「📊 查詢結果」表格。
+- **剩餘檔案（us_screener.py 等約 11 個）未評估**，留待後續 session
+  逐一判斷。不建議直接建 `datasources/yfinance_client.py` 統一封裝——
+  各檔呼叫模式差異大，統一封裝的抽象成本可能高於效益，下次先個別
+  盤點再決定要不要抽公版。
 
 ---
 
