@@ -168,7 +168,23 @@ US_TOP50: list[str]   # 現行 US_SCREENER_POOL 遷入
 
 ---
 
-## R4. 資料路由層：同主題多來源 → 單一入口自動選源
+## R4. 資料路由層：同主題多來源 → 單一入口自動選源【R4a 已完成 2026-07-09】
+
+### R4a：get_institutional() 完成【2026-07-09】
+`datasources/router.py` 新增 `get_institutional(code=None, start=None, end=None)`：
+- 未指定區間或區間=今日 → `_from_twse()`（複用 R4 institutional 修復的
+  `query_twse_institutional_numeric()`）。
+- 指定歷史區間 → `_from_finmind()`（FinMind `query_institutional()` 長格式
+  按「法人」欄位 pivot 成寬格式，對齊統一欄位）。
+- 統一欄位：`日期, 代號, 名稱, 外資買賣超, 投信買賣超, 自營商買賣超`（原始股數）。
+- **交叉驗證（比官網人工核對更強）**：2330 於 2026-07-08 用兩條獨立路徑
+  （TWSE rwd 直查 vs FinMind API）分別取值，三個數字（外資
+  -4,155,172、投信 729,872、自營 468,443）**完全一致**——兩個獨立資料源
+  互相印證，非同一份資料重複讀取。
+- `tests/test_router.py` 5 項守門測試（今日路由/歷史路由/無 code 報錯/
+  空結果仍保欄位契約），mock 不打真網路，CI 可跑。
+- K線/估值/融資融券路由（`get_kbar`/`get_valuation`/`get_margin`）**未做**，
+  留待後續 session；下方「現況證據」與「重設計」保留原規劃供之後參考。
 
 ### 現況證據【已驗證】
 | 資料主題 | 現有來源 | 呼叫端自己挑 |
