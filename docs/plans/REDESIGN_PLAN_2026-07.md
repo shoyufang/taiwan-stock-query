@@ -120,7 +120,7 @@ def get_calendar_consensus(market: str, force_refresh=False) -> pd.DataFrame:
 
 ---
 
-## R3. 股票池統一：三份硬編碼 → 單一來源
+## R3. 股票池統一：三份硬編碼 → 單一來源【已完成 2026-07-08】
 
 ### 現況證據【已驗證】
 - `tw_calendar.py:17` `TW_SCREENER_POOL`（50 檔）
@@ -142,13 +142,19 @@ US_TOP50: list[str]   # 現行 US_SCREENER_POOL 遷入
 **加一個守門測試**：`test_stock_pools.py` 斷言全案 grep 不到第二份
 50 檔硬編碼清單（防止未來 AI 接力時又複製一份）。
 
-### 驗算
-1. 遷移前先輸出兩份 TW 池的差集清單（記錄進 commit message），
-   由使用者確認新版名單（預設：以 TWSE 官方臺灣50成分股為準）。
-2. `pytest` 全綠；technical_scanner / tw_calendar / us_screener /
-   us_calendar 四個功能瀏覽器實測正常出結果。
-3. `grep -rn "TW_BLUE_CHIPS\|TW_SCREENER_POOL" --include="*.py" .`
-   只剩 stock_pools.py 一處定義。
+### 驗算（全數通過）
+1. ✅ 派 subagent 查證台灣50官方名單（MoneyDJ 0050 ETF 實際持股，
+   2026-07-08 查閱，權重加總≈99.3%），與兩份舊清單逐一核對：
+   `TW_SCREENER_POOL` 命中 30/50（60%），`TW_BLUE_CHIPS` 命中僅
+   19/50（38%，混入 2888-2897/2801-2851 區段已過時的金控代號）。
+   採用查證後的正確50檔名單建 `stock_pools.py`。
+2. ✅ `pytest tests/` 全綠（含新增 `test_stock_pools.py` 3 項守門測試）；
+   ruff lint 過。
+3. ✅ `grep -rn "TW_BLUE_CHIPS\|TW_SCREENER_POOL\|US_SCREENER_POOL"`
+   只剩 alias import（`from stock_pools import TW_TOP50 as
+   TW_SCREENER_POOL` 等），無第二份清單定義。
+4. ✅ 瀏覽器實測選股中心→技術掃描，log 確認掃描迭代新股票池代號
+   （3008/2880/3443/7769/3665 等新名單特有代號）並正常回傳 K 線資料。
 
 ---
 
