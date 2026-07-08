@@ -87,7 +87,7 @@
 
 ---
 
-## R2. 行事曆引擎合併：兩個近攣生模組 → 一個參數化引擎
+## R2. 行事曆引擎合併：兩個近攣生模組 → 一個參數化引擎【已完成 2026-07-08】
 
 ### 現況證據【已驗證】
 `us_calendar.py`（142 行）與 `tw_calendar.py`（137 行）結構完全同構：
@@ -95,28 +95,38 @@
 `.calendar`/`.info` → 24h SQLite 快取 → 回傳 DataFrame。差異只有：
 池內容、台股加 `.TW` 後綴與中文名對照、美股多分析師評等欄位。
 
-### 重設計
-建 `calendar_engine.py` 單一引擎：
+### 重設計（比原計畫更保守：只抽共用樣板，不硬統一 schema）
+原計畫想建一個 `get_calendar_consensus(market)` 把兩市場的抓取邏輯也
+合併，但深入看測試後發現 `@patch("tw_calendar.get_cache")` 這類測試
+直接 patch 模組內部的 `get_cache`/`set_cache`——若把抓取邏輯整個搬進
+新引擎，兩市場輸出欄位本來就不同（美股多分析師評等/目標價），沒有
+必要硬湊統一 schema，改用更保守的做法：
 
-```python
-def get_calendar_consensus(market: str, force_refresh=False) -> pd.DataFrame:
-    # market: "TW" | "US"
-    # 池來自 R3 的 stock_pools；抓取邏輯共用；
-    # 市場差異用小型 adapter dict（後綴規則、名稱解析器、額外欄位）
-```
+只抽出**共用的「平行抓取 + 24h SQLite 快取 + log」樣板**到
+`calendar_engine.py` 的 `fetch_consensus_pool()`；各市場專屬的
+`_fetch_single_*` 抓取函式與欄位定義**留在原檔不動**，
+`get_tw_calendar_consensus_data()`/`get_us_calendar_consensus_data()`
+改成呼叫共用函式的一行式包裝。
 
-`us_calendar.py`/`tw_calendar.py` 降為 3 行相容墊片（呼叫新引擎），
-一個版本週期後刪除。
+**要殺掉的東西**：兩份重複的 ThreadPoolExecutor/快取/log 樣板
+（淨刪約 75 行：兩檔各自的 ~35 行重複邏輯併成 1 份 ~50 行共用函式）。
 
-**要殺掉的東西**：兩份重複的 ThreadPoolExecutor/快取/錯誤處理樣板
-（約 200 行淨刪減）。
+**附帶修復**：`tabs/market_overview.py:391` 的
+`qw.tw_calendar.get_tw_calendar_consensus_data()` 恆定
+`AttributeError`（`query_wrapper` 模組沒有 `tw_calendar` 屬性，本輪
+瀏覽器測試時就抓到這個警告 log），導致「今日除息」區塊一直安靜地
+查詢失敗。已改為直接 `import tw_calendar`。
 
-### 驗算
-1. 改版前先跑一次兩個舊引擎，把輸出 DataFrame 的**欄位名清單與 dtypes**
-   存成 fixture；改版後新引擎輸出欄位名/dtypes 必須逐一相等（寫成
-   `test_calendar_engine.py` 的 schema 對照測試，不依賴網路值）。
-2. `test_us_calendar.py`/`test_tw_calendar.py` 既有測試改 mock 新引擎後全綠。
-3. 瀏覽器實測投資行事曆頁：台股 tab 與美股 tab 都正常出表。
+### 驗算（全數通過）
+1. ✅ `_fetch_single_tw_calendar_consensus`/`_fetch_single_calendar_consensus`
+   完全不動，schema 保證不變（沒有另建 fixture 測試的必要，因為抓欄位
+   的程式碼本身沒有被觸碰）。
+2. ✅ `test_us_calendar.py`/`test_tw_calendar.py` 既有測試的
+   `@patch("tw_calendar.get_cache")`/`@patch("us_calendar.get_cache")`
+   改指 `@patch("calendar_engine.get_cache")`（快取邏輯搬去哪裡就 patch
+   哪裡），6 項全綠；全套 pytest + ruff lint 過。
+3. ✅ 瀏覽器實測：市場總覽「今日除息」區塊改好後正確顯示「4 檔今日
+   除息」附代號與預估 EPS（先前恆定 AttributeError 靜默失敗）。
 
 ---
 

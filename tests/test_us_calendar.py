@@ -47,7 +47,7 @@ def test_fetch_single_calendar_consensus_success(mock_ticker_class):
     assert data["預估下季EPS"] == 1.95
     assert data["預估營收(B)"] == 110.0  # 110000000000 / 1e9
 
-@patch("us_calendar.get_cache")
+@patch("calendar_engine.get_cache")
 def test_get_us_calendar_consensus_data_from_cache(mock_get_cache):
     """測試當快取存在時，直接讀取快取"""
     mock_df = pd.DataFrame([{"代號": "AAPL", "最新價": 180.0}])
@@ -58,8 +58,8 @@ def test_get_us_calendar_consensus_data_from_cache(mock_get_cache):
     assert df.equals(mock_df)
     mock_get_cache.assert_called_once_with("us_calendar_consensus_dataset")
 
-@patch("us_calendar.get_cache")
-@patch("us_calendar.set_cache")
+@patch("calendar_engine.get_cache")
+@patch("calendar_engine.set_cache")
 @patch("us_calendar._fetch_single_calendar_consensus")
 def test_get_us_calendar_consensus_data_force_refresh(mock_fetch, mock_set_cache, mock_get_cache):
     """測試強刷或無快取時，執行並行下載並寫入快取"""
