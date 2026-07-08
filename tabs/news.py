@@ -6,7 +6,7 @@ import streamlit as st
 import pandas as pd
 from datetime import date
 from logging_config import main_logger
-from deepseek_engine import get_deepseek_engine
+from ai_engine import get_deepseek_engine
 import query_wrapper as qw
 from tabs._shared import _qbtn_grid
 

@@ -246,19 +246,41 @@ def get_margin(code=None, start=None, end=None) -> pd.DataFrame
 
 ---
 
-## R6. 掃尾（合併原 P4 + 新發現）
+## R6. 掃尾（合併原 P4 + 新發現）【本輪 2026-07-08 大部分完成】
 
-- [ ] 刪 `deepseek_engine.py` 墊片（先 `grep -rn "deepseek_engine"` 確認
-      只剩 stock_page.py:561 一處呼叫，改為 `from ai_engine import ...`）
-- [ ] 刪 `config.py` ConfigManager 相容類（先遷移依賴它的舊測試）
-- [ ] TAB_COMPAT_MAP 清恆等映射，新增 R1 的六個新映射
-- [ ] `^TPEx` 櫃買指數卡片：確認正確 Yahoo 代號（`^TWOII` 或改用 TWSE
-      OpenAPI 櫃買指數），修掉市場總覽永遠空白的第二張卡
-- [ ] `render_alerts` 的 `module 'query_wrapper' has no attribute
-      'tw_calendar'` 警告（本輪瀏覽器實測 log 抓到的既有錯誤）
+- [x] **刪 `deepseek_engine.py` 墊片**——原計畫假設「只剩 stock_page.py:561
+      一處呼叫」是錯的，實測有 **8 個檔案、9 處** import
+      （stock_lookup.py、tabs/news.py、tabs/ai_chat.py、tabs/us_stocks.py、
+      tabs/market_overview.py、tabs/stock_page.py×3、
+      scripts/verify_non_tw_features.py、tests/test_ai_report.py）。
+      全數改為 `from ai_engine import ...` 後刪除墊片檔案。
+    - **意外抓到一個真正的功能缺口**：`tabs/stock_page.py:536` 對台股
+      呼叫 `generate_tw_stock_report`，但這個函式**從沒被實作過**
+      （`ai_engine.py` 只有 `generate_us_stock_report`），代表**台股的
+      「AI 個股健檢」按鈕點下去必定顯示錯誤**，美股那顆是正常的。
+      這不是簡單改名可解，是要新寫一段 AI 報告邏輯，已用
+      `spawn_task` 分出去（task_225ba935）交給獨立 session 處理，
+      現場只加 TODO 註解標註已知缺口，不倉促用猜的補上去。
+- [ ] **`config.py` ConfigManager 相容類——暫緩，工程量遠超預期**：
+      grep 實測發現被 **5 個測試檔案、80+ 處**呼叫
+      （test_config.py/test_bookmark_flow.py/test_history_flow.py/
+      test_error_handling.py/conftest.py），要拔掉它等於要把這 80+ 處
+      測試改寫成 function-based API（`load_config()`/`save_config()`），
+      這已經是獨立量級的任務，不是掃尾範圍，留給專門 session。
+- [x] **TAB_COMPAT_MAP 清恆等映射**：刪除 6 組 key==value 的無效映射
+      （台股市場/技術分析/TWSE/FinMind/新聞/工具），`_resolve_tab()` 用
+      `.get(key, key)` 保底，行為不變。「新增 R1 的六個新映射」待 R1
+      實際執行時再做（現在做是無的放矢，R1 還沒發生）。
+- [x] **`^TPEx` 櫃買指數卡片修好**：正確 Yahoo 代號是 `^TWOII`（原代號
+      `^TPEx` 打錯字，yfinance 一律 404，市場總覽永遠空白的第二張卡）。
+      瀏覽器實測確認顯示「445.4 ▲5.9」等真實數字。
+- [x] **`render_alerts` 的 `module 'query_wrapper' has no attribute
+      'tw_calendar'` 警告**：已在 R2 commit 一併修掉
+      （`tabs/market_overview.py:391` 的 `qw.tw_calendar.xxx()` 恆定
+      AttributeError，改為直接 `import tw_calendar`）。
 
-### 驗算
-逐項：grep 證明引用歸零 → pytest 全綠 → 瀏覽器抽測受影響頁面。
+### 驗算（已完成項目）
+逐項：grep 證明引用歸零 → pytest 全綠 → 瀏覽器抽測受影響頁面。全數通過。
 
 ---
 

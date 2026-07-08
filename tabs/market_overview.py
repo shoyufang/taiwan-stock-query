@@ -102,7 +102,7 @@ def render_index_strip():
     # 櫃買指數
     with c2:
         try:
-            data = qw.query_yfinance_index("^TPEx")
+            data = qw.query_yfinance_index("^TWOII")
             if not data.empty:
                 price = data["Close"].iloc[-1]
                 prev = data["Close"].iloc[-2] if len(data) > 1 else price
@@ -546,7 +546,7 @@ def render_market_overview():
     with col_ai:
         if st.button("🤖 AI 盤勢解讀", key="mo_ai_brief", use_container_width=True, type="primary"):
             try:
-                from deepseek_engine import generate_market_briefing
+                from ai_engine import generate_market_briefing
 
                 # 組裝 context（複用已快取的資料，不重打 API）
                 all_df = qw.query_twse_daily_all()

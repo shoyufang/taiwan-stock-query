@@ -232,7 +232,7 @@ def render_us_stocks():
         
         if generate_btn:
             with st.spinner(f"正在為您抓取數據並由 AI 生成 {ticker} 深度投資研究報告..."):
-                from deepseek_engine import generate_us_stock_report
+                from ai_engine import generate_us_stock_report
                 report_content = generate_us_stock_report(ticker)
                 st.session_state[report_key] = report_content
                 
