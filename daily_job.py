@@ -32,6 +32,8 @@ from datetime import date
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
+from datasources.twse_client import query_twse_institutional_numeric
+
 # 解決 Windows 終端機 CP950 編碼不支援 Unicode Emojis 的問題
 if hasattr(sys.stdout, "reconfigure"):
     try:
@@ -142,15 +144,18 @@ def fetch_market() -> dict:
         print(f"  ⚠️  STOCK_DAY_ALL: {e}")
 
     # ── 三大法人 (T86) ─────────────────────────────────────
+    # 2026-07-09 修復：改用 rwd 版正確端點（舊版 openapi.twse.com.tw/v1/fund/T86
+    # 已廢棄恆定 404/空回應，t86_df 從 2026-05-18 起就是空的，run_screener()
+    # 從沒真的用真資料跑過）。見 docs/plans/IMPROVEMENT_PLAN_2026-07.md 2.2 節。
     try:
-        df = pd.DataFrame(
-            requests.get("https://openapi.twse.com.tw/v1/fund/T86", timeout=15).json()
-        )
-        for col in ["ForeignInvestmentNetBuySell", "InvestmentTrustNetBuySell", "DealerNetBuySell"]:
-            df[col] = pd.to_numeric(df[col].astype(str).str.replace(",", ""), errors="coerce")
-        data["foreign"] = round(df["ForeignInvestmentNetBuySell"].sum() / 10000, 2)
-        data["trust"]   = round(df["InvestmentTrustNetBuySell"].sum() / 10000, 2)
-        data["dealer"]  = round(df["DealerNetBuySell"].sum() / 10000, 2)
+        df = query_twse_institutional_numeric()
+        if df.empty:
+            raise RuntimeError("今日 T86 尚無資料（可能未收盤或非交易日）")
+        # 單位為原始股數；/1e8 才是「億股」，先前 /10000 換算出來的數字
+        # 遠超市場實際流通股數（已用 2026-07-08 真實資料驗算發現）。
+        data["foreign"] = round(df["ForeignInvestmentNetBuySell"].sum() / 1e8, 2)
+        data["trust"]   = round(df["InvestmentTrustNetBuySell"].sum() / 1e8, 2)
+        data["dealer"]  = round(df["DealerNetBuySell"].sum() / 1e8, 2)
         data["t86_df"]  = df
         print(f"  外資 {data['foreign']:+.2f} 投信 {data['trust']:+.2f} 自營 {data['dealer']:+.2f} 億股")
     except Exception as e:
@@ -259,8 +264,8 @@ def run_screener(data: dict) -> pd.DataFrame:
             "收盤價":        close,
             "漲跌幅%":       pct,
             "成交量(張)":    int(float(r.get("TradeVolume", 0) or 0) // 1000),
-            "外資買賣超(張)": int(r["ForeignInvestmentNetBuySell"]),
-            "投信買賣超(張)": int(r["InvestmentTrustNetBuySell"]),
+            "外資買賣超(股)": int(r["ForeignInvestmentNetBuySell"]),
+            "投信買賣超(股)": int(r["InvestmentTrustNetBuySell"]),
             "本益比":        r.get("PEratio"),
             "殖利率%":       r.get("DividendYield"),
             "股淨比":        r.get("PBratio"),
@@ -287,11 +292,18 @@ def write_screener(df: pd.DataFrame) -> int:
             "名稱":    _text(r["名稱"]),
             "符合條件": _text(r["符合條件"]),
         }
-        for field in ["收盤價", "漲跌幅%", "成交量(張)", "外資買賣超(張)",
-                      "投信買賣超(張)", "本益比", "殖利率%", "股淨比"]:
+        # df 欄位（新，原始股數）→ Notion 既有屬性（舊，張=1000股）：Notion 端
+        # schema 不隨程式碼改動，需要單位換算的欄位在這裡除 1000 後再寫入
+        simple_fields = ["收盤價", "漲跌幅%", "成交量(張)", "本益比", "殖利率%", "股淨比"]
+        for field in simple_fields:
             val = r.get(field)
             if val is not None and not (isinstance(val, float) and pd.isna(val)):
                 props[field] = _num(val)
+        for field, notion_prop in [("外資買賣超(股)", "外資買賣超(張)"),
+                                    ("投信買賣超(股)", "投信買賣超(張)")]:
+            val = r.get(field)
+            if val is not None and not (isinstance(val, float) and pd.isna(val)):
+                props[notion_prop] = _num(float(val) / 1000)
 
         if notion_insert(NOTION_SCREENER_DB_ID, props):
             count += 1
@@ -543,7 +555,7 @@ def main():
     screener_df = run_screener(data)
     print(f"  符合條件：{len(screener_df)} 檔")
     if not screener_df.empty:
-        print(screener_df[["代號", "名稱", "外資買賣超(張)", "投信買賣超(張)"]].to_string(index=False))
+        print(screener_df[["代號", "名稱", "外資買賣超(股)", "投信買賣超(股)"]].to_string(index=False))
 
     print(f"\n💾 Step 4/5  寫入選股紀錄...")
     if not screener_df.empty:

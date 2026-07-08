@@ -215,7 +215,7 @@ Actions 備援（20:05）同日都成功時，後者必因 non-fast-forward 紅�
 - [ ] 對齊全部 tabs/dispatch 的錯誤處理路徑（有 test_query_wrapper.py 保護）
 - [ ] 預期 1,424 → ~500-600 行；可再按資料源拆 `query_wrapper/` 套件與 datasources 鏡像
 
-### 2.2 daily_job 改用 datasources/twse_client【驗證】— 2026-07-07 深入調查，暫緩
+### 2.2 daily_job 改用 datasources/twse_client【已完成 2026-07-09】
 
 TWSE 端點表雙寫：twse_client.py 與 daily_job.py:404 各一份，
 `fetch_market()`（daily_job.py:147，Step 1 大盤快照用）還在呼叫**已知廢棄**
@@ -254,17 +254,35 @@ CSV 快取用）**已經修好**，用的是 rwd 版正確端點。
    這個潛在的股/張標示錯誤一直是休眠狀態。若現在只接欄位對映不修這個，
    彙總數字會對，但選股信件的逐股表格數字會差 1000 倍。
 
-3. **決策（已詢問使用者）**：兩個 bug 互相牽動，且無法在當下等到真實
-   交易日跑一次完整驗證數字，風險偏財務正確性，**暫緩不動**，
-   留待專門 session 處理，屆時：
-   - 用上面已查證的欄位對映改寫 `fetch_market()` 的 T86 段落
-   - 同時決定並修正股/張的單位標示（建議統一成「股」，`run_screener()`
-     的顯示欄位改標「外資買賣超(股)」，不要除以 1000，避免動到
-     `fetch_market()` 彙總那邊已經正確的「億股」語意）
-   - 改完找一個真實交易日跑 `python daily_job.py`，人工核對輸出的
-     外資/投信買賣超數字是否與 TWSE 官網當日 T86 頁面數字一致再上線
-   - `_TWSE_DAILY_ENDPOINTS`（Step 6）的重複端點定義可以之後一併消除，
-     改成呼叫同一個共用的 T86 fetch 函式
+3. **執行結果（2026-07-09，R4 第一刀）**：
+   - `datasources/twse_client.py` 新增 `query_twse_institutional_numeric()`：
+     用已驗證正確的 rwd T86 端點，依上表對映輸出英文欄位＋數值型別
+     （原始股數）。既有 `query_twse_institutional()`（中文欄位、給頁面
+     顯示用）完全不動，避免動到 5 個既有呼叫端。
+   - `daily_job.py` `fetch_market()` 改呼叫這個新函式，取代恆死的
+     `openapi.twse.com.tw/v1/fund/T86`。
+   - **意外發現第二個 bug（比 P2.2 原判斷更嚴重）**：`fetch_market()`
+     彙總原本 `sum()/10000` 標「億股」，先前判斷「已經正確」是錯的——
+     實測 2026-07-08 真實資料，外資買賣超合計 /10000 算出
+     `-29827.82 億股`（荒謬，超過全市場實際流通股數），改成 `/1e8`
+     才是合理量級（`-2.98 億股`）。**t86_df 從 2026-05-18 起就是空的，
+     這段彙總邏輯從沒被真資料跑過，之前的「正確」判斷只是沒機會被戳破。**
+   - `run_screener()` 個股顯示欄位改標「外資買賣超(股)」「投信買賣超(股)」，
+     不除 1000（原始股數，不是張）。
+   - **單位換算下沉到外部系統邊界，不動外部 schema**：Notion 資料庫既有
+     屬性名叫「外資買賣超(張)」、PostgreSQL `screener_daily` 表欄位叫
+     `foreign_net_k`/`trust_net_k`（`_k`＝張）——兩處都不改外部 schema，
+     改成在 `write_screener()`／`pg_db.upsert_screener()` 寫入前
+     `/1000` 換算回「張」，欄位語意與資料庫內既有假設一致。
+   - **驗算（真實資料）**：monkeypatch 抓 2026-07-08 T86，
+     `run_screener()` 篩出 63 檔外資+投信雙買超（如 2892第一金外資買超
+     2,128萬股、2303聯電2,308萬股），彙總「外資 -2.98 投信 +0.42
+     自營 -9.61 億股」與當日大盤跌 2.31% 方向一致，數字來源就是
+     TWSE 官方 rwd 端點本身（非第三方轉載，無需再找「官網」交叉比對）。
+   - pytest 全綠、ruff 全綠。
+   - `_TWSE_DAILY_ENDPOINTS`（Step 6 CSV 快取用）維持不變——那段本來就
+     用 rwd 正確端點，只是跟 Step 1 這段各自維護，之後有空再合併成
+     共用函式（非本次範圍，不影響正確性）。
 
 ### 2.3 快取收斂【部分完成 2026-07-07】
 四種快取路徑並存：sqlite_cache 手寫呼叫、`@cached_query` 裝飾器、
