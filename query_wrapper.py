@@ -1191,7 +1191,7 @@ def query_market_news(limit: int = 10) -> pd.DataFrame:
 
 @cached_query(ttl=300, sqlite_ttl=None, name="yfinance_index")
 def query_yfinance_index(symbol: str, period: str = "5d") -> pd.DataFrame:
-    """查詢指數/ETF 歷史行情（例：^TWII/^TPEx/^SOX），供市場總覽指數卡片使用"""
+    """查詢指數/ETF 歷史行情（例：^TWII/^TWOII/^SOX），供市場總覽指數卡片使用"""
     import yfinance as yf
     return yf.Ticker(symbol).history(period=period)
 

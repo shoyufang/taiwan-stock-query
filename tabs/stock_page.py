@@ -532,12 +532,15 @@ def render_news_ai_tab(code: str, is_tw: bool):
             with st.spinner("AI 正在分析中..."):
                 try:
                     if is_tw:
-                        # 台股走 deepseek_engine chat
-                        from deepseek_engine import generate_tw_stock_report
+                        # 台股走 generate_tw_stock_report
+                        # TODO: ai_engine.py 尚未實作 generate_tw_stock_report，
+                        # 目前一定 ImportError（已知缺口，另立任務處理，見
+                        # docs/plans/REDESIGN_PLAN_2026-07.md R6）
+                        from ai_engine import generate_tw_stock_report
                         report = generate_tw_stock_report(code_input or code)
                     else:
                         # 美股走 generate_us_stock_report
-                        from deepseek_engine import generate_us_stock_report
+                        from ai_engine import generate_us_stock_report
                         report = generate_us_stock_report(code_input or code)
                     st.session_state[ai_key] = report
                 except Exception as e:
@@ -558,7 +561,7 @@ def render_news_ai_tab(code: str, is_tw: bool):
             # Phase L.1: 加上當日盤勢對照（個股 vs 大盤相對強弱）
             st.markdown("---")
             try:
-                from deepseek_engine import generate_market_briefing
+                from ai_engine import generate_market_briefing
                 brief_key = f"ai_brief_{date.today().isoformat()}"
                 if brief_key not in st.session_state:
                     # 快速組裝 context

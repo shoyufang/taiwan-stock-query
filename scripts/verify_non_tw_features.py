@@ -39,7 +39,7 @@ import query_wrapper as qw
 import sinopac_query as sq
 import technical_analysis as ta
 import screener
-from deepseek_engine import DeepSeekEngine, get_deepseek_engine
+from ai_engine import DeepSeekEngine, get_deepseek_engine
 
 # 美化終端機輸出
 class Colors:

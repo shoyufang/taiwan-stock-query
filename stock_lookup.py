@@ -264,7 +264,7 @@ def resolve_us_stock(raw: str) -> str:
             
     # AI Fallback: 呼叫 Agnes AI
     try:
-        from deepseek_engine import get_deepseek_engine
+        from ai_engine import get_deepseek_engine
         engine = get_deepseek_engine()
         if engine and engine.client:
             prompt = f"使用者想查詢美股「{s}」，請你判斷它對應的美股股票代號 (Ticker) 是什麼？請只回答純大寫英文代號字串，不要加任何其他廢話或解釋。如果找不到或不確定，請回答 UNKNOWN。"

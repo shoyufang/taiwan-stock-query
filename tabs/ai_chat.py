@@ -4,7 +4,7 @@ Agnes AI 投資助理 Chat UI 模組
 
 import streamlit as st
 from logging_config import main_logger
-from deepseek_engine import get_deepseek_engine
+from ai_engine import get_deepseek_engine
 from config import add_history
 
 
