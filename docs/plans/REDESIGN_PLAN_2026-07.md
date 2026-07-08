@@ -183,8 +183,17 @@ US_TOP50: list[str]   # 現行 US_SCREENER_POOL 遷入
   互相印證，非同一份資料重複讀取。
 - `tests/test_router.py` 5 項守門測試（今日路由/歷史路由/無 code 報錯/
   空結果仍保欄位契約），mock 不打真網路，CI 可跑。
-- K線/估值/融資融券路由（`get_kbar`/`get_valuation`/`get_margin`）**未做**，
-  留待後續 session；下方「現況證據」與「重設計」保留原規劃供之後參考。
+- K線/融資融券路由（`get_kbar`/`get_margin`）**未做**，留待後續 session；
+  下方「現況證據」與「重設計」保留原規劃供之後參考。
+
+### R4b：get_valuation() 完成【2026-07-09】
+同一 router 加 `get_valuation(code=None, start=None, end=None)`：
+今日/未指定區間 → TWSE BWIBBU_ALL；歷史區間 → FinMind `taiwan_stock_per_pbr`。
+統一欄位：`日期, 代號, 名稱, 本益比, 股淨比, 殖利率%`。
+**交叉驗證**：2330 於 2026-07-07，TWSE BWIBBU 與 FinMind per_pbr 兩條獨立
+路徑分別取值——本益比 32.80、股淨比 10.74、殖利率 0.90%，**完全一致**。
+`tests/test_router.py` 追加 4 項守門測試（今日路由/歷史路由/無 code
+報錯/空結果保留欄位契約），全套 9 項通過。
 
 ### 現況證據【已驗證】
 | 資料主題 | 現有來源 | 呼叫端自己挑 |

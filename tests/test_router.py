@@ -35,6 +35,25 @@ def _fake_finmind_institutional():
     return pd.DataFrame(rows)
 
 
+def _fake_twse_bwibbu():
+    return pd.DataFrame({
+        "代號": ["2330"],
+        "名稱": ["台積電"],
+        "本益比": [32.80],
+        "殖利率%": [0.90],
+        "股淨比": [10.74],
+    })
+
+
+def _fake_finmind_per_pbr():
+    return pd.DataFrame({
+        "日期": ["2026-07-07", "2026-07-08"],
+        "本益比(PER)": [32.80, 33.14],
+        "股淨比(PBR)": [10.74, 10.85],
+        "殖利率%": [0.90, 0.89],
+    })
+
+
 class TestGetInstitutionalRouting:
     def test_no_dates_routes_to_twse(self):
         with patch("datasources.router.query_twse_institutional_numeric", return_value=_fake_twse_numeric()) as m:
@@ -69,3 +88,30 @@ class TestGetInstitutionalRouting:
             df = router.get_institutional(code="2330")
         assert df.empty
         assert list(df.columns) == ["日期", "代號", "名稱", "外資買賣超", "投信買賣超", "自營商買賣超"]
+
+
+class TestGetValuationRouting:
+    def test_no_dates_routes_to_twse(self):
+        with patch("datasources.router.query_twse_bwibbu", return_value=_fake_twse_bwibbu()) as m:
+            df = router.get_valuation(code="2330")
+            m.assert_called_once_with("2330")
+        assert list(df.columns) == ["日期", "代號", "名稱", "本益比", "股淨比", "殖利率%"]
+        assert df.iloc[0]["本益比"] == 32.80
+
+    def test_historical_range_routes_to_finmind(self):
+        with patch("datasources.router.query_per_pbr", return_value=_fake_finmind_per_pbr()) as m:
+            df = router.get_valuation(code="2330", start="2026-07-07", end="2026-07-08")
+            m.assert_called_once()
+        assert list(df.columns) == ["日期", "代號", "名稱", "本益比", "股淨比", "殖利率%"]
+        assert df.iloc[0]["代號"] == "2330"
+        assert df.iloc[1]["本益比"] == 33.14
+
+    def test_historical_range_without_code_raises(self):
+        with pytest.raises(ValueError):
+            router.get_valuation(start="2026-07-01", end="2026-07-08")
+
+    def test_empty_twse_response_returns_empty_with_contract_columns(self):
+        with patch("datasources.router.query_twse_bwibbu", return_value=pd.DataFrame()):
+            df = router.get_valuation(code="2330")
+        assert df.empty
+        assert list(df.columns) == ["日期", "代號", "名稱", "本益比", "股淨比", "殖利率%"]
