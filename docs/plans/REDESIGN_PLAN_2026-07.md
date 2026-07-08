@@ -195,6 +195,21 @@ US_TOP50: list[str]   # 現行 US_SCREENER_POOL 遷入
 `tests/test_router.py` 追加 4 項守門測試（今日路由/歷史路由/無 code
 報錯/空結果保留欄位契約），全套 9 項通過。
 
+### R4c：get_margin() 完成【2026-07-09】
+同一 router 加 `get_margin(code=None, start=None, end=None)`：
+今日/未指定區間 → TWSE MI_MARGN；歷史區間 → FinMind
+`taiwan_stock_margin_purchase_short_sale`。統一欄位：
+`日期, 代號, 名稱, 融資今餘, 融資買進, 融資賣出, 融券今餘, 融券買進, 融券賣出, 資券互抵`
+（TWSE 原始回應是空字串代表 0，轉數值後 `fillna(0)` 對齊 FinMind 語意）。
+**交叉驗證**：2330 於 2026-07-07，TWSE MI_MARGN 即時查詢與 FinMind
+同日資料兩條獨立路徑取值**完全一致**（融資買進679/賣出2231/今餘32542、
+融券買進0/賣出28/今餘89）。
+`tests/test_router.py` 再追加 4 項守門測試，全套 13 項通過。
+
+至此 router.py 完成三個主題函式（法人/估值/融資融券），三組獨立交叉驗證
+全數吻合，是本次 R4 最有信心的部分。`get_kbar()`（K線，涉 4 個來源，
+台股/美股/港股分流邏輯較複雜）留待後續 session。
+
 ### 現況證據【已驗證】
 | 資料主題 | 現有來源 | 呼叫端自己挑 |
 |---|---|---|
