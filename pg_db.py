@@ -178,8 +178,10 @@ def upsert_screener(df: pd.DataFrame, today: str) -> int:
                     _safe(r.get("收盤價")),
                     _safe(r.get("漲跌幅%")),
                     _safe(r.get("成交量(張)")),
-                    _safe(r.get("外資買賣超(張)")),
-                    _safe(r.get("投信買賣超(張)")),
+                    # 欄位 (股) 是原始股數（2026-07-09 起），DB 欄位 _net_k 語意是「張」
+                    # (1000股)，寫入前除 1000，schema 本身不動
+                    _safe((lambda v: v / 1000 if v is not None else None)(r.get("外資買賣超(股)"))),
+                    _safe((lambda v: v / 1000 if v is not None else None)(r.get("投信買賣超(股)"))),
                     _safe(r.get("本益比")),
                     _safe(r.get("殖利率%")),
                     _safe(r.get("股淨比")),

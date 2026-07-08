@@ -103,6 +103,36 @@ def query_twse_institutional(code: str = None) -> pd.DataFrame:
     return df
 
 
+# rwd T86 官方欄位 → 英文代碼對照（2026-07 查證，見 docs/plans/IMPROVEMENT_PLAN_2026-07.md 2.2 節）
+_T86_FIELD_MAP = {
+    "證券代號": "Code",
+    "證券名稱": "Name",
+    "外陸資買賣超股數(不含外資自營商)": "ForeignInvestmentNetBuySell",
+    "投信買賣超股數": "InvestmentTrustNetBuySell",
+    "自營商買賣超股數": "DealerNetBuySell",
+    "三大法人買賣超股數": "TotalInstitutionalNetBuySell",
+}
+_T86_NUMERIC_COLS = list(_T86_FIELD_MAP.values())[2:]  # 排除 Code/Name
+
+
+def query_twse_institutional_numeric(date_str: str = None) -> pd.DataFrame:
+    """三大法人買賣超（全市場，當日或指定日期），回傳英文欄位＋數值型別（原始股數）。
+
+    供 daily_job.py 等需要程式化運算（加總、篩選）的呼叫端使用；
+    顯示用途請用 query_twse_institutional()（保留中文欄位相容既有頁面）。
+    """
+    d = date_str or date.today().strftime("%Y%m%d")
+    df = _twse_old("fund/T86", {"date": d, "selectType": "ALL"})
+    if df.empty:
+        return df
+    keep = [c for c in _T86_FIELD_MAP if c in df.columns]
+    df = df[keep].rename(columns=_T86_FIELD_MAP)
+    for col in _T86_NUMERIC_COLS:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col].astype(str).str.replace(",", ""), errors="coerce")
+    return df
+
+
 def query_twse_margin() -> pd.DataFrame:
     """融資融券彙總（當日）"""
     return _twse_get("/exchangeReport/MI_MARGN")
