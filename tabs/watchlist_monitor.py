@@ -231,9 +231,9 @@ def _fetch_yfinance_watchlist(codes: list) -> pd.DataFrame:
     for code in codes:
         if code.isdigit() and len(code) <= 4:
             # 台股用 TW 後綴
-            ticker = yf.T(f"{code}.TW")
+            ticker = yf.Ticker(f"{code}.TW")
         else:
-            ticker = yf.T(code)
+            ticker = yf.Ticker(code)
         data = ticker.history(period="5d")
         if not data.empty:
             price = data["Close"].iloc[-1]
@@ -262,7 +262,7 @@ def _compute_extra_metrics(df: pd.DataFrame, codes: list) -> pd.DataFrame:
     for idx, code in enumerate(codes):
         if code.isdigit() and len(code) <= 4:
             try:
-                ticker = yf.T(f"{code}.TW")
+                ticker = yf.Ticker(f"{code}.TW")
                 data = ticker.history(period="52wk")
                 if not data.empty:
                     high_52w = data["High"].max()
