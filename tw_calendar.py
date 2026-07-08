@@ -3,16 +3,14 @@
 提供 50 檔台股權值股 (台灣 50 成份股) 的法說會/財報申報日、預估 EPS、除息日與預估營收
 """
 
-import time
 import pandas as pd
 import numpy as np
 import yfinance as yf
 from datetime import date
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Dict, Any, Optional
 from logging_config import main_logger
-from sqlite_cache import get_cache, set_cache
 from stock_pools import TW_TOP50 as TW_SCREENER_POOL
+from calendar_engine import fetch_consensus_pool
 
 def _fetch_single_tw_calendar_consensus(code: str) -> Optional[dict]:
     """獲取單檔台股的財報/法說會日程與除息日資訊"""
@@ -93,37 +91,8 @@ def get_tw_calendar_consensus_data(force_refresh: bool = False, max_workers: int
     獲取台股 50 檔權值股的財報日曆與除息日程。
     支援 24 小時 SQLite 永久快取 (TTL: 86400 秒)。
     """
-    cache_key = "tw_calendar_consensus_dataset"
-    ttl_seconds = 86400  # 24 小時
-    
-    if not force_refresh:
-        cached_df = get_cache(cache_key)
-        if isinstance(cached_df, pd.DataFrame) and not cached_df.empty:
-            main_logger.info("成功從 SQLite 快取讀取台股日曆數據")
-            return cached_df
-            
-    main_logger.info("台股日曆快取失效，啟動並行抓取台股數據...")
-    results = []
-    
-    start_time = time.time()
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = {executor.submit(_fetch_single_tw_calendar_consensus, code): code for code in TW_SCREENER_POOL}
-        for future in as_completed(futures):
-            code = futures[future]
-            try:
-                data = future.result()
-                if data:
-                    results.append(data)
-            except Exception as exc:
-                main_logger.error(f"台股日曆線程 {code} 產生異常: {exc}")
-                
-    main_logger.info(f"台股日曆並行下載完成，費時: {time.time() - start_time:.2f} 秒，共取得 {len(results)} 檔數據")
-    
-    if not results:
-        main_logger.warning("所有台股日曆下載均失敗，回傳空 DataFrame")
-        return pd.DataFrame()
-        
-    df = pd.DataFrame(results)
-    # 儲存到快取
-    set_cache(cache_key, df, ttl=ttl_seconds)
-    return df
+    return fetch_consensus_pool(
+        TW_SCREENER_POOL, _fetch_single_tw_calendar_consensus,
+        "tw_calendar_consensus_dataset", "台股日曆",
+        force_refresh=force_refresh, max_workers=max_workers,
+    )

@@ -388,10 +388,8 @@ def render_alerts():
         # 今日除息
         with st.expander("💰 今日除息", expanded=False):
             try:
-                cal_df = qw.tw_calendar.get_tw_calendar_consensus_data() if hasattr(qw.tw_calendar, "get_tw_calendar_consensus_data") else pd.DataFrame()
-                if cal_df.empty:
-                    import tw_calendar
-                    cal_df = tw_calendar.get_tw_calendar_consensus_data()
+                import tw_calendar
+                cal_df = tw_calendar.get_tw_calendar_consensus_data()
                 if not cal_df.empty and "除息日" in cal_df.columns:
                     today_str = date.today().strftime("%Y-%m-%d")
                     today_div = cal_df[cal_df["除息日"].astype(str).str.startswith(today_str[:10])]

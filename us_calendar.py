@@ -3,16 +3,14 @@
 提供 50 檔美股權值股的財報公佈日、預估財務數據、分析師目標價潛在漲幅與評等共識
 """
 
-import time
 import pandas as pd
 import numpy as np
 import yfinance as yf
 from datetime import date
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Dict, Any, Optional
 from logging_config import main_logger
-from sqlite_cache import get_cache, set_cache
 from us_screener import US_SCREENER_POOL
+from calendar_engine import fetch_consensus_pool
 
 # 分析師評等中文化對照
 RATING_MAP = {
@@ -106,37 +104,8 @@ def get_us_calendar_consensus_data(force_refresh: bool = False, max_workers: int
     獲取美股 50 檔股票的財報行事曆與華爾街共識數據。
     支援 24 小時 SQLite 永久快取 (TTL: 86400 秒)。
     """
-    cache_key = "us_calendar_consensus_dataset"
-    ttl_seconds = 86400  # 24 小時
-    
-    if not force_refresh:
-        cached_df = get_cache(cache_key)
-        if isinstance(cached_df, pd.DataFrame) and not cached_df.empty:
-            main_logger.info("成功從 SQLite 快取讀取美股日曆與共識數據")
-            return cached_df
-            
-    main_logger.info("美股日曆與共識快取失效，啟動並行抓取最新數據...")
-    results = []
-    
-    start_time = time.time()
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = {executor.submit(_fetch_single_calendar_consensus, ticker): ticker for ticker in US_SCREENER_POOL}
-        for future in as_completed(futures):
-            ticker = futures[future]
-            try:
-                data = future.result()
-                if data:
-                    results.append(data)
-            except Exception as exc:
-                main_logger.error(f"美股日曆線程 {ticker} 產生異常: {exc}")
-                
-    main_logger.info(f"美股日曆並行下載完成，費時: {time.time() - start_time:.2f} 秒，共取得 {len(results)} 檔數據")
-    
-    if not results:
-        main_logger.warning("所有美股日曆指標下載均失敗，回傳空 DataFrame")
-        return pd.DataFrame()
-        
-    df = pd.DataFrame(results)
-    # 儲存到快取
-    set_cache(cache_key, df, ttl=ttl_seconds)
-    return df
+    return fetch_consensus_pool(
+        US_SCREENER_POOL, _fetch_single_calendar_consensus,
+        "us_calendar_consensus_dataset", "美股日曆與共識",
+        force_refresh=force_refresh, max_workers=max_workers,
+    )
