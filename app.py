@@ -26,7 +26,6 @@ from theme import THEMES, inject_theme_css
 from dispatch import execute_from_history, execute_query_by_params, QUERY_DISPATCH
 
 # 導入各 Tab 渲染器
-from tabs.dashboard import render_dashboard
 from tabs.taistock import render_taistock_market
 from tabs.twse import render_twse_section
 from tabs.finmind import render_finmind
@@ -36,8 +35,6 @@ from tabs.us_stocks import render_us_stocks
 from tabs.news import render_news
 from tabs.tools import render_tools
 from tabs.ai_chat import render_deepseek_chat
-from tabs.us_calendar_tab import render_us_calendar_consensus
-from tabs.screener_tab import render_screener
 from tabs.technical import render_technical_analysis
 
 # 新分頁渲染器
