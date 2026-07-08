@@ -1185,6 +1185,17 @@ def query_market_news(limit: int = 10) -> pd.DataFrame:
         return pd.DataFrame({"錯誤": [str(e)]})
 
 # ══════════════════════════════════════════════════════════
+# yfinance 指數/ETF 輕量快取（5 分鐘記憶體快取，避免每次頁面
+# rerun 都重打 Yahoo Finance API，見 P2.5 審查發現）
+# ══════════════════════════════════════════════════════════
+
+@cached_query(ttl=300, sqlite_ttl=None, name="yfinance_index")
+def query_yfinance_index(symbol: str, period: str = "5d") -> pd.DataFrame:
+    """查詢指數/ETF 歷史行情（例：^TWII/^TPEx/^SOX），供市場總覽指數卡片使用"""
+    import yfinance as yf
+    return yf.Ticker(symbol).history(period=period)
+
+# ══════════════════════════════════════════════════════════
 # 帳務相關查詢（需 CA 憑證）
 # ══════════════════════════════════════════════════════════
 

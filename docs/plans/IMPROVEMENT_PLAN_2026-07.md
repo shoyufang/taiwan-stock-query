@@ -285,9 +285,38 @@ CSV 快取用）**已經修好**，用的是 rwd 版正確端點。
   + ruff lint 通過；瀏覽器實測「台股市場→個股日K」勾選+查詢，結果面板正常
   出現、server log 無 traceback（僅既有無關的 yfinance ^TPEX 錯誤）。
 
-### 2.5 yfinance 統一封裝【驗證】
-15 個檔案各自 import yfinance，其中 5 個 tabs 直呼 = 繞過快取層重複請求。
-- [ ] 建 `datasources/yfinance_client.py`（含快取），tabs 一律走 query_wrapper
+### 2.5 yfinance 統一封裝【部分完成 2026-07-08，重新盤點】
+重新盤點實測為 **18 個檔案**（原估 15 個），且各檔呼叫模式差異大
+（`.info`/`.history()`/`.calendar`/`download()`），沒有像 P2.1 那樣能一次
+套用的公版，每檔需個別判斷，跟原計畫「建 yfinance_client.py 統一封裝」
+的單次工程假設不同，已詢問使用者改成小批次逐一評估：
+
+- [x] `tabs/technical_scanner.py`：檢查後發現**已有合理設計**——
+  `_fetch_kbar()` 先試 `query_wrapper.query_daily_kbar()`（有快取），
+  失敗才 fallback 到直呼 yfinance，不是真正「繞過快取」，不需要修。
+- ✅ **附帶抓到並修復一個真炸點**：`tabs/watchlist_monitor.py` 三處
+  `yf.T(...)` 打錯字（yfinance 沒有 `T` 屬性，跟 `market_overview.py`/
+  `stock_page.py` 已修過的同一個字打錯，這檔案漏改）。影響：
+  `_compute_extra_metrics()` 的 AttributeError 被外層 try/except 靜默吞掉，
+  「距52週高%」「量比」兩欄一直是空的；`_fetch_yfinance_watchlist()`
+  （Shioaji 快照為空時的 fallback）完全沒有防護，觸發就會讓整個自選股
+  監控分頁崩潰。已修正並用獨立腳本驗證兩個函式都能正確算出數字。
+- [x] `tabs/market_overview.py` 指數卡片加快取（大盤指數/櫃買指數/
+  台指期基差/費半，共 5 處呼叫）：在 `query_wrapper.py` 新增
+  `query_yfinance_index(symbol, period="5d")`，套用既有 `@cached_query`
+  （ttl=300 記憶體快取，5分鐘），取代原本每次頁面 rerun 都直接
+  `yf.Ticker(...).history()` 無快取重打 API 的作法。這是首頁常駐頁面，
+  效益最明顯。順手移除變成沒用到的 `import yfinance as yf` 與過時的
+  「Bug 1 修復」註解。
+  驗證：全套 pytest + ruff lint 過；瀏覽器實測市場總覽指數卡片顯示
+  正確即時數字（加權指數 45,734、費城半導體 12,426.4）。
+  （`^TPEx` 卡片空白是**既有行為**，`if not data.empty` 沒有 else
+  fallback，跟這次加的快取包裝無關，不在本次範圍內修。）
+- **其餘檔案（us_stocks.py/stock_page.py/adr_query.py/us_screener.py 等
+  約 13 個）未評估**，留待後續 session 逐一判斷是否需要加快取或已有
+  合理 fallback 設計。不建議直接建 `datasources/yfinance_client.py`
+  統一封裝——各檔呼叫模式差異大，統一封裝的抽象成本可能高於效益，
+  下次先個別盤點再決定要不要抽公版。
 
 ---
 
