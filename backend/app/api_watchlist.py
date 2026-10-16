@@ -60,7 +60,7 @@ async def _row(request: Request, code: str, profiles: list[dict], today) -> dict
         bars = []
     if len(bars) < 2:
         return {"code": code, "name": p["name"], "date": None}
-    last, prev = bars
+    prev, last = bars  # get_bars 由舊到新
     change = round(last["close"] - prev["close"], 2)
     return {"code": code, "name": p["name"], "date": last["date"], "close": last["close"], "change": change,
             "change_pct": round(change / prev["close"] * 100, 2), "volume": last["volume"],

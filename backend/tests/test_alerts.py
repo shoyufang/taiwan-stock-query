@@ -112,6 +112,24 @@ class TestRunner:
         assert s.list_events()[0]["message"] == "台積電 2330：價格突破" and rid == rule["id"]
 
 
+class TestWatchlistRow:
+    @pytest.mark.asyncio
+    async def test_row_uses_latest_bar(self, tmp_path):
+        from types import SimpleNamespace
+
+        from app import api_watchlist
+        s = Store(str(tmp_path / "w.db"))
+        s.upsert_bars("2330", [
+            {"date": "2026-10-15", "open": 2420, "high": 2450, "low": 2420, "close": 2440, "volume": 58487, "value": 1},
+            {"date": "2026-10-16", "open": 2430, "high": 2445, "low": 2420, "close": 2420, "volume": 43047, "value": 1},
+        ])
+        req = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(store=s, finmind=None)))
+        info = [{"stock_id": "2330", "stock_name": "台積電", "industry_category": "半導體業", "type": "twse"}]
+        with patch.object(api_watchlist.loader, "ensure_bars", AsyncMock()):
+            row = await api_watchlist._row(req, "2330", info, None)
+        assert (row["date"], row["close"], row["change"], row["change_pct"]) == ("2026-10-16", 2420, -20, round(-20 / 2440 * 100, 2))
+
+
 class TestApi:
     def test_rules_crud_and_validation(self):
         server = fakeredis.FakeServer()
