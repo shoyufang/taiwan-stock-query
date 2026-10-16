@@ -15,5 +15,10 @@ RUN pip install --no-cache-dir -r requirements-quote.txt
 
 COPY backend/app ./app
 
+# Shioaji 會在工作目錄寫 shioaji.log，給 app 使用者一個可寫的工作目錄
+RUN mkdir -p /srv/run && chown app:app /srv/run
+WORKDIR /srv/run
+ENV PYTHONPATH=/srv/backend
+
 USER app
 CMD ["python", "-m", "app.quote.service"]

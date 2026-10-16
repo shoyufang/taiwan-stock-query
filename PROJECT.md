@@ -72,7 +72,8 @@
 1. ~~使用者確認雙模式方向 → 用同樣風格畫「個股」頁~~（2026-10-16 完成，待使用者回饋）
 2. ~~定技術架構，寫成 `docs/plans/` 規格~~（2026-10-16 草案完成，待使用者確認）
 3. ~~依架構文件 P0（地基）開工~~（2026-10-16 完成）
-4. ~~P1 市場總覽（盤後）~~（2026-10-17 完成）→ 下一步 P2 即時行情（第一件事：查證永豐金模擬環境能否訂閱逐筆、多處登入是否互踢）
+4. ~~P1 市場總覽（盤後）~~（2026-10-17 完成）
+5. **P2 即時行情：程式已部署，等兩件事才能驗收**——(a) 使用者把永豐金金鑰寫進 home server `~/apps/twstock/deploy/.env`（`SHIOAJI_API_KEY`、`SHIOAJI_SECRET_KEY`、`SHIOAJI_SIMULATION=true`），寫完執行 `cd ~/apps/twstock && docker compose -f deploy/compose.yml up -d quote` 讓服務讀到；(b) 2026-10-19（一）開盤實測模擬環境推送的是否為真實行情、延遲、指數漲跌家數是否含漲跌停（與證交所收盤統計比對）
 
 **新網站開發須知**（P0 起適用）
 - 程式碼：`backend/`（FastAPI）、`frontend/`（React）、`deploy/`（compose、hook）
@@ -121,6 +122,20 @@
 ---
 
 ## 7. 工作日誌（新的寫在最上面）
+
+### 2026-10-17｜Claude Opus 5.5
+- 做了什麼：**P2 即時行情：程式完成並部署，待金鑰與開盤實測**。
+  1. 查證（永豐金官方文件）：模擬環境支援 `quote.subscribe`；同一身分證最多 5 條連線（不會互踢）；訂閱推播不計流量；**盤中禁止輪詢 snapshots／ticks／kbars，違規會暫停 IP 與帳號**——因此刪除架構中兩處快照輪詢設計
+  2. 確認本機 `~/.app_config/config.json` 沒有永豐金金鑰（舊站的永豐金功能在本機其實不能用）；NAS 休眠未查
+  3. 行情服務 `backend/app/quote/`：唯一的 Shioaji 連線、只在 08:25–13:50 登入、`QuoteType.Quote`（成交＋五檔）、指數 `IX0001`（含漲跌家數與累計成交金額）、排行每分鐘一次、訂閱上限 190、登入失敗退避；推播 `pct_chg` 單位為萬分之一，改由 `price_chg` 自算
+  4. `/ws` WebSocket 轉送；健康檢查新增 quote；前端盤中模式顯示即時指數、寬度、成交金額與排行（只採用今天的推播）
+  5. 使用者要提供金鑰檔（`P:\API文件\永豐金API.txt`）時，**沒有開啟該檔**，改請使用者自行寫入 home server 的 `.env`，金鑰不經過對話紀錄
+- 改了哪些檔：`backend/app/quote/`、`backend/app/ws.py`、`backend/app/main.py`、`backend/Dockerfile.quote`（新增）、`backend/requirements-quote.txt`（新增）、`backend/tests/test_quote.py`、`test_ws.py`、`frontend/src/lib/useLiveQuotes.ts`、`frontend/src/components/LivePanel.*`、`deploy/compose.yml`、`deploy/.env.example`、架構文件 §5、§9
+- 怎麼驗證：後端 pytest 34 passed（假 SDK＋fakeredis，含 WebSocket 端到端）、前端 vitest 19 passed、建置成功、ruff 通過；部署後 quote 容器內 shioaji 1.7.8 可載入，健康檢查回 `quote: no_credentials`（無金鑰時正確待命）
+- 沒做完／新發現：
+  1. **未經真實行情驗證**（週六休市、無金鑰）。開盤後要驗：推播是否真實、延遲 < 1 秒、`raise_count` 是否含漲停
+  2. 本機 `.git/packed-refs.lock` 殘留（雲端硬碟干擾，3 小時前留下），確認無 git 程序後已刪除
+  3. 國定假日仍未處理（休市日會白白登入一次，無害）
 
 ### 2026-10-17｜Claude Opus 5.5
 - 做了什麼：**P1 市場總覽（盤後）完成並上線**。發現證交所 rwd `MI_INDEX?type=ALLBUT0999` 可**指定日期**一次取得官方加權指數、成交金額、漲跌家數與全部個股收盤行情，搭配同日 T86、月份 FMTQIK，整頁保證同一資料日期（取「MI_INDEX 與 T86 都已公布」的最近交易日）。worker 每 10 分鐘預先計算寫入 Redis，API 只讀 Redis；標題與導言由資料以規則產生；國際市場（Yahoo）美股取台股該日開盤前最後一個收盤日並標示日期。健康檢查新增 worker 狀態（失敗或逾 30 分鐘未更新回 503）。前端依設計稿 B 實作，盤中模式暫顯示收盤資料並標註 P2 才有即時。
