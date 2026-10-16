@@ -37,6 +37,7 @@ KEY_ATTENTION = "attention:latest"
 CALENDAR_EVERY = timedelta(hours=6)  # MOPS 有防爬限制，不要頻繁抓
 US_EVERY = timedelta(minutes=30)
 SCREENER_DAYS = 10
+TECH_DAYS = 60
 KEY_STATUS = "overview:status"
 KEY_FMTQIK = "twse:fmtqik:{ym}"
 
@@ -129,6 +130,40 @@ async def t86_history(client, rds, dates: list[str], asof_raw: dict) -> list[dic
     return out
 
 
+async def ohlcv_history(client, rds, dates: list[str], asof_mi: dict) -> list[dict[str, dict]]:
+    """最近 60 個交易日的普通股精簡 OHLCV（由舊到新，最後一筆為 asof）。過去日期快取 90 天。"""
+    out = []
+    for d in dates[:-1]:
+        key = f"twse:ohlcv:{d}"
+        cached = await rds.get(key)
+        if cached:
+            out.append(json.loads(cached))
+            continue
+        raw = await twse.mi_index(client, date.fromisoformat(d))
+        if ov.has_trading_data(raw):
+            parsed = sc.parse_mi_ohlcv(raw)
+            await rds.set(key, json.dumps(parsed, separators=(",", ":")), ex=90 * 86400)
+            out.append(parsed)
+        await asyncio.sleep(0.2)
+    out.append(sc.parse_mi_ohlcv(asof_mi))
+    return out
+
+
+async def monthly_rev_map(client, rds) -> dict[str, dict]:
+    cached = await rds.get("twse:rev_latest")
+    if cached:
+        return json.loads(cached)
+    try:
+        rows = await twse.monthly_revenue(client)
+        parsed = sc.parse_monthly_revenue(rows)
+        if parsed:
+            await rds.set("twse:rev_latest", json.dumps(parsed, ensure_ascii=False), ex=6 * 3600)
+        return parsed
+    except Exception as e:
+        log.warning("月營收彙總表抓取失敗：%s", e)
+        return {}
+
+
 async def industry_map(rds) -> dict[str, str]:
     cached = await rds.get("finmind:industry")
     if cached:
@@ -148,19 +183,21 @@ async def refresh_overview(rds) -> dict:
     async with twse.make_client() as client:
         asof, mi, t = await find_asof(client, now.date())
         series = await index_series(client, rds, asof)
-        # 選股總表：沿用同一天的 MI_INDEX 與 T86，加上本益比與最近 10 個交易日的法人
+        intl = await international(asof)
+        data = ov.build_overview(asof, mi, t, series, intl, now.isoformat(timespec="seconds"))
+        await rds.set(KEY_OVERVIEW, json.dumps(data, ensure_ascii=False))
+        # 選股總表：沿用同一天的 MI_INDEX 與 T86，加上本益比、最近 10 日法人、近 60 日技術指標與月營收 YoY
         try:
-            days = [p["date"] for p in series if p["date"] <= asof.isoformat()][-SCREENER_DAYS:]
-            t86_days = await t86_history(client, rds, days, t)
+            all_days = [p["date"] for p in series if p["date"] <= asof.isoformat()]
+            t86_days = await t86_history(client, rds, all_days[-SCREENER_DAYS:], t)
+            ohlcv_days = await ohlcv_history(client, rds, all_days[-TECH_DAYS:], mi)
             bw = await twse.bwibbu(client, asof)
+            revs = await monthly_rev_map(client, rds)
             base = sc.build_base(asof.isoformat(), mi, t86_days, bw, await industry_map(rds),
-                                 now.isoformat(timespec="seconds"))
+                                 now.isoformat(timespec="seconds"), ohlcv_days=ohlcv_days, rev_map=revs)
             await rds.set(KEY_SCREENER, json.dumps(base, ensure_ascii=False))
         except Exception:
             log.exception("選股總表更新失敗（市場總覽不受影響）")
-    intl = await international(asof)
-    data = ov.build_overview(asof, mi, t, series, intl, now.isoformat(timespec="seconds"))
-    await rds.set(KEY_OVERVIEW, json.dumps(data, ensure_ascii=False))
     try:
         g = await global_mkt.build(now.isoformat(timespec="seconds"))
         await rds.set(KEY_GLOBAL, json.dumps(g, ensure_ascii=False))

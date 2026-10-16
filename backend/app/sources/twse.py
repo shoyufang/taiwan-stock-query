@@ -61,3 +61,12 @@ async def punish(client: httpx.AsyncClient, start: date, end: date) -> dict:
 async def notice(client: httpx.AsyncClient, d: date) -> dict:
     """公布注意有價證券（單日）。"""
     return await _get(client, "/announcement/notice", querytype="1", startDate=_ymd(d), endDate=_ymd(d))
+
+
+async def monthly_revenue(client: httpx.AsyncClient) -> list[dict]:
+    """全市場上市公司最新月營收彙總表（OpenAPI t187ap05_L，含 YoY、MoM）。"""
+    r = await client.get("https://openapi.twse.com.tw/v1/opendata/t187ap05_L")
+    r.raise_for_status()
+    data = r.json()
+    return data if isinstance(data, list) else []
+
