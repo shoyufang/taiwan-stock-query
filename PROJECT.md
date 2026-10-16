@@ -75,7 +75,8 @@
 4. ~~P1 市場總覽（盤後）~~（2026-10-17 完成）
 6. ~~P3 個股頁~~（2026-10-17 完成）
 7. ~~P4 自選股與警示~~（2026-10-17 完成；Telegram 待使用者建立機器人後執行 `deploy/set-telegram.sh`；手機 ntfy 待使用者安裝 App 訂閱 `http://100.100.245.93:8601` 主題 `twstock`）
-8. P5 其餘頁面：~~選股~~、~~全球市場~~、~~行事曆~~、~~投資組合~~（2026-10-17 完成）；~~AI 助理~~（2026-10-17 實測通過，模型 agnes-2.5-pro-alpha）→ **P5 全部完成，下一步 P6 切換（停用舊站）**
+8. P5 其餘頁面：~~選股~~、~~全球市場~~、~~行事曆~~、~~投資組合~~（2026-10-17 完成）；~~AI 助理~~（2026-10-17 實測通過，模型 agnes-2.5-pro-alpha）→ P5 全部完成
+9. **P6 切換**（使用者決定補四項後停用舊站、不寫 Notion、舊碼搬 legacy/）：~~P6a 處置／注意股＋通知~~（2026-10-17）→ P6b 個股基本面 → P6c 美股選股＋財報日曆 → P6d 技術掃描與多因子選股 → P6e 搬 legacy、CI、文件、開 NAS 停舊站
 5. **P2 即時行情：程式已部署、金鑰已設定、休市自我檢查全部通過**。剩 2026-10-19（一）開盤實測：推播延遲 < 1 秒、指數漲跌家數是否含漲跌停（與證交所收盤統計比對）、成交量差異（見已知問題）。自我檢查指令：`cd ~/apps/twstock && docker compose -f deploy/compose.yml run --rm --no-deps -T quote python -m app.quote.selftest`；重設金鑰：`ssh -t home "bash ~/apps/twstock/deploy/set-shioaji-keys.sh"`
 
 **新網站開發須知**（P0 起適用）
@@ -129,6 +130,17 @@
 ---
 
 ## 7. 工作日誌（新的寫在最上面）
+
+### 2026-10-17｜Claude Opus 5.5
+- 做了什麼：**P6 開始：盤點與決定，並完成 P6a 處置股／注意股**。
+  1. 盤點舊站（報告見工作日誌本筆；子代理逐檔對照）：舊每日排程**已停擺**——GitHub 上 `data/` 最後更新 2026-07-08；`daily.yml` 自 9 月起因缺 `FinMind` 套件每天失敗，已被 GitHub 以 inactivity 自動停用；NAS 關機中。新站不讀任何 `data/` CSV
+  2. 使用者決定：停用前補四項（處置／注意股＋通知、個股基本面、美股選股＋財報日曆、技術掃描與多因子選股）；**不再寫 Notion**；舊程式碼搬到 `legacy/`。分段 P6a–P6e，P6e 才需要開 NAS 停 `sinopac-web` 與 cron
+  3. P6a：證交所 `announcement/punish`（公布日期區間）、`announcement/notice`（單日），櫃買 OpenAPI `tpex_disposal_information`、`tpex_trading_warning_information`；只留普通股；處置取「今天仍有效或即將開始」且同檔取最新公告；撮合頻率由公告內文擷取（證交所寫國字「約每十分鐘」，已轉換）。worker 每 10 分鐘寫 `attention:latest`，`/api/market/attention`
+  4. 通知（取代舊 Gmail）：API 的收盤迴圈（平日 14:30 後每 15 分鐘）比對，新處置股彙整一則（自選股／持股標 ★）、自選股或持股被列注意每檔每天一則，走網頁＋ntfy＋Telegram，並記入自選股頁觸發紀錄；**第一次執行只記錄現況不通知**
+  5. 前端：市場總覽新增「處置股與注意股」區塊；個股頁（盤中與盤後版）顯示「處置 期間」「注意股」標籤
+- 改了哪些檔：`backend/app/services/attention.py`、`attention_notify.py`（新）、`sources/tpex.py`（新）、`sources/twse.py`、`worker.py`、`main.py`、`store.py`（`add_event`）、`services/alert_runner.py`、`tests/test_attention.py`、fixtures 4 個；`frontend/src/lib/attention.ts`、`components/AttentionPanel.*`（新）、`pages/Overview.tsx`、`pages/StockPage.*`
+- 怎麼驗證：後端 pytest 76 passed、ruff 通過；前端 40 passed、build 通過；線上 `/api/market/attention` 處置 17 檔、注意 32 檔（asof 10/16）；抽查隴華「約每十分鐘」、巨虹「約每25分鐘」與公告原文一致；瀏覽器看到總覽區塊與 4979 華星光的兩個標籤
+- 沒做完／新發現：通知要到平日 14:30 後才第一次執行（初始化）；git 又出現 Drive 造成的 `packed-refs.lock` 殘留（確認無 git 程序後刪除）
 
 ### 2026-10-17｜Claude Opus 5.5
 - 做了什麼：**P5e AI 助理實測通過**。使用者以 `deploy/set-agnes.sh` 自行設定金鑰，選用模型 `agnes-2.5-pro-alpha`。
