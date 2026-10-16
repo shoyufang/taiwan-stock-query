@@ -1,4 +1,4 @@
-"""個股 API：/api/stock/{code}、/api/stock/{code}/kbar、/api/search。"""
+"""個股 API：/api/stock/{code}、/api/stock/{code}/kbar、/api/stock/{code}/fundamentals、/api/search。"""
 
 from __future__ import annotations
 
@@ -37,6 +37,17 @@ async def stock_kbar(code: str, request: Request, adjusted: bool = False, years:
     s = request.app.state
     try:
         return await loader.load_kbar(s.store, s.finmind, _check(code), adjusted, max(min(years, 40), 0))
+    except FinMindError as e:
+        raise HTTPException(502, f"資料來源暫時無法使用：{e}")
+
+
+@router.get("/api/stock/{code}/fundamentals")
+async def stock_fundamentals(code: str, request: Request):
+    s = request.app.state
+    try:
+        return await loader.load_fundamentals(s.store, s.finmind, s.redis, _check(code))
+    except loader.StockNotFound:
+        raise HTTPException(404, f"找不到股票 {code}")
     except FinMindError as e:
         raise HTTPException(502, f"資料來源暫時無法使用：{e}")
 

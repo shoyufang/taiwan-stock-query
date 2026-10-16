@@ -7,6 +7,7 @@ import json
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
+from app.services import fundamentals as fu
 from app.services import stock as st
 from app.sources import finmind
 from app.store import Store
@@ -99,3 +100,30 @@ async def load_kbar(store: Store, client, code: str, adjusted: bool, years: int,
         adj = st.adjust_bars(full, divs)
         bars = [b for b in adj if since is None or b["date"] >= since]
     return {"code": code, "adjusted": adjusted, "bars": bars}
+
+
+async def load_fundamentals(store: Store, client, rds, code: str, now: datetime | None = None) -> dict:
+    now = now or datetime.now(TZ)
+    today = now.date()
+    info = await stock_info(store, client)
+    profile = st.pick_profile(info, code)
+    if not profile:
+        raise StockNotFound(code)
+
+    def ds(name: str, days: int):
+        start = (today - timedelta(days=days)).isoformat()
+        return _cached(store, f"finmind:{name}:{code}", 12 * HOUR,
+                       lambda: finmind.fetch(client, name, code, start, today.isoformat()))
+
+    _, inc_raw, bal_raw, div_raw, per_raw = await asyncio.gather(
+        ensure_bars(store, client, code, today),
+        ds("TaiwanStockFinancialStatements", 10 * 366),
+        ds("TaiwanStockBalanceSheet", 3 * 366),
+        ds("TaiwanStockDividend", 12 * 366),
+        ds("TaiwanStockPER", 5 * 366),
+    )
+    bars = await asyncio.to_thread(store.get_bars, code, (today - timedelta(days=5 * 366)).isoformat())
+    raw_base = await rds.get("screener:base") if rds is not None else None
+    base = json.loads(raw_base) if raw_base else None
+    return fu.build(code, inc_raw, bal_raw, div_raw, per_raw, bars, base, profile.get("industry"),
+                    now.isoformat(timespec="seconds"))

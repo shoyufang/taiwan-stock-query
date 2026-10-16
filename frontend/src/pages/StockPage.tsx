@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router'
+import { FundamentalsPanel } from '../components/FundamentalsPanel'
 import { KChart, MA_LINES } from '../components/KChart'
 import { fetchKbar, fetchStock, NotFoundError, searchStocks, type StockPage as Data } from '../lib/api'
 import { arrow, direction, fmtDateLong, fmtFixed, fmtInt, fmtMonthDay, fmtPct, fmtPrice, fmtSigned, fmtYi } from '../lib/format'
@@ -145,6 +146,7 @@ function LiveLayout({ d, live, liveBar }: { d: Data; live?: LiveStock; liveBar?:
           <PEPosition v={d.valuation} />
         </Card>
       </div>
+      <FundamentalsPanel key={d.profile.code} code={d.profile.code} />
       <Footer d={d} />
     </>
   )
@@ -217,6 +219,7 @@ function ReportLayout({ d }: { d: Data }) {
           <PEPosition v={d.valuation} />
         </section>
       </div>
+      <FundamentalsPanel key={d.profile.code} code={d.profile.code} />
       <Footer d={d} />
     </article>
   )
