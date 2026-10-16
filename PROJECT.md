@@ -132,6 +132,12 @@
 ## 7. 工作日誌（新的寫在最上面）
 
 ### 2026-10-17｜Claude Opus 5.5
+- 做了什麼：**P6b 個股基本面進行中（未部署）**。完成純函式 `backend/app/services/fundamentals.py`：季損益（毛利率／營益率／淨利率／營收年增、近四季 EPS）、資產負債（負債比、流動比、每股淨值）、股利依所屬年度彙總與配發率、本益比河流圖（隱含 EPS × 歷史本益比 10/25/50/75/90 百分位）、同業比較（選股總表同產業）。已確認 FinMind 損益表為單季數字（2330 2026Q2 營收＝4～6 月營收合計）；金融業無毛利欄位
+- 改了哪些檔：`backend/app/services/fundamentals.py`（新）、`tests/test_fundamentals.py`、fixtures（2330 損益／資產負債／股利、2881 損益）
+- 怎麼驗證：`tests/test_fundamentals.py` 3 passed
+- 沒做完：`stock_loader.load_fundamentals`（FinMind 快取 12 小時；PER 沿用 `finmind:TaiwanStockPER:{code}` 鍵）、`/api/stock/{code}/fundamentals`、前端個股頁基本面區塊（展開才載入）、部署驗證；之後 P6c、P6d、P6e
+
+### 2026-10-17｜Claude Opus 5.5
 - 做了什麼：**P6 開始：盤點與決定，並完成 P6a 處置股／注意股**。
   1. 盤點舊站（報告見工作日誌本筆；子代理逐檔對照）：舊每日排程**已停擺**——GitHub 上 `data/` 最後更新 2026-07-08；`daily.yml` 自 9 月起因缺 `FinMind` 套件每天失敗，已被 GitHub 以 inactivity 自動停用；NAS 關機中。新站不讀任何 `data/` CSV
   2. 使用者決定：停用前補四項（處置／注意股＋通知、個股基本面、美股選股＋財報日曆、技術掃描與多因子選股）；**不再寫 Notion**；舊程式碼搬到 `legacy/`。分段 P6a–P6e，P6e 才需要開 NAS 停 `sinopac-web` 與 cron
