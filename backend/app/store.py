@@ -26,8 +26,16 @@ class Store:
                 open REAL, high REAL, low REAL, close REAL, volume INTEGER, value REAL,
                 PRIMARY KEY (code, date));
             CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, fetched_at REAL NOT NULL, body TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS watchlist (code TEXT PRIMARY KEY, position INTEGER NOT NULL);
+            CREATE TABLE IF NOT EXISTS alert_rules (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, code TEXT NOT NULL, type TEXT NOT NULL, value REAL NOT NULL,
+                enabled INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL, last_triggered_date TEXT);
+            CREATE TABLE IF NOT EXISTS alert_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, rule_id INTEGER, code TEXT NOT NULL, type TEXT NOT NULL,
+                message TEXT NOT NULL, at TEXT NOT NULL);
             """
         )
+        # 這些表只存使用者自己的設定與紀錄；與上面的快取不同，遺失會掉資料（volume 要保留）
 
     # ── 日 K ──
     def upsert_bars(self, code: str, bars: list[dict]) -> None:
@@ -51,6 +59,60 @@ class Store:
         with self._lock:
             row = self.conn.execute("SELECT MAX(date) FROM bars WHERE code=?", (code,)).fetchone()
         return row[0] if row else None
+
+    # ── 自選股 ──
+    def get_watchlist(self) -> list[str] | None:
+        """None 表示從未設定過（前端用預設清單）。"""
+        with self._lock:
+            rows = self.conn.execute("SELECT code FROM watchlist ORDER BY position").fetchall()
+            touched = self.conn.execute("SELECT 1 FROM kv WHERE key='watchlist:set'").fetchone()
+        return [r[0] for r in rows] if (rows or touched) else None
+
+    def set_watchlist(self, codes: list[str]) -> None:
+        with self._lock, self.conn:
+            self.conn.execute("DELETE FROM watchlist")
+            self.conn.executemany("INSERT INTO watchlist VALUES (?,?)", [(c, i) for i, c in enumerate(codes)])
+            self.conn.execute("INSERT OR REPLACE INTO kv VALUES ('watchlist:set', ?, 'true')", (time.time(),))
+
+    # ── 警示 ──
+    def list_rules(self) -> list[dict]:
+        with self._lock:
+            rows = self.conn.execute(
+                "SELECT id, code, type, value, enabled, created_at, last_triggered_date FROM alert_rules ORDER BY id").fetchall()
+        keys = ("id", "code", "type", "value", "enabled", "created_at", "last_triggered_date")
+        return [{**dict(zip(keys, r)), "enabled": bool(r[4])} for r in rows]
+
+    def add_rule(self, code: str, type_: str, value: float, created_at: str) -> int:
+        with self._lock, self.conn:
+            cur = self.conn.execute("INSERT INTO alert_rules (code, type, value, enabled, created_at) VALUES (?,?,?,1,?)",
+                                    (code, type_, value, created_at))
+            return cur.lastrowid
+
+    def update_rule(self, rule_id: int, enabled: bool) -> bool:
+        with self._lock, self.conn:
+            return self.conn.execute("UPDATE alert_rules SET enabled=? WHERE id=?", (int(enabled), rule_id)).rowcount > 0
+
+    def delete_rule(self, rule_id: int) -> bool:
+        with self._lock, self.conn:
+            return self.conn.execute("DELETE FROM alert_rules WHERE id=?", (rule_id,)).rowcount > 0
+
+    def mark_triggered(self, rule_id: int, day: str, code: str, type_: str, message: str, at: str) -> bool:
+        """同一規則同一天只記一次；回傳這次是否為新觸發。"""
+        with self._lock, self.conn:
+            cur = self.conn.execute(
+                "UPDATE alert_rules SET last_triggered_date=? WHERE id=? AND (last_triggered_date IS NULL OR last_triggered_date<>?)",
+                (day, rule_id, day))
+            if cur.rowcount == 0:
+                return False
+            self.conn.execute("INSERT INTO alert_events (rule_id, code, type, message, at) VALUES (?,?,?,?,?)",
+                              (rule_id, code, type_, message, at))
+            return True
+
+    def list_events(self, limit: int = 50) -> list[dict]:
+        with self._lock:
+            rows = self.conn.execute(
+                "SELECT id, rule_id, code, type, message, at FROM alert_events ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
+        return [dict(zip(("id", "rule_id", "code", "type", "message", "at"), r)) for r in rows]
 
     # ── 一般快取 ──
     def kv_get(self, key: str, max_age: float) -> object | None:

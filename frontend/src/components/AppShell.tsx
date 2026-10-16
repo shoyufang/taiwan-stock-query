@@ -1,6 +1,7 @@
 import { NavLink, Outlet } from 'react-router'
 import type { MarketModeState } from '../lib/useMarketMode'
 import { useHealth, type HealthStatus } from '../lib/useHealth'
+import { AlertToast } from './AlertToast'
 import styles from './AppShell.module.css'
 
 export const NAV_ITEMS = [
@@ -71,6 +72,7 @@ export function AppShell({ market }: { market: MarketModeState }) {
       <main className={styles.main}>
         <Outlet />
       </main>
+      <AlertToast />
     </>
   )
 }

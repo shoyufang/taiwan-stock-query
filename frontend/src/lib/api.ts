@@ -116,6 +116,88 @@ export async function searchStocks(q: string): Promise<StockProfile[]> {
   return (await res.json()).results
 }
 
+// ── 自選股與警示 ──
+
+export interface WatchRow {
+  code: string
+  name: string
+  date: string | null
+  close?: number
+  change?: number
+  change_pct?: number
+  volume?: number
+  high?: number
+  low?: number
+}
+
+export interface Watchlist {
+  codes: string[]
+  is_default: boolean
+  rows: WatchRow[]
+}
+
+export interface AlertRule {
+  id: number
+  code: string
+  type: string
+  value: number
+  enabled: boolean
+  created_at: string
+  last_triggered_date: string | null
+}
+
+export interface AlertType {
+  label: string
+  when: 'intraday' | 'close'
+  unit: string
+  range: [number, number]
+}
+
+export interface AlertsResponse {
+  rules: AlertRule[]
+  types: Record<string, AlertType>
+  channels: { web: boolean; ntfy: boolean; telegram: boolean }
+}
+
+export interface AlertEvent {
+  id: number
+  code: string
+  type: string
+  message: string
+  at: string
+}
+
+async function json<T>(res: Response): Promise<T> {
+  if (!res.ok) {
+    let detail = `API ${res.status}`
+    try {
+      detail = (await res.json()).detail ?? detail
+    } catch {
+      // 非 JSON 錯誤
+    }
+    throw new Error(detail)
+  }
+  return res.json()
+}
+
+const JSON_HEADERS = { 'Content-Type': 'application/json' }
+
+export const watchlistApi = {
+  get: () => fetch('/api/watchlist').then((r) => json<Watchlist>(r)),
+  put: (codes: string[]) => fetch('/api/watchlist', { method: 'PUT', headers: JSON_HEADERS, body: JSON.stringify({ codes }) }).then((r) => json<{ codes: string[] }>(r)),
+}
+
+export const alertsApi = {
+  list: () => fetch('/api/alerts').then((r) => json<AlertsResponse>(r)),
+  add: (code: string, type: string, value: number) =>
+    fetch('/api/alerts', { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify({ code, type, value }) }).then((r) => json<{ id: number }>(r)),
+  toggle: (id: number, enabled: boolean) =>
+    fetch(`/api/alerts/${id}`, { method: 'PATCH', headers: JSON_HEADERS, body: JSON.stringify({ enabled }) }).then((r) => json(r)),
+  remove: (id: number) => fetch(`/api/alerts/${id}`, { method: 'DELETE' }).then((r) => json(r)),
+  events: () => fetch('/api/alerts/events?limit=30').then((r) => json<{ events: AlertEvent[] }>(r)),
+  test: () => fetch('/api/alerts/test', { method: 'POST' }).then((r) => json<{ result: Record<string, boolean> }>(r)),
+}
+
 export class NotReadyError extends Error {}
 
 export async function fetchOverview(): Promise<Overview> {

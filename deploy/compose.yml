@@ -24,6 +24,11 @@ services:
       TZ: Asia/Taipei
       STORE_PATH: /data/twstock.db
       FINMIND_TOKEN: ${FINMIND_TOKEN:-}
+      PUBLIC_URL: http://${BIND_IP}:8600
+      NTFY_URL: http://ntfy:80/
+      NTFY_TOPIC: twstock
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
     volumes:
       - twstock-data:/data
     depends_on:
@@ -78,7 +83,24 @@ services:
       - api
     restart: unless-stopped
 
-  # 把 Tailscale IP 的 8600 轉到本機 8600。開機時 Docker 可能比 Tailscale 先起，
+  # 手機推播（ntfy 自架）。手機 App 訂閱 http://<Tailscale IP>:8601/twstock
+  # upstream 設 ntfy.sh 是為了 iPhone 能即時收到（只轉送訊息 ID 的輪詢通知，內容不經過 ntfy.sh）
+  ntfy:
+    image: binwiederhier/ntfy:v2.17.0
+    command: ["serve"]
+    environment:
+      NTFY_BASE_URL: http://${BIND_IP}:8601
+      NTFY_UPSTREAM_BASE_URL: https://ntfy.sh
+      NTFY_CACHE_FILE: /var/cache/ntfy/cache.db
+      NTFY_CACHE_DURATION: 72h
+      TZ: Asia/Taipei
+    volumes:
+      - ntfy-cache:/var/cache/ntfy
+    ports:
+      - "127.0.0.1:8601:80"
+    restart: unless-stopped
+
+  # 把 Tailscale IP 的 8600（網站）、8601（ntfy）轉到本機。開機時 Docker 可能比 Tailscale 先起，
   # 所以先等 BIND_IP 出現在網卡上再開始監聽；不需要改主機系統設定。
   tailnet-proxy:
     image: alpine/socat:1.8.0.3
@@ -87,13 +109,16 @@ services:
     command:
       - |
         until ip -o addr | grep -q " $$BIND_IP/"; do echo "waiting for $$BIND_IP"; sleep 5; done
-        echo "listening on $$BIND_IP:8600"
+        echo "listening on $$BIND_IP:8600 and :8601"
+        socat TCP-LISTEN:8601,bind=$$BIND_IP,reuseaddr,fork TCP:127.0.0.1:8601 &
         exec socat TCP-LISTEN:8600,bind=$$BIND_IP,reuseaddr,fork TCP:127.0.0.1:8600
     environment:
       BIND_IP: ${BIND_IP:?deploy/.env 必須設定 BIND_IP（home server 的 Tailscale IP）}
     depends_on:
       - web
+      - ntfy
     restart: unless-stopped
 
 volumes:
   twstock-data:
+  ntfy-cache:

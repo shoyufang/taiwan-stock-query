@@ -1,7 +1,12 @@
 """新網站 API 入口（FastAPI）。"""
 
+import asyncio
 import json
+import logging
+import os
 from contextlib import asynccontextmanager
+
+import httpx
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -10,6 +15,8 @@ from fastapi.responses import JSONResponse
 
 from app import cache
 from app.api_stock import router as stock_router
+from app.api_watchlist import router as watchlist_router
+from app.services import alert_runner
 from app.settings import load_settings
 from app.sources import finmind
 from app.store import Store
@@ -23,16 +30,24 @@ async def lifespan(app: FastAPI):
     app.state.redis = cache.make_client(settings.redis_url)
     app.state.store = Store(settings.store_path)
     app.state.finmind = finmind.make_client(settings.finmind_token)
+    app.state.http = httpx.AsyncClient(timeout=httpx.Timeout(10.0))
+    # httpx 的 INFO log 會印出完整網址（Telegram 網址含 token），一律只留警告以上
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    task = asyncio.create_task(alert_runner.run(app)) if os.environ.get("ALERTS_ENABLED", "1") == "1" else None
     try:
         yield
     finally:
+        if task:
+            task.cancel()
         await app.state.redis.aclose()
         await app.state.finmind.aclose()
+        await app.state.http.aclose()
 
 
 app = FastAPI(title="台股看盤 API", lifespan=lifespan, docs_url="/api/docs", openapi_url="/api/openapi.json")
 app.include_router(ws_router)
 app.include_router(stock_router)
+app.include_router(watchlist_router)
 
 
 WORKER_STALE_SEC = 30 * 60

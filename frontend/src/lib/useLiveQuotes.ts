@@ -52,7 +52,16 @@ export interface LiveScanner {
   losers: ScannerRow[]
 }
 
-export type LiveMessage = LiveStock | LiveIndex | LiveScanner
+export interface LiveAlert {
+  kind: 'alert'
+  code: 'ALERTS'
+  title: string
+  message: string
+  stock: string | null
+  at: string
+}
+
+export type LiveMessage = LiveStock | LiveIndex | LiveScanner | LiveAlert
 export type LiveStatus = 'connecting' | 'open' | 'closed'
 
 function wsUrl(): string {

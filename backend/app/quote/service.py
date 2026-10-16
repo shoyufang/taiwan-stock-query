@@ -111,7 +111,10 @@ class QuoteService:
     def reconcile(self, now_ts: float) -> None:
         sj = self.sj
         interest = {m: s for m, s in self.rds.zrange("quote:interest", 0, -1, withscores=True)}
-        to_add, to_remove = plan(self.subscribed, self.pinned, interest, now_ts)
+        # 常駐訂閱：大盤指數＋API 寫入的自選股與盤中警示代號；尚未寫入時用預設清單
+        extra = sorted(self.rds.smembers("quote:pinned") or [])
+        pinned = [INDEX_CODE, *extra] if extra else self.pinned
+        to_add, to_remove = plan(self.subscribed, pinned, interest, now_ts)
         for code in to_remove:
             try:
                 self.api.unsubscribe(self._contract(code), quote_type=sj.QuoteType.Quote)
