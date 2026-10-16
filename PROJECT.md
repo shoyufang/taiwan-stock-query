@@ -74,7 +74,8 @@
 3. ~~依架構文件 P0（地基）開工~~（2026-10-16 完成）
 4. ~~P1 市場總覽（盤後）~~（2026-10-17 完成）
 6. ~~P3 個股頁~~（2026-10-17 完成）
-7. ~~P4 自選股與警示~~（2026-10-17 完成；Telegram 待使用者建立機器人後執行 `deploy/set-telegram.sh`；手機 ntfy 待使用者安裝 App 訂閱 `http://100.100.245.93:8601` 主題 `twstock`）→ 下一步 P5 其餘頁面
+7. ~~P4 自選股與警示~~（2026-10-17 完成；Telegram 待使用者建立機器人後執行 `deploy/set-telegram.sh`；手機 ntfy 待使用者安裝 App 訂閱 `http://100.100.245.93:8601` 主題 `twstock`）
+8. P5 其餘頁面：~~選股~~、~~全球市場~~、~~行事曆~~（2026-10-17 完成）；剩投資組合（手動輸入持股）、AI 助理（Agnes＋自架 TWStockMCPServer）
 5. **P2 即時行情：程式已部署、金鑰已設定、休市自我檢查全部通過**。剩 2026-10-19（一）開盤實測：推播延遲 < 1 秒、指數漲跌家數是否含漲跌停（與證交所收盤統計比對）、成交量差異（見已知問題）。自我檢查指令：`cd ~/apps/twstock && docker compose -f deploy/compose.yml run --rm --no-deps -T quote python -m app.quote.selftest`；重設金鑰：`ssh -t home "bash ~/apps/twstock/deploy/set-shioaji-keys.sh"`
 
 **新網站開發須知**（P0 起適用）
@@ -128,6 +129,28 @@
 ---
 
 ## 7. 工作日誌（新的寫在最上面）
+
+### 2026-10-17｜Claude Opus 5.5
+- 做了什麼：**P5c 投資行事曆完成並上線**（`/calendar`）。
+  1. 資料源：證交所除權除息預告表 `exRight/TWT48U`（上市股票與 ETF）；公開資訊觀測站法人說明會（舊站 `mopsov…/ajax_t100sb02_1`，上市＋上櫃，當月與次月；做法參考 TWStockMCPServer，MIT 授權）；法定公布期限（月營收每月 10 日、Q1 5/15、Q2 8/14、Q3 11/14、年報 3/31）
+  2. worker 每 6 小時更新一次 Redis `calendar:latest`（MOPS 有防爬限制，每次呼叫間隔 2 秒），`/api/calendar` 只讀快取；範圍為今天前 7 天到後 60 天
+  3. 前端：依日期分組、類型篩選、只看自選股（公布期限仍保留）、自選股以左側色線標示、可顯示過去 7 天
+  4. 修正：`.gitignore` 的 `*.json` 讓**所有後端測試 fixture 從未進版控**（CI 會缺檔），加例外 `!backend/tests/fixtures/*.json` 並補提交（已確認內容皆為公開行情資料，無金鑰）
+- 改了哪些檔：`backend/app/sources/mops.py`（新）、`services/calendar.py`（新）、`sources/twse.py`、`worker.py`、`main.py`、`tests/test_calendar.py`、`tests/fixtures/*`、`frontend/src/lib/calendar.ts`、`calendar.test.ts`、`pages/CalendarPage.*`、`App.tsx`、`.gitignore`
+- 怎麼驗證：後端 pytest 69 passed、ruff 通過；前端 vitest 34 passed、typecheck、build 通過；部署後 `/api/calendar` 回 200，162 筆（法說會 103、除權息 55、期限 4），worker log「行事曆已更新：162 筆」；瀏覽器開 `/calendar` 顯示正常
+- 沒做完／新發現：上櫃除權息（櫃買中心）尚未納入；法說會日期為區間時排在起日；除權息清單 ETF 佔多數（官方資料如此）
+
+### 2026-10-17｜Claude Opus 5.5
+- 做了什麼：**P5b 全球市場頁完成並上線**（`/global`）。主要指數、原物料與匯率、台灣 ADR 溢價、港美股日 K 查詢；依使用者決定只用 Yahoo，不接富途。ADR 換算比例以實價驗算：日月光投控 ASX 為 1:2（舊站 `adr_query.py` 一律 1:5，會算出假的 −60% 折價），台積電、聯電 1:5。worker 每 10 分鐘預先計算，港美股 K 線走 `/api/global/kbar`（快取 30 分鐘）
+- 改了哪些檔：`backend/app/api_global.py`、`services/global_mkt.py`、`sources/yahoo.py`、`worker.py`、`main.py`、`tests/test_global.py`、`frontend/src/pages/GlobalPage.*`、`components/Sparkline.tsx`、`App.tsx`（commit `53616e8`）
+- 怎麼驗證：後端 64 passed、前端 30 passed；ADR 溢價以 2026-10-15/16 實價驗算寫成測試
+- 沒做完／新發現：本筆日誌於 P5c 時補記
+
+### 2026-10-17｜Claude Opus 5.5
+- 做了什麼：**P5a 選股頁完成並上線**（`/screener`）。上市普通股官方單日資料（MI_INDEX、T86、BWIBBU_d）＋最近 10 個交易日法人連續天數＋FinMind 產業；worker 同步產出選股總表；過去日期 T86 快取 30 天；五個常用策略＋11 個數值條件＋產業可疊加、欄位排序、一鍵加入自選
+- 改了哪些檔：`backend/app/services/screener.py`、`sources/twse.py`、`worker.py`、`main.py`、`tests/test_screener.py`、`frontend/src/lib/screener.*`、`pages/ScreenerPage.*`、`App.tsx`（commit `ace6c24`）
+- 怎麼驗證：後端 62 passed、前端 30 passed
+- 沒做完／新發現：上櫃股票未納入；本筆日誌於 P5c 時補記
 
 ### 2026-10-17｜Claude Opus 5.5
 - 做了什麼：**P4 自選股與警示完成並上線**（`/watchlist`）。
