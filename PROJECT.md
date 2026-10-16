@@ -39,7 +39,7 @@
 |---|---|
 | 正式網站 | Streamlit 版運作中（NAS `sinopac-web` 容器）。功能可用但**市場總覽載入超過 1.5 分鐘**，視覺不夠專業 |
 | 每日排程 | 運作中。2026-07-09 修好三大法人資料源（原端點已失效 50 天） |
-| 前端改版 | **已決定放棄 Streamlit，改走 B 方案（前後端分離）**，目前在「設計稿挑選」階段，見第 3 節 |
+| 前端改版 | **已決定放棄 Streamlit，改走 B 方案（前後端分離）**。**P0 地基已上線**：home server `http://100.100.245.93:8600`（僅 Tailscale），目前只有頁面骨架與系統狀態。下一步 P1，見第 3 節 |
 | 資料路由層 | `datasources/router.py` 已有法人／估值／融資融券三個主題函式；K 線路由未做（待決策） |
 | 本機環境 | 固定使用 **Python 3.13**（`py -3.13`）。系統預設 3.14 沒裝套件，不要用 |
 | Git | 工作分支 `local`，發布分支 `main`。2026-10-16 的改動（Python 3.13 啟動設定、PROJECT.md 與指標檔）**尚未 commit**（見工作日誌） |
@@ -71,13 +71,21 @@
 **下一步**
 1. ~~使用者確認雙模式方向 → 用同樣風格畫「個股」頁~~（2026-10-16 完成，待使用者回饋）
 2. ~~定技術架構，寫成 `docs/plans/` 規格~~（2026-10-16 草案完成，待使用者確認）
-3. 依架構文件 P0（地基）開工，再做 P1 市場總覽
+3. ~~依架構文件 P0（地基）開工~~（2026-10-16 完成）→ 下一步 P1 市場總覽（盤後）
+
+**新網站開發須知**（P0 起適用）
+- 程式碼：`backend/`（FastAPI）、`frontend/`（React）、`deploy/`（compose、hook）
+- 部署：`git push home local:main` → home server 自動建置並重啟（hook 原始檔 `deploy/post-receive.sh`，伺服器上 `deploy/.env` 不進 git）
+- 本機測試：後端 venv 在 `C:\Users\shoyu\.venvs\twstock-backend`；前端在 `C:\Users\shoyu\dev\twstock-fe` 鏡像執行 npm（**不要在雲端硬碟資料夾裡建 venv 或 node_modules**，數萬個小檔會拖慢並被同步）
 
 ---
 
 ## 4. 待辦（依優先順序）
 
-- [ ] **前端改版**：見第 3 節
+- [ ] **前端改版**：見第 3 節（P0 ✅ 2026-10-16，下一步 P1）
+- [ ] **home server 開機時序（需使用者執行，涉及系統設定）**：Docker 未設定在 Tailscale 之後啟動，重開機時網站可能綁不到 Tailscale IP 而起不來。修法見 2026-10-16 P0 日誌
+- [ ] 在 Uptime Kuma 新增監控 `http://100.100.245.93:8600/api/health`（需使用者登入 Uptime Kuma 設定）
+- [ ] 建議把 repo 搬離 Google 雲端硬碟（例如 `C:\dev\`）：2026-10-16 已出現 `.git` 孤立索引檔警告、venv 建置卡住，都是同步軟體干擾的徵兆
 - [ ] **K 線路由 `get_kbar()` 待決策**：Shioaji 只有 2020 年起資料、FinMind 從 1994 年起，歷史 K 線用哪個日期切換？富途港股要不要併入統一入口？（使用者交代：下次碰 router 時要先提醒他決定）
 - [ ] **台股「AI 個股健檢」按鈕永遠報錯**：`tabs/stock_page.py` 呼叫的 `ai_engine.generate_tw_stock_report` 從未實作。2026-07 曾分派任務，但留下的 worktree（`.claude/worktrees/elastic-rosalind-06694a`）沒有任何新 commit，等於沒做
 - [ ] 清掉上述殘留 worktree
@@ -111,6 +119,17 @@
 ---
 
 ## 7. 工作日誌（新的寫在最上面）
+
+### 2026-10-16｜Claude Opus 5.5
+- 做了什麼：**P0 地基完成並部署到 home server**。後端 FastAPI（`/api/health`，Redis 異常回 503）、前端 React 19＋Vite 8＋TypeScript 7＋React Router 8（盤中／盤後依台北時間自動切換、手動切換存到下一個切換點、首次繪製前套用模式避免閃爍）、設計 token、頁面骨架；compose（web／api／redis）只綁 Tailscale IP；home server 建 `~/git/twstock.git` 與部署 hook、`~/apps/twstock/deploy/.env`；CI 新增 backend、frontend 兩個 job。
+- 改了哪些檔：`backend/`、`frontend/`、`deploy/`（皆新增）、`.github/workflows/ci.yml`、`.gitignore`（放行前端 json）、`.gitattributes`（新增）；本機新增 git remote `home`
+- 怎麼驗證：後端 pytest 2 passed；前端 typecheck 通過、vitest 9 passed、正式建置成功；ruff 通過；部署後經 Tailscale `curl /api/health` 回 200 且版本為 `fd386f4`；深層連結 `/stock/2330` 回 200；伺服器上 8600 只監聽 100.100.245.93，用區網 IP 192.168.0.247 連線被拒；瀏覽器實測盤後（白）／盤中（深色）切換、重新整理後保持、手機 375 寬無橫向捲動
+- 沒做完／新發現：
+  1. 開機時序：Docker 未排在 tailscaled 之後。建議使用者執行（允許綁定尚未出現的 IP）：`echo 'net.ipv4.ip_nonlocal_bind=1' | sudo tee /etc/sysctl.d/99-twstock.conf && sudo sysctl --system`
+  2. Uptime Kuma 監控項待使用者新增
+  3. 新增的 CI job 要等推到 GitHub 才會跑（本次未推 GitHub／NAS）
+  4. 雲端硬碟干擾 git：`git count-objects` 出現「no corresponding .pack」孤立索引檔警告
+  5. 國定假日尚未納入盤中判斷（P2 接證交所休市日）
 
 ### 2026-10-16｜Claude Opus 5.5
 - 做了什麼：新網站技術架構草案。實測 NAS（J4125、8GB）與 home server（i7-7700、14GB、已有 pg17／Uptime Kuma／Dozzle、Tailscale 100.100.245.93、8600 埠空著）；確認 `datasources/`、`router.py` 不依賴 Streamlit，`query_wrapper.py`、`caching.py`、`screener.py` 依賴 Streamlit 快取不能直接沿用。依使用者四項決定（Tailscale、逐筆推播、直接切換、部署 home server）寫成架構文件。

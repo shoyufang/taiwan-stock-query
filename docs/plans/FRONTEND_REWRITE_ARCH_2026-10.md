@@ -209,7 +209,7 @@ home server 只剩 43 GB。逐筆**只保留在 redis 當日記憶體**，盤後
 
 | 期 | 內容 | 完成條件 |
 |---|---|---|
-| **P0 地基** | `backend/`、`frontend/`、`deploy/` 骨架；compose（web、api、redis）；`/api/health`；home server 部署 hook；CI 擴充；設計 token | Tailscale 下打開 `:8600` 看到空殼頁，健康檢查綠燈 |
+| **P0 地基** ✅ 2026-10-16 | `backend/`、`frontend/`、`deploy/` 骨架；compose（web、api、redis）；`/api/health`；home server 部署 hook；CI 擴充；設計 token | Tailscale 下打開 `:8600` 看到空殼頁，健康檢查綠燈 |
 | **P1 市場總覽（盤後）** | worker 預先計算；`/api/market/overview`；設計稿 B 實作；資料日期契約 | 首次顯示 < 2 秒；數字抽查一致 |
 | **P2 即時行情** | 查證 R1、R2；quote 服務；WebSocket；市場總覽盤中版（設計稿 A）；斷線降級 | 盤中實測逐筆延遲 < 1 秒；拔掉 quote 服務時畫面降級不空白 |
 | **P3 個股頁** | 先決定 R4；K 線、籌碼、基本面、盤後報告摘要句 | 2330 等三檔數字與第二來源一致 |
