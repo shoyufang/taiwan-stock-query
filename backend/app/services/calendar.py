@@ -46,11 +46,15 @@ def conference_events(rows: list[dict]) -> list[dict]:
         days = roc_slash_all(r["date_text"])
         if not days:
             continue
-        span = f"（{days[0].strftime('%m/%d')}～{days[-1].strftime('%m/%d')}）" if len(days) > 1 and days[-1] != days[0] else ""
+        multi = len(days) > 1 and days[-1] != days[0]
+        span = f"（{days[0].strftime('%m/%d')}～{days[-1].strftime('%m/%d')}）" if multi else ""
         summary = r["summary"]
-        out.append({"date": days[0].isoformat(), "kind": "conference", "code": r["code"], "name": r["name"],
-                    "title": f"法說會 {r['time']}{span}".strip(),
-                    "detail": (summary[:120] + "…") if len(summary) > 120 else summary, "place": r["place"]})
+        ev = {"date": days[0].isoformat(), "kind": "conference", "code": r["code"], "name": r["name"],
+              "title": f"法說會 {r['time']}{span}".strip(),
+              "detail": (summary[:120] + "…") if len(summary) > 120 else summary, "place": r["place"]}
+        if multi:
+            ev["end_date"] = days[-1].isoformat()
+        out.append(ev)
     return out
 
 
@@ -75,10 +79,12 @@ def deadline_events(start: date, end: date) -> list[dict]:
 def build(today: date, dividends: list[dict], conferences: list[dict], generated_at: str,
           back_days: int = 7, ahead_days: int = 60) -> dict:
     start, end = today - timedelta(days=back_days), today + timedelta(days=ahead_days)
-    events = [e for e in dividends + conferences if start.isoformat() <= e["date"] <= end.isoformat()]
+    s_iso, e_iso = start.isoformat(), end.isoformat()
+    events = [e for e in dividends + conferences if e.get("end_date", e["date"]) >= s_iso and e["date"] <= e_iso]
     events += deadline_events(start, end)
     order = {"deadline": 0, "dividend": 1, "conference": 2}
     events.sort(key=lambda e: (e["date"], order[e["kind"]], e.get("code", "")))
-    return {"generated_at": generated_at, "today": today.isoformat(), "start": start.isoformat(), "end": end.isoformat(),
+    return {"generated_at": generated_at, "today": today.isoformat(), "start": s_iso, "end": e_iso,
             "events": events, "sources": ["臺灣證券交易所（除權息預告 TWT48U）", "公開資訊觀測站（法人說明會）"],
             "note": "除權息預告為上市股票；法說會含上市與上櫃。"}
+

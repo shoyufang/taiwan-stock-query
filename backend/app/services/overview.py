@@ -137,7 +137,7 @@ def parse_t86(raw: dict) -> list[dict]:
     return out
 
 
-# ── FMTQIK 加權指數日序列 ───────────────────────────────
+# ── FMTQIK 加權指數日序列與櫃買指數 ──────────────────────
 
 def parse_fmtqik(raw: dict) -> list[dict]:
     f = {name: i for i, name in enumerate(raw.get("fields") or [])}
@@ -147,6 +147,22 @@ def parse_fmtqik(raw: dict) -> list[dict]:
         if close is not None:
             out.append({"date": roc_to_date(row[f["日期"]]).isoformat(), "close": close})
     return out
+
+
+def parse_tpex_index(rows: list[dict], asof: date) -> dict | None:
+    """解析櫃買中心 OpenAPI tpex_index，取 <= asof 的最近一筆櫃買指數收盤與漲跌幅。"""
+    target = asof.strftime("%Y%m%d")
+    eligible = [r for r in (rows or []) if str(r.get("Date") or "") <= target and num(r.get("Close")) is not None]
+    if not eligible:
+        return None
+    last = sorted(eligible, key=lambda r: str(r["Date"]))[-1]
+    d_str = str(last["Date"]).strip()
+    iso_d = f"{d_str[:4]}-{d_str[4:6]}-{d_str[6:8]}" if len(d_str) == 8 else asof.isoformat()
+    close = num(last.get("Close")) or 0.0
+    change = num(last.get("Change")) or 0.0
+    prev = close - change
+    pct = round(change / prev * 100, 2) if prev else 0.0
+    return {"date": iso_d, "close": round(close, 2), "change": round(change, 2), "change_pct": pct}
 
 
 # ── 摘要句 ──────────────────────────────────────────────
@@ -208,7 +224,8 @@ def _quote_row(q: dict) -> dict:
 
 
 def build_overview(asof: date, mi_raw: dict, t86_raw: dict, series: list[dict],
-                   international: list[dict], generated_at: str) -> dict:
+                   international: list[dict], generated_at: str,
+                   tpex_index: dict | None = None) -> dict:
     mi = parse_mi_index(mi_raw)
     if not mi["taiex"] or mi["turnover_twd"] is None:
         raise ValueError(f"{asof} 的 MI_INDEX 缺少加權指數或成交統計")
@@ -222,12 +239,18 @@ def build_overview(asof: date, mi_raw: dict, t86_raw: dict, series: list[dict],
     stocks = [q for q in quotes if is_common_stock(q["code"]) and not q["ex_right"] and q["value_twd"] > 0]
     top_value = sorted(quotes, key=lambda q: q["value_twd"], reverse=True)[:10]
 
+    sources = ["臺灣證券交易所（MI_INDEX、T86、FMTQIK）"]
+    if tpex_index:
+        sources.append("證券櫃檯買賣中心（tpex_index）")
+    sources.append("Yahoo Finance（國際市場）")
+
     return {
         "asof": asof.isoformat(),
         "generated_at": generated_at,
         "headline": build_headline(mi["taiex"]),
         "lead": build_lead(mi["breadth"], mi["turnover_twd"], totals, top_value[0] if top_value else None),
         "taiex": mi["taiex"],
+        "tpex": tpex_index,
         "turnover_twd": mi["turnover_twd"],
         "breadth": mi["breadth"],
         "institutional": {k: round(v / SHARES_PER_LOT) for k, v in totals.items()},
@@ -241,5 +264,6 @@ def build_overview(asof: date, mi_raw: dict, t86_raw: dict, series: list[dict],
         "index_series": [p for p in series if p["date"] <= asof.isoformat()],
         "international": international,
         "units": {"institutional": "張", "turnover": "元", "value": "元"},
-        "sources": ["臺灣證券交易所（MI_INDEX、T86、FMTQIK）", "Yahoo Finance（國際市場）"],
+        "sources": sources,
     }
+

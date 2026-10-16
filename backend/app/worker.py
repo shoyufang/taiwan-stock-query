@@ -187,13 +187,37 @@ async def industry_map(rds) -> dict[str, str]:
     return mapping
 
 
+async def tpex_index_on(asof: date) -> dict | None:
+    try:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(15.0)) as client:
+            rows = await tpex.index_history(client)
+        return ov.parse_tpex_index(rows, asof)
+    except Exception as e:
+        log.warning("TPEx 櫃買指數抓取失敗：%s", e)
+        return None
+
+
+async def refresh_tdcc(rds) -> dict[str, dict] | None:
+    if await rds.get("tdcc:checked"):
+        return None
+    from app.services import stock as st
+    async with httpx.AsyncClient(timeout=httpx.Timeout(25.0)) as client:
+        csv_text = await tpex.tdcc_holding_csv(client)
+    parsed = st.parse_tdcc_csv(csv_text)
+    if parsed:
+        await rds.set("tdcc:latest", json.dumps(parsed, ensure_ascii=False, separators=(",", ":")), ex=7 * 86400)
+        await rds.set("tdcc:checked", "1", ex=12 * 3600)
+        log.info("集保股權分散表已更新：%d 檔", len(parsed))
+    return parsed
+
+
 async def refresh_overview(rds) -> dict:
     now = datetime.now(TZ)
     async with twse.make_client() as client:
         asof, mi, t = await find_asof(client, now.date())
         series = await index_series(client, rds, asof)
-        intl = await international(asof)
-        data = ov.build_overview(asof, mi, t, series, intl, now.isoformat(timespec="seconds"))
+        intl, tpex_idx = await asyncio.gather(international(asof), tpex_index_on(asof))
+        data = ov.build_overview(asof, mi, t, series, intl, now.isoformat(timespec="seconds"), tpex_index=tpex_idx)
         await rds.set(KEY_OVERVIEW, json.dumps(data, ensure_ascii=False))
         # 選股總表：沿用同一天的 MI_INDEX 與 T86，加上本益比、最近 10 日法人、近 60 日技術指標與月營收 YoY
         try:
@@ -207,6 +231,10 @@ async def refresh_overview(rds) -> dict:
             await rds.set(KEY_SCREENER, json.dumps(base, ensure_ascii=False))
         except Exception:
             log.exception("選股總表更新失敗（市場總覽不受影響）")
+    try:
+        await refresh_tdcc(rds)
+    except Exception:
+        log.exception("集保股權分散表更新失敗（市場總覽不受影響）")
     try:
         g = await global_mkt.build(now.isoformat(timespec="seconds"))
         await rds.set(KEY_GLOBAL, json.dumps(g, ensure_ascii=False))

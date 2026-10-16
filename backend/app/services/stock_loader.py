@@ -75,16 +75,22 @@ async def load_page(store: Store, client, rds, code: str, now: datetime | None =
     bars = await asyncio.to_thread(store.get_bars, code, (today - timedelta(days=400)).isoformat())
 
     taiex_pct = None
+    tpex_pct = None
+    shareholding = None
     if rds is not None:
-        raw = await rds.get("overview:latest")
+        raw, raw_tdcc = await asyncio.gather(rds.get("overview:latest"), rds.get("tdcc:latest"))
         if raw:
             ov = json.loads(raw)
             if bars and ov.get("asof") == bars[-1]["date"]:
                 taiex_pct = ov["taiex"]["change_pct"]
+                if ov.get("tpex"):
+                    tpex_pct = ov["tpex"].get("change_pct")
+        if raw_tdcc:
+            shareholding = json.loads(raw_tdcc).get(code)
 
     return st.build_stock_page(profile, bars, st.institutional_daily(inst_raw), st.margin_daily(margin_raw),
                                st.revenue_monthly(rev_raw), st.pe_position(per_raw), taiex_pct,
-                               now.isoformat(timespec="seconds"))
+                               now.isoformat(timespec="seconds"), tpex_pct=tpex_pct, shareholding=shareholding)
 
 
 async def load_kbar(store: Store, client, code: str, adjusted: bool, years: int, now: datetime | None = None) -> dict:

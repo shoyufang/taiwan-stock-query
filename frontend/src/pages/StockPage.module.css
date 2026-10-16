@@ -538,3 +538,64 @@
     font-size: 16px;
   }
 }
+
+/* 集保股權分散 */
+.shSection {
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+
+.shCompact {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.shBox {
+  margin-top: 8px;
+}
+
+.shHead {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.shBar {
+  display: flex;
+  height: 8px;
+  border-radius: 2px;
+  overflow: hidden;
+  background: var(--surface-2);
+  gap: 1px;
+}
+
+.shLarge {
+  background: var(--accent);
+}
+
+.shMid {
+  background: var(--text-2);
+  opacity: 0.55;
+}
+
+.shRetail {
+  background: var(--border);
+}
+
+.shStats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+  font-size: 12px;
+}
+
+.shStats b {
+  font-weight: 600;
+  color: var(--text);
+}
+

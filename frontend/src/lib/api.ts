@@ -31,6 +31,7 @@ export interface Overview {
   headline: string
   lead: string
   taiex: { close: number; change: number; change_pct: number }
+  tpex?: { close: number; change: number; change_pct: number; open?: number; high?: number; low?: number } | null
   turnover_twd: number
   breadth: { up: number; up_limit: number; down: number; down_limit: number; flat: number; untraded?: number }
   institutional: { foreign: number; trust: number; dealer: number }
@@ -51,6 +52,18 @@ export interface StockProfile {
   market: string
 }
 
+export interface Shareholding {
+  date: string
+  total_holders: number
+  retail_holders: number
+  retail_pct: number
+  mid_pct: number
+  large_400_holders: number
+  large_400_pct: number
+  large_1000_holders: number
+  large_1000_pct: number
+}
+
 export interface StockPage {
   asof: string
   generated_at: string
@@ -68,9 +81,14 @@ export interface StockPage {
     week52_high: number
     week52_low: number
   }
-  report: { headline: string; lead: string; sections: Partial<Record<'institutional' | 'margin' | 'revenue' | 'valuation', string>> }
+  report: {
+    headline: string
+    lead: string
+    sections: Partial<Record<'institutional' | 'margin' | 'shareholding' | 'revenue' | 'valuation', string>>
+  }
   institutional: { date: string; foreign: number; trust: number; dealer: number }[]
   margin: { date: string; margin_balance: number; margin_change: number; short_balance: number }[]
+  shareholding?: Shareholding | null
   revenue: { year: number; month: number; revenue: number; yoy: number | null; mom: number | null }[]
   valuation: {
     current: number

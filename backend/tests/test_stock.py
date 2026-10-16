@@ -78,11 +78,31 @@ class TestPieces:
         assert st.search(info, "台積")[0]["name"] == "台積電"
         assert [r["code"] for r in st.search(info, "環球晶")] == ["6488"]  # 權證不列入
 
-    def test_otc_not_compared_with_taiex(self, data):
+    def test_otc_compared_with_tpex_not_taiex(self, data):
         otc = {**data["profile"], "market": "上櫃"}
         r = st.build_report(otc, data["bars"][-1], data["bars"][-2]["close"], data["inst"], data["margin"],
-                            data["revenue"], data["pe"], 0.30)
+                            data["revenue"], data["pe"], 0.30, tpex_pct=0.85)
         assert "加權指數" not in r["lead"]
+        assert "同日櫃買指數上漲 0.85%，弱於櫃買" in r["lead"]
+
+    def test_parse_tdcc_csv(self):
+        csv_text = (
+            "資料日期,證券代號,持股分級,人數,股數,占集保庫存數比例%\n"
+            "20261016,2330  ,1,1500000,200000000,0.77\n"
+            "20261016,2330  ,8,10000,450000000,1.73\n"
+            "20261016,2330  ,10,5000,600000000,2.31\n"
+            "20261016,2330  ,12,800,400000000,1.54\n"
+            "20261016,2330  ,15,1476,21928365187,84.56\n"
+            "20261016,2330  ,17,3098860,25932613062,100.00\n"
+        )
+        parsed = st.parse_tdcc_csv(csv_text)
+        sh = parsed["2330"]
+        assert sh["date"] == "2026-10-16"
+        assert sh["total_holders"] == 3098860
+        assert sh["retail_holders"] == 1510000 and sh["retail_pct"] == 2.50
+        assert sh["mid_pct"] == 2.31
+        assert sh["large_400_holders"] == 2276 and sh["large_400_pct"] == 86.10
+        assert sh["large_1000_holders"] == 1476 and sh["large_1000_pct"] == 84.56
 
 
 class TestReport:

@@ -92,27 +92,36 @@ class TestSeries:
         assert prev["date"] == date(2026, 10, 14)
 
 
+@pytest.fixture(scope="module")
+def built_overview(mi, t86):
+    series = ov.parse_fmtqik(load("fmtqik_202610.json"))
+    tpex_idx = ov.parse_tpex_index([{"Date": "20261016", "Open": "398.97", "High": "401.20", "Low": "397.92", "Close": "400.26", "Change": "3.36"}], date(2026, 10, 16))
+    return ov.build_overview(date(2026, 10, 16), mi, t86, series, [], "2026-10-17T00:00:00+08:00", tpex_index=tpex_idx)
+
+
 class TestBuild:
-    @pytest.fixture(scope="class")
-    def data(self, mi, t86):
-        series = ov.parse_fmtqik(load("fmtqik_202610.json"))
-        return ov.build_overview(date(2026, 10, 16), mi, t86, series, [], "2026-10-17T00:00:00+08:00")
+    def test_headline_and_lead(self, built_overview):
+        assert built_overview["headline"] == "加權指數小漲 0.30%，收 47,111 點"
+        assert built_overview["lead"].startswith("上市股票 684 家上漲、286 家下跌，成交金額 9,938 億元。")
 
-    def test_headline_and_lead(self, data):
-        assert data["headline"] == "加權指數小漲 0.30%，收 47,111 點"
-        assert data["lead"].startswith("上市股票 684 家上漲、286 家下跌，成交金額 9,938 億元。")
+    def test_tpex_index_included(self, built_overview):
+        assert built_overview["tpex"] == {
+            "date": "2026-10-16", "close": 400.26, "change": 3.36, "change_pct": 0.85,
+        }
+        assert any("證券櫃檯買賣中心" in s for s in built_overview["sources"])
 
-    def test_rankings(self, data):
-        values = [r["value_twd"] for r in data["top_value"]]
+    def test_rankings(self, built_overview):
+        values = [r["value_twd"] for r in built_overview["top_value"]]
         assert values == sorted(values, reverse=True)
-        assert all(ov.is_common_stock(r["code"]) for r in data["gainers"] + data["losers"])
-        assert data["gainers"][0]["change_pct"] >= data["gainers"][-1]["change_pct"]
-        assert data["losers"][0]["change_pct"] <= data["losers"][-1]["change_pct"]
+        assert all(ov.is_common_stock(r["code"]) for r in built_overview["gainers"] + built_overview["losers"])
+        assert built_overview["gainers"][0]["change_pct"] >= built_overview["gainers"][-1]["change_pct"]
+        assert built_overview["losers"][0]["change_pct"] <= built_overview["losers"][-1]["change_pct"]
 
-    def test_foreign_lists_signs(self, data):
-        assert all(r["lots"] > 0 for r in data["foreign_buy"])
-        assert all(r["lots"] < 0 for r in data["foreign_sell"])
+    def test_foreign_lists_signs(self, built_overview):
+        assert all(r["lots"] > 0 for r in built_overview["foreign_buy"])
+        assert all(r["lots"] < 0 for r in built_overview["foreign_sell"])
 
-    def test_single_asof(self, data):
-        assert data["asof"] == "2026-10-16"
-        assert data["index_series"][-1]["date"] == "2026-10-16"
+    def test_single_asof(self, built_overview):
+        assert built_overview["asof"] == "2026-10-16"
+        assert built_overview["index_series"][-1]["date"] == "2026-10-16"
+

@@ -43,6 +43,12 @@ function OverviewBody({ d, mode }: { d: Data; mode: Mode }) {
           <span className={`num ${direction(d.taiex.change)}`}>
             {arrow(d.taiex.change)} {fmtSigned(d.taiex.change, 2)}（{fmtPct(d.taiex.change_pct)}）
           </span>
+          {d.tpex && (
+            <div className={styles.muted} style={{ marginTop: 4 }}>
+              櫃買 <span className="num">{fmtFixed(d.tpex.close)}</span>{' '}
+              <span className={`num ${direction(d.tpex.change)}`}>（{fmtPct(d.tpex.change_pct)}）</span>
+            </div>
+          )}
         </Stat>
         <Stat label="成交金額" value={fmtYi(d.turnover_twd)} unit="億元">
           <span className={styles.muted}>上市全部證券</span>

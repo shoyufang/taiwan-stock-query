@@ -48,8 +48,20 @@ def _fn(name: str, description: str, properties: dict | None = None, required: l
 CODE_PARAM = {"code": {"type": "string", "description": "股票代號，例如 2330"}}
 
 SITE_TOOLS = [
-    _fn("site_market_overview", "本站市場總覽（最近交易日收盤）：加權指數、漲跌家數、成交金額、三大法人、成交值與漲跌幅排行、外資買賣超排行、國際市場。"),
-    _fn("site_stock", "本站個股資料：最近收盤（盤中有即時價時一併提供）、盤後摘要、近 20 日法人、融資券、近 12 月營收、本益比歷史位置。", CODE_PARAM, ["code"]),
+    _fn("site_market_overview", "本站市場總覽（最近交易日收盤）：加權指數、櫃買指數、漲跌家數、成交金額、三大法人、成交值與漲跌幅排行、外資買賣超排行、國際市場。"),
+    _fn("site_stock", "本站個股資料：最近收盤（盤中有即時價時一併提供）、盤後摘要、近 15 日法人、融資券、集保大戶／散戶股權分散、近 12 月營收、本益比歷史位置。", CODE_PARAM, ["code"]),
+    _fn("site_stock_fundamentals", "本站個股基本面深度資料：近 12 季損益表（毛利率／營益率／淨利率／EPS）、資產負債表（ROE／ROA／負債比）、歷年股利與配發率、五年 PER／PBR 分位數、同產業同業比較。", CODE_PARAM, ["code"]),
+    _fn("site_screener", "本站多因子與技術選股總表：可依技術訊號（如 ma_bull、kd_gold、macd_bull、high_20d、vol_2x、rsi_oversold）、產業、台灣 50 篩選並排序。", {
+        "signal": {"type": "string", "description": "選填，技術訊號 ID，例如 ma_bull、kd_gold、macd_bull、high_20d、vol_2x、rsi_oversold"},
+        "industry": {"type": "string", "description": "選填，產業名稱，例如 半導體業"},
+        "top50_only": {"type": "boolean", "description": "選填，是否只看台灣 50 成分股"},
+        "sort": {"type": "string", "description": "選填，排序欄位：foreign_5d、trust_5d、dividend_yield、rev_yoy、change_pct、pe（預設 foreign_5d）"},
+        "limit": {"type": "integer", "description": "選填，回傳筆數上限（預設 15，最大 40）"},
+    }),
+    _fn("site_attention", "本站上市櫃處置股與注意股名單（含處置期間、分盤撮合分鐘數、注意原因與觸發條款）。",
+        {"code": {"type": "string", "description": "選填，指定股票代號查詢"}}),
+    _fn("site_us_stocks", "本站美股觀察（科技巨頭、AI／半導體、台灣 ADR 報價與本益比）與近期美股財報日曆。",
+        {"symbol": {"type": "string", "description": "選填，指定美股代號如 NVDA、TSM"}}),
     _fn("site_watchlist", "使用者的自選股清單與最近報價。"),
     _fn("site_portfolio", "使用者手動輸入的持股（股數、每股成本）與最近收盤。"),
     _fn("site_calendar", "本站投資行事曆：除權息、法說會、法定公布期限（今天前 7 天到後 60 天）。可指定代號只看該股。",
@@ -82,6 +94,53 @@ async def run_site_tool(app, name: str, args: dict) -> str:
         if live:
             page["live_quote"] = json.loads(live)
         return _trim(page)
+    if name == "site_stock_fundamentals":
+        code = str(args.get("code", "")).strip().upper()
+        try:
+            data = await loader.load_fundamentals(s.store, s.finmind, s.redis, code)
+        except loader.StockNotFound:
+            return f"找不到股票 {code}"
+        return _trim(data)
+    if name == "site_screener":
+        raw = await s.redis.get("screener:base")
+        if not raw:
+            return "選股總表尚未準備好"
+        base = json.loads(raw)
+        rows = base.get("rows", [])
+        sig = str(args.get("signal") or "").strip()
+        ind = str(args.get("industry") or "").strip()
+        if args.get("top50_only"):
+            rows = [r for r in rows if r.get("is_top50")]
+        if ind:
+            rows = [r for r in rows if r.get("industry") == ind]
+        if sig:
+            rows = [r for r in rows if sig in (r.get("tech_signals") or [])]
+        sort_k = str(args.get("sort") or "foreign_5d").strip()
+        if sort_k not in ("foreign_5d", "trust_5d", "dividend_yield", "rev_yoy", "change_pct", "pe"):
+            sort_k = "foreign_5d"
+        rows = sorted(rows, key=lambda r: (r.get(sort_k) is not None, r.get(sort_k) or 0), reverse=(sort_k != "pe"))
+        lim = min(max(int(args.get("limit") or 15), 1), 40)
+        return _trim({"asof": base.get("asof"), "matched": len(rows), "rows": rows[:lim]})
+    if name == "site_attention":
+        raw = await s.redis.get("attention:latest")
+        if not raw:
+            return "處置與注意股資料尚未準備好"
+        d = json.loads(raw)
+        code = str(args.get("code") or "").strip().upper()
+        if code:
+            d["active_dispositions"] = [r for r in d.get("active_dispositions", []) if r.get("code") == code]
+            d["notices"] = [r for r in d.get("notices", []) if r.get("code") == code]
+        return _trim(d)
+    if name == "site_us_stocks":
+        raw = await s.redis.get("us:latest")
+        if not raw:
+            return "美股資料尚未準備好"
+        d = json.loads(raw)
+        sym = str(args.get("symbol") or "").strip().upper()
+        if sym:
+            d["rows"] = [r for r in d.get("rows", []) if r.get("symbol") == sym]
+            d["earnings"] = [r for r in d.get("earnings", []) if r.get("symbol") == sym]
+        return _trim(d)
     if name == "site_watchlist":
         return _trim(await get_watchlist(req))
     if name == "site_portfolio":

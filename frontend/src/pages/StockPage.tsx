@@ -138,6 +138,7 @@ function LiveLayout({ d, live, liveBar }: { d: Data; live?: LiveStock; liveBar?:
       <div className={styles.tri}>
         <Card title="融資融券 · 近 10 日" note="張">
           <MarginTable rows={d.margin} />
+          {d.shareholding && <ShareholdingBlock sh={d.shareholding} compact />}
         </Card>
         <Card title="月營收 · 近 13 個月" note="億元">
           <RevenueBars rows={d.revenue} />
@@ -201,9 +202,15 @@ function ReportLayout({ d }: { d: Data }) {
           <InstTable rows={d.institutional.slice(-10)} />
         </section>
         <section aria-labelledby="mg-h">
-          <h2 id="mg-h" className={styles.h2}>融資融券</h2>
+          <h2 id="mg-h" className={styles.h2}>融資融券與股權分散</h2>
           {s.margin && <p className={styles.summary}>{s.margin}</p>}
           <MarginTable rows={d.margin} />
+          {d.shareholding && (
+            <div className={styles.shSection}>
+              {s.shareholding && <p className={styles.summary}>{s.shareholding}</p>}
+              <ShareholdingBlock sh={d.shareholding} />
+            </div>
+          )}
         </section>
       </div>
 
@@ -486,6 +493,46 @@ function Footer({ d }: { d: Data }) {
   )
 }
 
+function ShareholdingBlock({ sh, compact }: { sh: NonNullable<Data['shareholding']>; compact?: boolean }) {
+  return (
+    <div className={compact ? styles.shCompact : styles.shBox}>
+      <div className={styles.shHead}>
+        <span>集保股權分散（{sh.date}）</span>
+        <span className="num">總股東 {fmtInt(sh.total_holders)} 人</span>
+      </div>
+      <div
+        className={styles.shBar}
+        role="img"
+        aria-label={`大戶（>400 張）${sh.large_400_pct.toFixed(2)}%、中實戶（50–400 張）${sh.mid_pct.toFixed(2)}%、散戶（≤50 張）${sh.retail_pct.toFixed(2)}%`}
+      >
+        <div className={styles.shLarge} style={{ width: `${sh.large_400_pct}%` }} title={`>400 張大戶 ${sh.large_400_pct.toFixed(2)}%`} />
+        <div className={styles.shMid} style={{ width: `${sh.mid_pct}%` }} title={`50–400 張中實戶 ${sh.mid_pct.toFixed(2)}%`} />
+        <div className={styles.shRetail} style={{ width: `${sh.retail_pct}%` }} title={`≤50 張散戶 ${sh.retail_pct.toFixed(2)}%`} />
+      </div>
+      <div className={`${styles.shStats} num`}>
+        <div>
+          <div className={styles.muted}>&gt;400 張大戶</div>
+          <div>
+            <b>{fmtFixed(sh.large_400_pct)}%</b> <span className={styles.muted}>({fmtInt(sh.large_400_holders)}人)</span>
+          </div>
+        </div>
+        <div>
+          <div className={styles.muted}>&gt;1,000 張千張</div>
+          <div>
+            <b>{fmtFixed(sh.large_1000_pct)}%</b> <span className={styles.muted}>({fmtInt(sh.large_1000_holders)}人)</span>
+          </div>
+        </div>
+        <div>
+          <div className={styles.muted}>≤50 張散戶</div>
+          <div>
+            <b>{fmtFixed(sh.retail_pct)}%</b> <span className={styles.muted}>({fmtInt(sh.retail_holders)}人)</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function AttentionTags({ code }: { code: string }) {
   const { data } = useAttention()
   const { disposition, notice } = statusOf(data, code)
@@ -504,3 +551,4 @@ function AttentionTags({ code }: { code: string }) {
     </>
   )
 }
+

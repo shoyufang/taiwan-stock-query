@@ -38,10 +38,12 @@ def test_conference_parsing():
     assert rows[0]["code"] == "1203" and rows[0]["name"] == "味王"
     ev = cal.conference_events(rows)
     assert ev[0]["date"] == "2026-10-14" and ev[0]["title"].startswith("法說會")
-    # 日期為區間時取起日，並在標題保留區間
+    # 日期為區間時取起日，並在標題保留區間且設定 end_date
     ranged = [e for e in ev if "～" in e["title"]]
+    assert ranged
     for e in ranged:
         assert e["date"] <= "2026-10-31"
+        assert e["end_date"] >= e["date"]
 
 
 def test_deadlines():
@@ -58,5 +60,7 @@ def test_build_window_and_order():
     data = cal.build(date(2026, 10, 17), load_dividends(), cal.conference_events(load_conferences()), "t")
     assert data["start"] == "2026-10-10" and data["end"] == "2026-12-16"
     dates = [e["date"] for e in data["events"]]
-    assert dates == sorted(dates) and dates[0] >= "2026-10-10"
+    assert dates == sorted(dates)
+    assert all(e.get("end_date", e["date"]) >= "2026-10-10" and e["date"] <= "2026-12-16" for e in data["events"])
     assert {e["kind"] for e in data["events"]} == {"dividend", "conference", "deadline"}
+

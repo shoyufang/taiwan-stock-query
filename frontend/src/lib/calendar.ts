@@ -2,6 +2,7 @@ export type EventKind = 'dividend' | 'conference' | 'deadline'
 
 export interface CalEvent {
   date: string
+  end_date?: string
   kind: EventKind
   code?: string
   name?: string
@@ -28,12 +29,12 @@ export interface Filter {
   showPast: boolean
 }
 
-/** 篩選後依日期分組（日期遞增）。期限類事件與個股無關，「只看自選股」時仍保留。 */
+/** 篩選後依日期分組（日期遞增）。期限類事件與個股無關，「只看自選股」時仍保留；跨日法說會以 end_date 判斷是否已結束。 */
 export function groupEvents(events: CalEvent[], f: Filter, watch: Set<string>, today: string): [string, CalEvent[]][] {
   const out = new Map<string, CalEvent[]>()
   for (const e of events) {
     if (!f.kinds.has(e.kind)) continue
-    if (!f.showPast && e.date < today) continue
+    if (!f.showPast && (e.end_date ?? e.date) < today) continue
     if (f.watchOnly && e.code && !watch.has(e.code)) continue
     const list = out.get(e.date) ?? []
     list.push(e)

@@ -106,3 +106,36 @@ def test_status_and_chat_require_config(monkeypatch):
     with patch.object(main.cache, "make_client", return_value=rds), TestClient(main.app) as c:
         assert c.get("/api/ai/status").json()["configured"] is False
         assert c.post("/api/ai/chat", json={"messages": [{"role": "user", "content": "hi"}]}).status_code == 503
+
+
+@pytest.mark.asyncio
+async def test_site_p6_tools():
+    from app.ai.tools import run_site_tool
+    rds = fakeredis.FakeAsyncRedis(decode_responses=True)
+    await rds.set("screener:base", json.dumps({
+        "asof": "2026-10-16",
+        "rows": [
+            {"code": "2330", "name": "台積電", "industry": "半導體業", "is_top50": True,
+             "foreign_5d": 12000, "tech_signals": ["ma_bull", "kd_gold"]},
+            {"code": "2603", "name": "長榮", "industry": "航運業", "is_top50": True,
+             "foreign_5d": -3000, "tech_signals": ["rsi_oversold"]},
+        ],
+    }))
+    await rds.set("attention:latest", json.dumps({
+        "asof": "2026-10-16",
+        "active_dispositions": [{"code": "3017", "name": "奇鋐"}],
+        "notices": [{"code": "2330", "name": "台積電"}],
+    }))
+    await rds.set("us:latest", json.dumps({
+        "asof": "2026-10-16",
+        "rows": [{"symbol": "NVDA", "name": "輝達"}, {"symbol": "TSM", "name": "台積電 ADR"}],
+        "earnings": [{"symbol": "TSM", "date": "2026-10-17"}],
+    }))
+    app = SimpleNamespace(state=SimpleNamespace(redis=rds))
+    sc_res = json.loads(await run_site_tool(app, "site_screener", {"signal": "kd_gold", "top50_only": True}))
+    assert sc_res["matched"] == 1 and sc_res["rows"][0]["code"] == "2330"
+    att_res = json.loads(await run_site_tool(app, "site_attention", {"code": "3017"}))
+    assert len(att_res["active_dispositions"]) == 1 and att_res["notices"] == []
+    us_res = json.loads(await run_site_tool(app, "site_us_stocks", {"symbol": "TSM"}))
+    assert len(us_res["rows"]) == 1 and us_res["rows"][0]["symbol"] == "TSM"
+

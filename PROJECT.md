@@ -94,8 +94,8 @@
 - [ ] 在 Uptime Kuma 新增監控 `http://100.100.245.93:8600/api/health`（需使用者登入 Uptime Kuma 設定）
 - [ ] 建議把 repo 搬離 Google 雲端硬碟（例如 `C:\dev\`）：2026-10-16 已出現 `.git` 孤立索引檔警告、venv 建置卡住，都是同步軟體干擾的徵兆
 - [x] ~~K 線路由待決策~~（2026-10-17 使用者決定：日 K 歷史全用 FinMind、當日與分時用永豐推播、預設不還原可切換；富途留待 P5）
-- [ ] 上櫃股與櫃買指數比較、修正櫃買指數卡（參考 TWStockMCPServer 的 TPEx 端點，見架構文件 §9.5）
-- [ ] 個股頁籌碼區加「集保大戶／散戶持股比例」（集保免費資料，見 §9.5）
+- [x] ~~上櫃股與櫃買指數比較、修正櫃買指數卡~~：已串接櫃買中心 OpenAPI `tpex_index`，市場總覽與上櫃個股頁報告均已納入（2026-10-17）
+- [x] ~~個股頁籌碼區加「集保大戶／散戶持股比例」~~：已串接集保結算所公開資料 `getOD.ashx?id=1-5`（散戶 ≤50 張、中實戶 50–400 張、大戶 >400 張與千張大戶），個股頁盤中與盤後模式皆已顯示（2026-10-17）
 - [x] ~~**台股「AI 個股健檢」按鈕永遠報錯**~~：舊站已封存至 `legacy/`，新站改由 `/ai` 頁接 Agnes＋TWStockMCPServer＋站內工具（2026-10-17）
 - [x] ~~清掉上述殘留 worktree~~：已移除 `.claude/worktrees/elastic-rosalind-06694a`（2026-10-17）
 - [x] ~~2026-10-16 的本機改動待 commit 與推送~~：已隨 P6 整理提交並推送至 home server（2026-10-17）
@@ -107,7 +107,7 @@
 
 | 問題 | 影響 | 狀態 |
 |---|---|---|
-| 櫃買指數 Yahoo 代號 `^TWOII` 又抓不到資料 | 舊站市場總覽櫃買卡片空白 | 舊站已封存；新站後續改由 TPEx 官方端點支援上櫃比較（見待辦） |
+| 櫃買指數 Yahoo 代號 `^TWOII` 又抓不到資料 | 舊站市場總覽櫃買卡片空白 | 新站已解決（改接櫃買中心官方 OpenAPI `tpex_index`，支援總覽顯示與上櫃個股比較） |
 | TWSE 全市場行情（STOCK_DAY_ALL）更新比指數、法人慢一天 | 舊站同一頁混用不同日期的數字 | 新站已解決（改用可指定日期的 rwd MI_INDEX，整頁同一日） |
 | 市場總覽首次載入超過 1.5 分鐘 | 體驗差 | 新站已解決（資料 0.19 秒內顯示） |
 | **舊站升級 shioaji 會壞**：`datasources/shioaji_client.py` 用了 `login(fetch_contract=...)`，1.7.8 已移除此參數 | 舊站已封存 `legacy/` | 新站已鎖 `shioaji==1.7.8` 並修正參數 |
@@ -129,6 +129,19 @@
 ---
 
 ## 7. 工作日誌（新的寫在最上面）
+
+### 2026-10-17｜Antigravity (Gemini)
+- 做了什麼：**全專案深度檢查測試與 6 項細節優化完成並部署上線**。
+  1. **櫃買指數（TPEx）官方串接與上櫃個股比較**：串接櫃買中心 OpenAPI `tpex_index`，市場總覽「加權指數」卡片同步顯示同日櫃買指數收盤與漲跌幅；上櫃個股頁報告（如 6488 環球晶）自動與同日櫃買指數比較強弱
+  2. **集保大戶／散戶股權分散表**：串接集保結算所公開資料 `getOD.ashx?id=1-5`（worker 每 12 小時快取至 Redis `tdcc:latest`，涵蓋上市＋上櫃），彙整 `>400 張大戶`、`>1,000 張千張大戶`、`50–400 張中實戶`、`≤50 張散戶` 持股比例與總股東人數，於個股頁盤中與盤後模式呈現視覺化結構橫條與摘要
+  3. **投資行事曆跨日法說會 `end_date` 修正**：`calendar.conference_events` 為跨日法說會補上 `end_date`，前後端皆以 `end_date` 判斷活動是否已結束，解決進行中的跨日法說會被隱藏或被 AI 助理誤判為已過期的問題
+  4. **AI 助理補齊 P6 四大站內工具**：`backend/app/ai/tools.py` 新增 `site_stock_fundamentals`（季損益／資產負債／股利／PER 分位／同業）、`site_screener`（技術訊號＋產業＋台灣 50 多因子篩選）、`site_attention`（處置股與注意股）、`site_us_stocks`（美股權值 50 與財報日曆）
+  5. **前端路由 `React.lazy` Code-Splitting**：`App.tsx` 將非首頁路由改為動態載入，主包體積由 `562 kB` 降至 `319.9 kB`（gzip `100.8 kB`），消除 Vite `> 500 kB` 打包警告
+  6. **後端測試 Pytest 10 警告清除**：修正 `tests/test_overview.py` 的 class-scoped fixture 寫法並補齊上述新功能的單元測試
+- 改了哪些檔：`backend/app/sources/tpex.py`、`backend/app/services/overview.py`、`backend/app/services/stock.py`、`backend/app/services/stock_loader.py`、`backend/app/services/calendar.py`、`backend/app/worker.py`、`backend/app/ai/tools.py`、`backend/tests/test_overview.py`、`backend/tests/test_stock.py`、`backend/tests/test_calendar.py`、`backend/tests/test_ai.py`、`frontend/src/App.tsx`、`frontend/src/lib/api.ts`、`frontend/src/lib/calendar.ts`、`frontend/src/lib/calendar.test.ts`、`frontend/src/pages/Overview.tsx`、`frontend/src/pages/StockPage.tsx`、`frontend/src/pages/StockPage.module.css`、`PROJECT.md`
+- 怎麼驗證：後端 pytest 89 passed、ruff 通過；前端 typecheck、vitest 45 passed、build 零警告通過；部署至 home server 後實測線上 API（`/api/market/overview` 含 `tpex`、`/api/stock/2330` 與上櫃 `/api/stock/6488` 含 `shareholding` 與櫃買比較、`/api/calendar` 含跨日 `end_date`）全數 200 OK
+- 沒做完／新發現：程式碼層面待辦已全數清空；僅剩外部環境操作（2026-10-19 盤中實測永豐推播、下次開 NAS 停舊容器、Uptime Kuma 監控設定）
+
 
 ### 2026-10-17｜Antigravity (Gemini)
 - 做了什麼：**P6e 舊站歸檔 `legacy/`、清除殘留 worktree、更新 CI 與文件完成**。

@@ -6,6 +6,8 @@
 
 from __future__ import annotations
 
+import csv
+import io
 from collections import defaultdict
 from statistics import median
 
@@ -161,6 +163,45 @@ def pe_position(rows: list[dict]) -> dict | None:
             "pbr": last.get("PBR"), "dividend_yield": last.get("dividend_yield")}
 
 
+# ── 集保戶股權分散表（TDCC OpenData 1-5）──
+
+def parse_tdcc_csv(csv_text: str) -> dict[str, dict]:
+    """解析集保中心每周股權分散表 CSV，彙整各股散戶（≤50張）、中實戶（50–400張）、大戶（>400張／>1000張）比例。"""
+    acc: dict[str, dict] = {}
+    reader = csv.DictReader(io.StringIO(csv_text.lstrip("\ufeff")))
+    for row in reader:
+        code = (row.get("證券代號") or "").strip()
+        if not code:
+            continue
+        try:
+            lv = int(row["持股分級"])
+            holders = int(row["人數"])
+            pct = float(row["占集保庫存數比例%"])
+        except (KeyError, ValueError, TypeError):
+            continue
+        raw_d = (row.get("資料日期") or "").strip()
+        iso_d = f"{raw_d[:4]}-{raw_d[4:6]}-{raw_d[6:8]}" if len(raw_d) == 8 else raw_d
+        item = acc.setdefault(code, {
+            "date": iso_d, "total_holders": 0, "retail_holders": 0, "retail_pct": 0.0,
+            "mid_pct": 0.0, "large_400_holders": 0, "large_400_pct": 0.0,
+            "large_1000_holders": 0, "large_1000_pct": 0.0,
+        })
+        if 1 <= lv <= 8:
+            item["retail_holders"] += holders
+            item["retail_pct"] = round(item["retail_pct"] + pct, 2)
+        elif 9 <= lv <= 11:
+            item["mid_pct"] = round(item["mid_pct"] + pct, 2)
+        elif 12 <= lv <= 15:
+            item["large_400_holders"] += holders
+            item["large_400_pct"] = round(item["large_400_pct"] + pct, 2)
+            if lv == 15:
+                item["large_1000_holders"] = holders
+                item["large_1000_pct"] = round(pct, 2)
+        elif lv == 17:
+            item["total_holders"] = holders
+    return acc
+
+
 # ── 摘要句 ──
 
 def _lots(n: int) -> str:
@@ -176,7 +217,8 @@ def _dir(v: float, up="上漲", down="下跌", flat="持平") -> str:
 
 
 def build_report(profile: dict, last: dict, prev_close: float, inst: list[dict], margin: list[dict],
-                 revenue: list[dict], pe: dict | None, taiex_pct: float | None) -> dict:
+                 revenue: list[dict], pe: dict | None, taiex_pct: float | None,
+                 tpex_pct: float | None = None, shareholding: dict | None = None) -> dict:
     name = profile["name"]
     change = round(last["close"] - prev_close, 2)
     pct = round(change / prev_close * 100, 2) if prev_close else 0.0
@@ -190,10 +232,13 @@ def build_report(profile: dict, last: dict, prev_close: float, inst: list[dict],
         headline = f"{name}收 {_price(last['close'])} 元，{_dir(pct)} {abs(pct):.2f}%" if pct else f"{name}收 {_price(last['close'])} 元，平盤"
 
     lead = [f"{name}{_dir(pct)} {abs(pct):.2f}%" if pct else f"{name}平盤"]
-    # 只有上市股票拿來跟加權指數比；上櫃應比櫃買指數（尚未接入），興櫃不比
+    # 上市比加權指數、上櫃比櫃買指數，興櫃不比
     if taiex_pct is not None and profile.get("market") == "上市":
         rel = "強於大盤" if pct > taiex_pct else "弱於大盤" if pct < taiex_pct else "與大盤同步"
         lead[0] += f"，同日加權指數{_dir(taiex_pct)} {abs(taiex_pct):.2f}%，{rel}"
+    elif tpex_pct is not None and profile.get("market") == "上櫃":
+        rel = "強於櫃買" if pct > tpex_pct else "弱於櫃買" if pct < tpex_pct else "與櫃買同步"
+        lead[0] += f"，同日櫃買指數{_dir(tpex_pct)} {abs(tpex_pct):.2f}%，{rel}"
     lead[0] += "。"
 
     sections = {}
@@ -221,6 +266,13 @@ def build_report(profile: dict, last: dict, prev_close: float, inst: list[dict],
         s += f"；融券餘額 {last_m['short_balance']:,} 張。"
         lead.append(s.replace("；融券餘額", "，融券餘額"))
         sections["margin"] = s
+    if shareholding:
+        sections["shareholding"] = (
+            f"集保大戶（>400 張）持股 {shareholding['large_400_pct']:.2f}%（其中千張大戶 "
+            f"{shareholding['large_1000_holders']:,} 人占 {shareholding['large_1000_pct']:.2f}%），"
+            f"散戶（≤50 張）占 {shareholding['retail_pct']:.2f}%，總股東 {shareholding['total_holders']:,} 人"
+            f"（{shareholding['date']}）。"
+        )
     if revenue:
         r = revenue[-1]
         s = f"{r['month']} 月營收 {r['revenue'] / 1e8:,.1f} 億元"
@@ -238,12 +290,17 @@ def build_report(profile: dict, last: dict, prev_close: float, inst: list[dict],
 
 
 def build_stock_page(profile: dict, bars: list[dict], inst: list[dict], margin: list[dict], revenue: list[dict],
-                     pe: dict | None, taiex_pct: float | None, generated_at: str) -> dict:
+                     pe: dict | None, taiex_pct: float | None, generated_at: str,
+                     tpex_pct: float | None = None, shareholding: dict | None = None) -> dict:
     if len(bars) < 2:
         raise ValueError(f"{profile['code']} 日 K 資料不足")
     last, prev = bars[-1], bars[-2]
     year = [b for b in bars if b["date"] > _minus_year(last["date"])]
-    report = build_report(profile, last, prev["close"], inst, margin, revenue, pe, taiex_pct)
+    report = build_report(profile, last, prev["close"], inst, margin, revenue, pe, taiex_pct,
+                          tpex_pct=tpex_pct, shareholding=shareholding)
+    sources = ["FinMind（股價、法人、融資券、本益比、月營收）"]
+    if shareholding:
+        sources.append("集保結算所（股權分散表）")
     return {
         "asof": last["date"],
         "generated_at": generated_at,
@@ -255,12 +312,14 @@ def build_stock_page(profile: dict, bars: list[dict], inst: list[dict], margin: 
         "report": {k: report[k] for k in ("headline", "lead", "sections")},
         "institutional": inst[-15:],
         "margin": margin[-10:],
+        "shareholding": shareholding,
         "revenue": revenue[-13:],
         "valuation": pe,
         "units": {"institutional": "張", "margin": "張", "revenue": "元", "volume": "張"},
-        "sources": ["FinMind（股價、法人、融資券、本益比、月營收）"],
+        "sources": sources,
     }
 
 
 def _minus_year(d: str) -> str:
     return f"{int(d[:4]) - 1}{d[4:]}"
+

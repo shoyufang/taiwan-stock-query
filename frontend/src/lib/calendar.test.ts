@@ -25,6 +25,13 @@ describe('groupEvents', () => {
     const g = groupEvents(ev, { kinds: new Set(['conference']), watchOnly: false, showPast: true }, new Set(), '2026-10-17')
     expect(g.flatMap(([, l]) => l.map((e) => e.code))).toEqual(['1303', '2317'])
   })
+  it('跨日法說會未超過 end_date 時不視為過去事件', () => {
+    const multi: CalEvent[] = [
+      { date: '2026-10-15', end_date: '2026-10-18', kind: 'conference', code: '2330', name: '台積電', title: '法說會（10/15～10/18）', detail: '' },
+    ]
+    const g = groupEvents(multi, { kinds: all, watchOnly: false, showPast: false }, new Set(), '2026-10-17')
+    expect(g.map(([d]) => d)).toEqual(['2026-10-15'])
+  })
 })
 
 describe('dayLabel', () => {
