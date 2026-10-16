@@ -35,9 +35,26 @@ services:
   web:
     build:
       context: ../frontend
-    # 只綁 Tailscale IP（BIND_IP 寫在 deploy/.env）；未設定時只綁本機，絕不綁 0.0.0.0
+    # 只綁本機：開機時一定綁得到。對外由 tailnet-proxy 轉發，絕不綁 0.0.0.0
     ports:
-      - "${BIND_IP:-127.0.0.1}:8600:80"
+      - "127.0.0.1:8600:80"
     depends_on:
       - api
+    restart: unless-stopped
+
+  # 把 Tailscale IP 的 8600 轉到本機 8600。開機時 Docker 可能比 Tailscale 先起，
+  # 所以先等 BIND_IP 出現在網卡上再開始監聽；不需要改主機系統設定。
+  tailnet-proxy:
+    image: alpine/socat:1.8.0.3
+    network_mode: host
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        until ip -o addr | grep -q " $$BIND_IP/"; do echo "waiting for $$BIND_IP"; sleep 5; done
+        echo "listening on $$BIND_IP:8600"
+        exec socat TCP-LISTEN:8600,bind=$$BIND_IP,reuseaddr,fork TCP:127.0.0.1:8600
+    environment:
+      BIND_IP: ${BIND_IP:?deploy/.env 必須設定 BIND_IP（home server 的 Tailscale IP）}
+    depends_on:
+      - web
     restart: unless-stopped
