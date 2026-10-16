@@ -1,6 +1,5 @@
 import { useHealth } from '../lib/useHealth'
 import type { Mode } from '../lib/marketMode'
-import { ComingSoon } from './ComingSoon'
 import styles from './ComingSoon.module.css'
 
 const MODE_LABEL: Record<Mode, string> = { live: '盤中（深色終端機）', close: '盤後報告' }
@@ -9,7 +8,6 @@ export function Home({ mode }: { mode: Mode }) {
   const health = useHealth()
   return (
     <div style={{ display: 'grid', gap: 16 }}>
-      <ComingSoon title="市場總覽" phase="P1（盤後）與 P2（盤中即時）" />
       <section className={styles.box} aria-labelledby="sys-title">
         <h2 id="sys-title" className={styles.title} style={{ fontSize: 18 }}>
           系統狀態

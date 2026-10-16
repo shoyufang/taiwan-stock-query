@@ -62,10 +62,10 @@ export function AppShell({ market }: { market: MarketModeState }) {
           <span className={styles.modeHint}>
             {isManual && manualUntil ? `手動，${formatUntil(manualUntil)} 恢復自動` : '依交易時間自動切換'}
           </span>
-          <span className={styles.health} role="status">
+          <NavLink to="/status" className={styles.health} role="status">
             <span className={styles.dot} data-status={health.status} aria-hidden="true" />
             {HEALTH_LABEL[health.status]}
-          </span>
+          </NavLink>
         </div>
       </header>
       <main className={styles.main}>
