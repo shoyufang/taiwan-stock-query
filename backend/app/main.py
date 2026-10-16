@@ -14,6 +14,7 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
 from app import cache
+from app.api_global import router as global_router
 from app.api_stock import router as stock_router
 from app.api_watchlist import router as watchlist_router
 from app.services import alert_runner
@@ -48,6 +49,7 @@ app = FastAPI(title="台股看盤 API", lifespan=lifespan, docs_url="/api/docs",
 app.include_router(ws_router)
 app.include_router(stock_router)
 app.include_router(watchlist_router)
+app.include_router(global_router)
 
 
 WORKER_STALE_SEC = 30 * 60

@@ -13,6 +13,7 @@ from zoneinfo import ZoneInfo
 
 from app import cache
 from app.services import overview as ov
+from app.services import global_mkt
 from app.services import screener as sc
 from app.settings import load_settings
 from app.sources import twse, yahoo
@@ -24,6 +25,7 @@ SERIES_MONTHS = 6
 
 KEY_OVERVIEW = "overview:latest"
 KEY_SCREENER = "screener:base"
+KEY_GLOBAL = "global:latest"
 SCREENER_DAYS = 10
 KEY_STATUS = "overview:status"
 KEY_FMTQIK = "twse:fmtqik:{ym}"
@@ -149,6 +151,11 @@ async def refresh_overview(rds) -> dict:
     intl = await international(asof)
     data = ov.build_overview(asof, mi, t, series, intl, now.isoformat(timespec="seconds"))
     await rds.set(KEY_OVERVIEW, json.dumps(data, ensure_ascii=False))
+    try:
+        g = await global_mkt.build(now.isoformat(timespec="seconds"))
+        await rds.set(KEY_GLOBAL, json.dumps(g, ensure_ascii=False))
+    except Exception:
+        log.exception("全球市場更新失敗（市場總覽不受影響）")
     return data
 
 

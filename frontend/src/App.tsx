@@ -5,6 +5,7 @@ import { useMarketMode } from './lib/useMarketMode'
 import { ComingSoon } from './pages/ComingSoon'
 import { Home } from './pages/Home'
 import { Overview } from './pages/Overview'
+import { GlobalPage } from './pages/GlobalPage'
 import { ScreenerPage } from './pages/ScreenerPage'
 import { StockPage } from './pages/StockPage'
 import { WatchlistPage } from './pages/WatchlistPage'
@@ -24,7 +25,7 @@ export function App() {
             <Route path="stock/:code" element={<StockPage mode={market.mode} />} />
             <Route path="watchlist" element={<WatchlistPage mode={market.mode} />} />
             <Route path="screener" element={<ScreenerPage />} />
-            <Route path="global" element={<ComingSoon title="全球市場" phase="P5" />} />
+            <Route path="global" element={<GlobalPage mode={market.mode} />} />
             <Route path="calendar" element={<ComingSoon title="行事曆" phase="P5" />} />
             <Route path="ai" element={<ComingSoon title="AI 助理" phase="P5" />} />
             <Route path="status" element={<Home mode={market.mode} />} />

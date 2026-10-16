@@ -31,6 +31,24 @@ def parse_bars(raw: dict) -> list[dict]:
     return out
 
 
+def parse_ohlc(raw: dict) -> dict:
+    """→ {meta: {...}, bars: [{date, open, high, low, close, volume, value}]}（日期為交易所當地）。"""
+    res = raw["chart"]["result"][0]
+    meta = res["meta"]
+    tz = ZoneInfo(meta.get("exchangeTimezoneName") or "UTC")
+    q = res["indicators"]["quote"][0]
+    bars = []
+    for i, ts in enumerate(res.get("timestamp") or []):
+        o, h, lo, c, v = (q[k][i] for k in ("open", "high", "low", "close", "volume"))
+        if None in (o, h, lo, c):
+            continue
+        bars.append({"date": datetime.fromtimestamp(ts, tz).date().isoformat(), "open": round(o, 4), "high": round(h, 4),
+                     "low": round(lo, 4), "close": round(c, 4), "volume": int(v or 0), "value": 0.0})
+    info = {"symbol": meta.get("symbol"), "name": meta.get("longName") or meta.get("shortName") or meta.get("symbol"),
+            "currency": meta.get("currency"), "exchange": meta.get("fullExchangeName") or meta.get("exchangeName")}
+    return {"meta": info, "bars": bars}
+
+
 def last_before(bars: list[dict], d: date, inclusive: bool = False) -> tuple[dict, dict] | None:
     """取日期在 d 之前（或含 d）的最後一根與前一根，用來算漲跌。"""
     eligible = [b for b in bars if (b["date"] <= d if inclusive else b["date"] < d)]
