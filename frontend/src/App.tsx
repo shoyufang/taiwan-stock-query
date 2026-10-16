@@ -7,6 +7,7 @@ import { ComingSoon } from './pages/ComingSoon'
 import { Home } from './pages/Home'
 import { Overview } from './pages/Overview'
 import { GlobalPage } from './pages/GlobalPage'
+import { PortfolioPage } from './pages/PortfolioPage'
 import { ScreenerPage } from './pages/ScreenerPage'
 import { StockPage } from './pages/StockPage'
 import { WatchlistPage } from './pages/WatchlistPage'
@@ -27,6 +28,7 @@ export function App() {
             <Route path="watchlist" element={<WatchlistPage mode={market.mode} />} />
             <Route path="screener" element={<ScreenerPage />} />
             <Route path="global" element={<GlobalPage mode={market.mode} />} />
+            <Route path="portfolio" element={<PortfolioPage mode={market.mode} />} />
             <Route path="calendar" element={<CalendarPage />} />
             <Route path="ai" element={<ComingSoon title="AI 助理" phase="P5" />} />
             <Route path="status" element={<Home mode={market.mode} />} />

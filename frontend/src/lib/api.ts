@@ -1,5 +1,7 @@
 // 後端 /api 回傳格式（與 backend/app/services/overview.py 對應）。
 
+import type { Holding } from './portfolio'
+
 export interface Quote {
   code: string
   name: string
@@ -171,7 +173,9 @@ async function json<T>(res: Response): Promise<T> {
   if (!res.ok) {
     let detail = `API ${res.status}`
     try {
-      detail = (await res.json()).detail ?? detail
+      const d = (await res.json()).detail
+      // FastAPI 欄位驗證錯誤（422）的 detail 是陣列
+      detail = Array.isArray(d) ? d.map((x) => String(x.msg ?? '')).join('；') || detail : (d ?? detail)
     } catch {
       // 非 JSON 錯誤
     }
@@ -205,4 +209,24 @@ export async function fetchOverview(): Promise<Overview> {
   if (res.status === 503) throw new NotReadyError('資料準備中')
   if (!res.ok) throw new Error(`API ${res.status}`)
   return res.json()
+}
+
+export interface PortfolioData {
+  holdings: Holding[]
+  quotes: Record<string, WatchRow>
+}
+
+export interface HoldingIn {
+  code: string
+  shares: number
+  cost: number
+  bought_on: string | null
+  note: string
+}
+
+export const portfolioApi = {
+  get: () => fetch('/api/portfolio').then((r) => json<PortfolioData>(r)),
+  add: (h: HoldingIn) => fetch('/api/portfolio', { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(h) }).then((r) => json<{ id: number }>(r)),
+  update: (id: number, h: HoldingIn) => fetch(`/api/portfolio/${id}`, { method: 'PUT', headers: JSON_HEADERS, body: JSON.stringify(h) }).then((r) => json<{ ok: boolean }>(r)),
+  remove: (id: number) => fetch(`/api/portfolio/${id}`, { method: 'DELETE' }).then((r) => json<{ ok: boolean }>(r)),
 }

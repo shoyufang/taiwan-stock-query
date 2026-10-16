@@ -10,6 +10,7 @@ export const NAV_ITEMS = [
   { to: '/watchlist', label: '自選股' },
   { to: '/screener', label: '選股' },
   { to: '/global', label: '全球市場' },
+  { to: '/portfolio', label: '投資組合' },
   { to: '/calendar', label: '行事曆' },
   { to: '/ai', label: 'AI 助理' },
 ]

@@ -33,6 +33,9 @@ class Store:
             CREATE TABLE IF NOT EXISTS alert_events (
                 id INTEGER PRIMARY KEY AUTOINCREMENT, rule_id INTEGER, code TEXT NOT NULL, type TEXT NOT NULL,
                 message TEXT NOT NULL, at TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS holdings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, code TEXT NOT NULL, shares INTEGER NOT NULL,
+                cost REAL NOT NULL, bought_on TEXT, note TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL);
             """
         )
         # 這些表只存使用者自己的設定與紀錄；與上面的快取不同，遺失會掉資料（volume 要保留）
@@ -113,6 +116,29 @@ class Store:
             rows = self.conn.execute(
                 "SELECT id, rule_id, code, type, message, at FROM alert_events ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
         return [dict(zip(("id", "rule_id", "code", "type", "message", "at"), r)) for r in rows]
+
+    # ── 投資組合（手動輸入，每筆為一次買進） ──
+    _HOLDING_COLS = ("id", "code", "shares", "cost", "bought_on", "note", "created_at")
+
+    def list_holdings(self) -> list[dict]:
+        with self._lock:
+            rows = self.conn.execute(f"SELECT {', '.join(self._HOLDING_COLS)} FROM holdings ORDER BY code, id").fetchall()
+        return [dict(zip(self._HOLDING_COLS, r)) for r in rows]
+
+    def add_holding(self, code: str, shares: int, cost: float, bought_on: str | None, note: str, created_at: str) -> int:
+        with self._lock, self.conn:
+            return self.conn.execute(
+                "INSERT INTO holdings (code, shares, cost, bought_on, note, created_at) VALUES (?,?,?,?,?,?)",
+                (code, shares, cost, bought_on, note, created_at)).lastrowid
+
+    def update_holding(self, holding_id: int, shares: int, cost: float, bought_on: str | None, note: str) -> bool:
+        with self._lock, self.conn:
+            return self.conn.execute("UPDATE holdings SET shares=?, cost=?, bought_on=?, note=? WHERE id=?",
+                                     (shares, cost, bought_on, note, holding_id)).rowcount > 0
+
+    def delete_holding(self, holding_id: int) -> bool:
+        with self._lock, self.conn:
+            return self.conn.execute("DELETE FROM holdings WHERE id=?", (holding_id,)).rowcount > 0
 
     # ── 一般快取 ──
     def kv_get(self, key: str, max_age: float) -> object | None:
