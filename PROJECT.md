@@ -73,6 +73,7 @@
 2. ~~定技術架構，寫成 `docs/plans/` 規格~~（2026-10-16 草案完成，待使用者確認）
 3. ~~依架構文件 P0（地基）開工~~（2026-10-16 完成）
 4. ~~P1 市場總覽（盤後）~~（2026-10-17 完成）
+6. ~~P3 個股頁~~（2026-10-17 完成）→ 下一步 P4 自選股與警示
 5. **P2 即時行情：程式已部署、金鑰已設定、休市自我檢查全部通過**。剩 2026-10-19（一）開盤實測：推播延遲 < 1 秒、指數漲跌家數是否含漲跌停（與證交所收盤統計比對）、成交量差異（見已知問題）。自我檢查指令：`cd ~/apps/twstock && docker compose -f deploy/compose.yml run --rm --no-deps -T quote python -m app.quote.selftest`；重設金鑰：`ssh -t home "bash ~/apps/twstock/deploy/set-shioaji-keys.sh"`
 
 **新網站開發須知**（P0 起適用）
@@ -89,7 +90,9 @@
 - [x] ~~home server 開機時序~~：改用 `tailnet-proxy` 容器等 Tailscale IP 出現再轉發，不需改主機設定（2026-10-16）
 - [ ] 在 Uptime Kuma 新增監控 `http://100.100.245.93:8600/api/health`（需使用者登入 Uptime Kuma 設定）
 - [ ] 建議把 repo 搬離 Google 雲端硬碟（例如 `C:\dev\`）：2026-10-16 已出現 `.git` 孤立索引檔警告、venv 建置卡住，都是同步軟體干擾的徵兆
-- [ ] **K 線路由 `get_kbar()` 待決策**：Shioaji 只有 2020 年起資料、FinMind 從 1994 年起，歷史 K 線用哪個日期切換？富途港股要不要併入統一入口？（使用者交代：下次碰 router 時要先提醒他決定）
+- [x] ~~K 線路由待決策~~（2026-10-17 使用者決定：日 K 歷史全用 FinMind、當日與分時用永豐推播、預設不還原可切換；富途留待 P5）
+- [ ] 上櫃股與櫃買指數比較、修正櫃買指數卡（參考 TWStockMCPServer 的 TPEx 端點，見架構文件 §9.5）
+- [ ] 個股頁籌碼區加「集保大戶／散戶持股比例」（集保免費資料，見 §9.5）
 - [ ] **台股「AI 個股健檢」按鈕永遠報錯**：`tabs/stock_page.py` 呼叫的 `ai_engine.generate_tw_stock_report` 從未實作。2026-07 曾分派任務，但留下的 worktree（`.claude/worktrees/elastic-rosalind-06694a`）沒有任何新 commit，等於沒做
 - [ ] 清掉上述殘留 worktree
 - [ ] 2026-10-16 的本機改動待 commit 與推送（使用者說先不推）
@@ -124,6 +127,17 @@
 ---
 
 ## 7. 工作日誌（新的寫在最上面）
+
+### 2026-10-17｜Claude Opus 5.5
+- 做了什麼：**P3 個股頁完成並上線**（`/stock/{代號}`，盤中終端機版與盤後報告版）。
+  1. 依提醒先請使用者決定 K 線來源：日 K 歷史全用 FinMind（1994 起），當日 K 棒與五檔用永豐推播；預設不還原、可切換還原權值
+  2. 後端：FinMind 抓取層、SQLite 快取（Docker volume `/data`，日 K 增量更新；未動 home server 共用的 PostgreSQL）、法人／融資券／月營收（直接用 FinMind 的 `revenue_year/revenue_month`）／本益比五年位置／還原權值／摘要句、`/api/stock/{code}`、`/kbar`、`/api/search`
+  3. 前端：TradingView Lightweight Charts v5 日 K＋MA5/20/60＋成交量（盤中只更新最後一根）、五檔、外資 15 日、融資券、營收、本益比位置、搜尋
+  4. 評估使用者提供的 TWStockMCPServer：MIT 授權；AI 助理（P5）直接接、網站資料層只參考其官方端點（寫入架構文件 §9.5）
+  5. 修正：搜尋結果排除權證並讓一般股票優先；上櫃股不再拿加權指數比較；切換深淺模式時 K 線圖顏色錯誤（子元件 effect 先於父元件執行，改為渲染時即套用模式）
+- 改了哪些檔：`backend/app/sources/finmind.py`、`backend/app/store.py`、`backend/app/services/stock.py`、`stock_loader.py`、`backend/app/api_stock.py`、`main.py`、`settings.py`、`backend/Dockerfile`、`deploy/compose.yml`（volume、FINMIND_TOKEN）、`frontend/src/pages/StockPage.*`、`components/KChart.tsx`、`lib/indicators.ts`、`lib/api.ts`、`lib/useMarketMode.ts`、`backend/tests/test_stock.py` 與 fixtures、架構文件、記憶檔
+- 怎麼驗證：後端 pytest 47 passed、前端 vitest 23 passed、ruff 與建置通過。**跨來源核對**：FinMind 算出的外資買賣超 10/16 −22,046、10/15 −34,111 張與證交所 T86 完全一致；10/16 收盤 2,420、成交 43,046,982 股與證交所一致；10 月外資累計 −10.6 萬張與另一套資料推算一致；還原權值逐日驗算（9/15 還原後 = 官方參考價 2,377.99）。速度：首次載入台積電（含 30 年歷史）1.05 秒、快取後 0.02 秒、上櫃 0.24 秒、ETF 0.55 秒。瀏覽器實測盤後／盤中、還原切換、手機 375 寬無溢出
+- 沒做完／新發現：上櫃股的大盤比較待接櫃買指數；FINMIND_TOKEN 未設定（目前用免登入額度，有快取所以夠用）
 
 ### 2026-10-17｜Claude Opus 5.5
 - 做了什麼：P2 金鑰設定與休市實測。
