@@ -25,11 +25,11 @@
 
 ## 1. 專案是什麼
 
-個人用的台股（含港美股）查詢與看盤工具。整合永豐金 Shioaji、證交所 TWSE、FinMind、富途 Futu、Yahoo Finance 等資料源，提供：
+個人用的台股（含港美股與全球市場）查詢與看盤工具。整合永豐金 Shioaji、證交所 TWSE、櫃買 TPEx、公開資訊觀測站 MOPS、FinMind、Yahoo Finance 與自架 TWStockMCPServer，提供：
 
-- **網站**（目前是 Streamlit，部署在家中 NAS，port 8502）：市場總覽、個股全景、自選股、選股、全球市場、行事曆、AI 助理、投資組合。
-- **每日排程**（`daily_job.py`，NAS 20:00 主力＋GitHub Actions 20:05 備援）：抓盤後資料存 CSV、法人選股、處置股郵件通知、寫 Notion／PostgreSQL。
-- **命令列選單**（`cli.py`，47 項）：已凍結，不再加新功能。
+- **新網站**（FastAPI＋React 前後端分離，部署在 home server `http://100.100.245.93:8600`，僅 Tailscale）：市場總覽（含處置／注意股）、個股頁（含 K 線、籌碼、基本面與 PE 河流圖）、自選股與警示、選股與技術掃描（含多因子漏斗）、全球市場（含美股選股與財報日曆）、投資行事曆、投資組合、AI 助理。
+- **背景排程與即時推播**：`worker` 容器定時預先計算全站盤後資料寫入 Redis；`api` 收盤迴圈執行處置／注意股與警示推播（網頁＋自架 ntfy＋Telegram）；`quote` 容器於交易時段透過永豐金 Shioaji WebSocket 逐筆推播。
+- **舊版封存（`legacy/`）**：舊 Streamlit 網站（NAS `sinopac-web`）、`daily_job.py` 與命令列選單（`cli.py`）已退役並歸檔至 `legacy/`。
 
 ---
 
@@ -37,10 +37,10 @@
 
 | 項目 | 狀態 |
 |---|---|
-| 正式網站 | Streamlit 版運作中（NAS `sinopac-web` 容器，NAS 關機中）。功能可用但**市場總覽載入超過 1.5 分鐘**，視覺不夠專業 |
-| 每日排程 | 舊排程已停擺（GitHub Actions 停用、NAS 關機）；新站由 `worker` 與 `api` 收盤迴圈接手 |
-| 前端改版 | **已決定放棄 Streamlit，改走 B 方案（前後端分離）**。home server `http://100.100.245.93:8600`（僅 Tailscale）。**P0～P5、P6a、P6b、P6c、P6d 皆已上線**（舊站四項補齊功能全數完成）；P2 待 10/19 開盤實測；下一步 P6e 搬移 `legacy/`、更新 CI／文件、停用舊站 |
-| 資料路由層 | `datasources/router.py` 已有法人／估值／融資融券三個主題函式；新站改由 `backend/app/sources/` 與 `services/` 實作 |
+| 正式網站 | **新站已全面上線**：home server `http://100.100.245.93:8600`（僅 Tailscale）。舊 NAS Streamlit 網站已退役（NAS 關機中，下次開機時停用 `sinopac-web` 與 cron 即可） |
+| 每日排程 | 新站 `worker` 與 `api` 收盤迴圈全面接手；舊 `daily.yml` 與 `daily_job.py` 已移入 `legacy/` |
+| 前端改版 | **P0～P6（含 P6a～P6e）全數完成並上線**；剩 P2 待 2026-10-19（一）開盤實測即時推播延遲與漲跌家數 |
+| 資料層 | `backend/app/sources/`（TWSE、TPEx、MOPS、FinMind、Yahoo）與 `backend/app/services/` 純函式；舊 `datasources/` 已歸檔至 `legacy/datasources/` |
 | 本機環境 | 固定使用 **Python 3.13**（`py -3.13`）。系統預設 3.14 沒裝套件，不要用 |
 | Git | 工作分支 `local`，發布分支 `main` |
 
@@ -76,11 +76,11 @@
 6. ~~P3 個股頁~~（2026-10-17 完成）
 7. ~~P4 自選股與警示~~（2026-10-17 完成；Telegram 待使用者建立機器人後執行 `deploy/set-telegram.sh`；手機 ntfy 待使用者安裝 App 訂閱 `http://100.100.245.93:8601` 主題 `twstock`）
 8. P5 其餘頁面：~~選股~~、~~全球市場~~、~~行事曆~~、~~投資組合~~（2026-10-17 完成）；~~AI 助理~~（2026-10-17 實測通過，模型 agnes-2.5-pro-alpha）→ P5 全部完成
-9. **P6 切換**（使用者決定補四項後停用舊站、不寫 Notion、舊碼搬 legacy/）：~~P6a 處置／注意股＋通知~~（2026-10-17）→ ~~P6b 個股基本面~~（2026-10-17）→ ~~P6c 美股選股＋財報日曆~~（2026-10-17）→ ~~P6d 技術掃描與多因子選股~~（2026-10-17）→ P6e 搬 legacy、CI、文件、開 NAS 停舊站
+9. **P6 切換**（使用者決定補四項後停用舊站、不寫 Notion、舊碼搬 legacy/）：~~P6a 處置／注意股＋通知~~（2026-10-17）→ ~~P6b 個股基本面~~（2026-10-17）→ ~~P6c 美股選股＋財報日曆~~（2026-10-17）→ ~~P6d 技術掃描與多因子選股~~（2026-10-17）→ ~~P6e 搬 legacy、CI、文件~~（2026-10-17 完成；NAS 目前關機中，待下次開 NAS 時執行 `sudo docker stop sinopac-web && sudo docker update --restart=no sinopac-web` 並註解 cron 即可）
 5. **P2 即時行情：程式已部署、金鑰已設定、休市自我檢查全部通過**。剩 2026-10-19（一）開盤實測：推播延遲 < 1 秒、指數漲跌家數是否含漲跌停（與證交所收盤統計比對）、成交量差異（見已知問題）。自我檢查指令：`cd ~/apps/twstock && docker compose -f deploy/compose.yml run --rm --no-deps -T quote python -m app.quote.selftest`；重設金鑰：`ssh -t home "bash ~/apps/twstock/deploy/set-shioaji-keys.sh"`
 
 **新網站開發須知**（P0 起適用）
-- 程式碼：`backend/`（FastAPI）、`frontend/`（React）、`deploy/`（compose、hook）
+- 程式碼：`backend/`（FastAPI）、`frontend/`（React）、`deploy/`（compose、hook）、`legacy/`（舊版封存）
 - 部署：`git push home local:main` → home server 自動建置並重啟（hook 原始檔 `deploy/post-receive.sh`，伺服器上 `deploy/.env` 不進 git）
 - 本機測試：後端 venv 在 `C:\Users\shoyu\.venvs\twstock-backend`；前端在 `C:\Users\shoyu\dev\twstock-fe` 鏡像執行 npm（**不要在雲端硬碟資料夾裡建 venv 或 node_modules**，數萬個小檔會拖慢並被同步）
 
@@ -88,19 +88,18 @@
 
 ## 4. 待辦（依優先順序）
 
-- [ ] **前端改版**：見第 3 節（P0～P5、P6a、P6b、P6c、P6d ✅，下一步 P6e）
-- [ ] 新後端 `backend/app/services/overview.py` 與舊站 `datasources/twse_client.py` 各有一份 T86 欄位對照（新後端為避免載入 shioaji/FinMind 而獨立實作）。P6 舊站停用時刪舊的那份
+- [x] ~~**前端改版（P0～P6）**~~：見第 3 節，P0～P5 與 P6a～P6e 全數完成上線（2026-10-17）；剩 2026-10-19（一）P2 開盤實測，以及下次開 NAS 時停用 `sinopac-web` 容器與舊 cron
+- [x] ~~新後端 `backend/app/services/overview.py` 與舊站 `datasources/twse_client.py` 各有一份 T86 欄位對照~~：舊站已封存至 `legacy/`（2026-10-17）
 - [x] ~~home server 開機時序~~：改用 `tailnet-proxy` 容器等 Tailscale IP 出現再轉發，不需改主機設定（2026-10-16）
 - [ ] 在 Uptime Kuma 新增監控 `http://100.100.245.93:8600/api/health`（需使用者登入 Uptime Kuma 設定）
 - [ ] 建議把 repo 搬離 Google 雲端硬碟（例如 `C:\dev\`）：2026-10-16 已出現 `.git` 孤立索引檔警告、venv 建置卡住，都是同步軟體干擾的徵兆
 - [x] ~~K 線路由待決策~~（2026-10-17 使用者決定：日 K 歷史全用 FinMind、當日與分時用永豐推播、預設不還原可切換；富途留待 P5）
 - [ ] 上櫃股與櫃買指數比較、修正櫃買指數卡（參考 TWStockMCPServer 的 TPEx 端點，見架構文件 §9.5）
 - [ ] 個股頁籌碼區加「集保大戶／散戶持股比例」（集保免費資料，見 §9.5）
-- [ ] **台股「AI 個股健檢」按鈕永遠報錯**：`tabs/stock_page.py` 呼叫的 `ai_engine.generate_tw_stock_report` 從未實作。2026-07 曾分派任務，但留下的 worktree（`.claude/worktrees/elastic-rosalind-06694a`）沒有任何新 commit，等於沒做
-- [ ] 清掉上述殘留 worktree
-- [ ] 2026-10-16 的本機改動待 commit 與推送（使用者說先不推）
-- [ ] `config.py` 舊的 `ConfigManager` 相容類別移除（需改寫約 80 處測試呼叫，工程大，暫緩）
-- [ ] `daily_job.py` Step 6 的 `_TWSE_DAILY_ENDPOINTS` 與 `twse_client.py` 端點定義重複，日後合併（不影響正確性）
+- [x] ~~**台股「AI 個股健檢」按鈕永遠報錯**~~：舊站已封存至 `legacy/`，新站改由 `/ai` 頁接 Agnes＋TWStockMCPServer＋站內工具（2026-10-17）
+- [x] ~~清掉上述殘留 worktree~~：已移除 `.claude/worktrees/elastic-rosalind-06694a`（2026-10-17）
+- [x] ~~2026-10-16 的本機改動待 commit 與推送~~：已隨 P6 整理提交並推送至 home server（2026-10-17）
+- [x] ~~`config.py` 舊的 `ConfigManager` 相容類別移除 / `daily_job.py` 端點重複~~：舊碼已歸檔至 `legacy/`，不再維護（2026-10-17）
 
 ---
 
@@ -108,11 +107,10 @@
 
 | 問題 | 影響 | 狀態 |
 |---|---|---|
-| 櫃買指數 Yahoo 代號 `^TWOII` 又抓不到資料 | 市場總覽櫃買卡片空白 | 未修（2026-10-16 發現） |
-| TWSE 全市場行情（STOCK_DAY_ALL）更新比指數、法人慢一天 | 舊站同一頁混用不同日期的數字 | 新站已解決（改用可指定日期的 rwd MI_INDEX，整頁同一日）；舊站不修 |
-| 市場總覽首次載入超過 1.5 分鐘 | 體驗差 | 新站已解決（資料 0.19 秒內顯示）；舊站不修 |
-| 台指期卡片顯示「—」 | 資料缺漏 | 未查 |
-| **舊站升級 shioaji 會壞**：`datasources/shioaji_client.py` 用了 `login(fetch_contract=...)`，1.7.8 已移除此參數；舊站 `requirements.txt` 允許裝到最新版 | NAS 下次重建舊站映像時永豐金功能失效 | 未修（新站已鎖 `shioaji==1.7.8`）；舊站若要重建，先把 requirements 鎖在 `shioaji==1.7.2` |
+| 櫃買指數 Yahoo 代號 `^TWOII` 又抓不到資料 | 舊站市場總覽櫃買卡片空白 | 舊站已封存；新站後續改由 TPEx 官方端點支援上櫃比較（見待辦） |
+| TWSE 全市場行情（STOCK_DAY_ALL）更新比指數、法人慢一天 | 舊站同一頁混用不同日期的數字 | 新站已解決（改用可指定日期的 rwd MI_INDEX，整頁同一日） |
+| 市場總覽首次載入超過 1.5 分鐘 | 體驗差 | 新站已解決（資料 0.19 秒內顯示） |
+| **舊站升級 shioaji 會壞**：`datasources/shioaji_client.py` 用了 `login(fetch_contract=...)`，1.7.8 已移除此參數 | 舊站已封存 `legacy/` | 新站已鎖 `shioaji==1.7.8` 並修正參數 |
 | 永豐金模擬環境快照的總量與官方不同：2330 於 10/16 快照 33,389 張，證交所 43,046 張（價格完全一致） | 量相關數字可能偏低 | 待 10/19 開盤實測，推測快照未計收盤集合競價 |
 
 ---
@@ -124,12 +122,22 @@
 | `PROJECT.md`（本檔） | 進度、待辦、已知問題、工作日誌 |
 | `CLAUDE.md` | 操作手冊：部署流程、API 設定、選單對照、歷史代理人紀錄（2026-06 以前） |
 | `AGENTS.md` / `GEMINI.md` | 指標檔，指向本檔與 CLAUDE.md |
-| `docs/plans/REDESIGN_PLAN_2026-07.md` | 2026-07 重構計畫 R1–R6 與執行結果 |
-| `docs/plans/IMPROVEMENT_PLAN_2026-07.md` | 2026-07 修 bug 計畫 P0–P4 與執行結果 |
+| `docs/plans/FRONTEND_REWRITE_ARCH_2026-10.md` | 2026-10 新網站前後端分離架構與 P0–P6 分期紀錄 |
+| `docs/plans/REDESIGN_PLAN_2026-07.md` | 2026-07 重構計畫 R1–R6 與執行結果（歷史） |
+| `docs/plans/IMPROVEMENT_PLAN_2026-07.md` | 2026-07 修 bug 計畫 P0–P4 與執行結果（歷史） |
 
 ---
 
 ## 7. 工作日誌（新的寫在最上面）
+
+### 2026-10-17｜Antigravity (Gemini)
+- 做了什麼：**P6e 舊站歸檔 `legacy/`、清除殘留 worktree、更新 CI 與文件完成**。
+  1. 以 `git mv` 將舊版 Streamlit 網站（`app.py`、`tabs/`、`ui/`、`datasources/`、`screener.py`、`daily_job.py`、`cli.py`、舊 `tests/`、舊 `data/` 等 51 個根目錄項目與 `.github/workflows/daily.yml`）全數歸檔至 `legacy/`，根目錄只保留 `backend/`、`frontend/`、`deploy/`、`docs/` 與說明文件
+  2. 移除 2026-07 殘留的 git worktree `.claude/worktrees/elastic-rosalind-06694a`
+  3. 更新 `.github/workflows/ci.yml`（移除舊版 Streamlit test job，保留 `backend` ruff+pytest 與 `frontend` typecheck+vitest+build），並同步更新 `README.md`、`CLAUDE.md`、`docs/plans/FRONTEND_REWRITE_ARCH_2026-10.md` 與 `PROJECT.md`
+- 改了哪些檔：`legacy/*`（`git mv` 52 項）、`.github/workflows/ci.yml`、`README.md`、`CLAUDE.md`、`docs/plans/FRONTEND_REWRITE_ARCH_2026-10.md`、`PROJECT.md`
+- 怎麼驗證：後端 pytest 86 passed、ruff 通過；前端 typecheck、vitest 44 passed、build 通過；推送部署至 home server 後 `/api/health` 回 200 OK
+- 沒做完／新發現：NAS 目前關機中，待使用者下次開機 NAS 時執行 `sudo docker stop sinopac-web && sudo docker update --restart=no sinopac-web` 並停用 NAS cron 即可
 
 ### 2026-10-17｜Antigravity (Gemini)
 - 做了什麼：**P6d 技術掃描與多因子選股完成並部署上線**（整合至 `/screener` 選股頁，取代舊站 `screener.py` 與 `tabs/technical_scanner.py`）。

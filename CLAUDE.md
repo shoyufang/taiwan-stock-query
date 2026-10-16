@@ -8,59 +8,33 @@
 
 ---
 
-## 🚀 部署基礎設施（已全自動化，無需再問）
+## 🚀 部署基礎設施（2026-10 新站架構：Home Server）
 
-### Git 分支架構
-- **本機工作分支**：`local`（所有開發都在這裡）
-- **發布分支**：`main`（合併後推送到 GitHub 和 NAS）
-- **正確推送流程**（每次都這樣做）：
+> **2026-10-17 更新**：舊版 Streamlit 網站、CLI 選單與舊排程已封存至 `legacy/`。
+> 現行系統為前後端分離架構（`backend/` FastAPI、`frontend/` React、`deploy/` Docker Compose），部署於 **Home Server (`shoyulinux`, Tailscale `http://100.100.245.93:8600`)**。
+
+### Git 分支與部署流程（Home Server）
+- **本機工作分支**：`local`
+- **直接部署至 Home Server**：
   ```bash
-  git checkout main
-  git merge local --no-ff -m "feat/fix/chore: ..."
-  git pull origin main --no-rebase
-  git push origin main   # → GitHub
-  git push nas main      # → NAS（自動重啟容器）
-  git checkout local
+  git push home local:main
   ```
-- ⚠️ `git push origin main` 若顯示 **"Everything up-to-date"** = commit 還在 `local` 沒 merge 進來！
+  Home Server 的 `~/git/twstock.git/hooks/post-receive`（原始檔為 `deploy/post-receive.sh`）會自動 checkout 至 `~/apps/twstock` 並執行 `docker compose -f deploy/compose.yml up -d --build --remove-orphans`。
+- **推送至 GitHub 備份**：
+  ```bash
+  git push origin local:main
+  ```
 
 ### Git Remotes
 | Remote | URL | 用途 |
 |--------|-----|------|
-| `origin` | `git@github-taiwan-stock:shoyufang/taiwan-stock-query.git` | GitHub 備份 |
-| `nas` | `ssh://nas-sinopac/volume1/docker/sinopac` | NAS 直接部署 |
-
-### SSH 設定（`~/.ssh/config`）
-```
-Host github-taiwan-stock
-    HostName github.com
-    User git
-    IdentityFile ~/.ssh/github_taiwan_stock
-
-Host nas-sinopac
-    HostName as6604t-77cb.myasustor.com   ← ASUS NAS 外網域名
-    User admin
-    IdentityFile ~/.ssh/id_rsa
-```
-
-### NAS 自動部署機制
-- **NAS 位置**：`as6604t-77cb.myasustor.com`（內網：`192.168.0.171`）
-- **容器名稱**：`sinopac-web`，監聽 Port `8502`
-- **Code 路徑**：`/volume1/docker/sinopac`（volume 掛載，不需 rebuild）
-- **post-receive hook**：push 到 `nas` 後自動執行：
-  1. `git checkout -f main`（更新工作目錄）
-  2. `sudo docker restart sinopac-web`（重啟容器，已設定 passwordless sudo）
-- **結論**：`git push nas main` 後，30 秒內網站自動更新，**完全無需 SSH 進 NAS**！
-
-### 如需手動操作 NAS
-```bash
-ssh nas-sinopac                         # 直接用 alias 連線
-cd /volume1/docker/sinopac
-sudo docker restart sinopac-web         # admin 已有 passwordless sudo（僅此指令）
-sudo docker logs sinopac-web --tail 50  # 查看 log
-```
+| `home` | `ssh://home/home/shoyufang/git/twstock.git` | **主力部署**：Home Server (`100.100.245.93:8600`) |
+| `origin` | `git@github-taiwan-stock:shoyufang/taiwan-stock-query.git` | GitHub 備份與 CI |
+| `nas` | `ssh://nas-sinopac/volume1/docker/sinopac` | 舊 NAS（舊站已退役） |
 
 ---
+
+## 舊版 NAS 部署紀錄與 `legacy/` 檔案對照（歷史存檔）
 
 ## 專案概覽
 
