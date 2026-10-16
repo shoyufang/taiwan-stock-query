@@ -73,7 +73,8 @@
 2. ~~定技術架構，寫成 `docs/plans/` 規格~~（2026-10-16 草案完成，待使用者確認）
 3. ~~依架構文件 P0（地基）開工~~（2026-10-16 完成）
 4. ~~P1 市場總覽（盤後）~~（2026-10-17 完成）
-6. ~~P3 個股頁~~（2026-10-17 完成）→ 下一步 P4 自選股與警示
+6. ~~P3 個股頁~~（2026-10-17 完成）
+7. ~~P4 自選股與警示~~（2026-10-17 完成；Telegram 待使用者建立機器人後執行 `deploy/set-telegram.sh`；手機 ntfy 待使用者安裝 App 訂閱 `http://100.100.245.93:8601` 主題 `twstock`）→ 下一步 P5 其餘頁面
 5. **P2 即時行情：程式已部署、金鑰已設定、休市自我檢查全部通過**。剩 2026-10-19（一）開盤實測：推播延遲 < 1 秒、指數漲跌家數是否含漲跌停（與證交所收盤統計比對）、成交量差異（見已知問題）。自我檢查指令：`cd ~/apps/twstock && docker compose -f deploy/compose.yml run --rm --no-deps -T quote python -m app.quote.selftest`；重設金鑰：`ssh -t home "bash ~/apps/twstock/deploy/set-shioaji-keys.sh"`
 
 **新網站開發須知**（P0 起適用）
@@ -127,6 +128,18 @@
 ---
 
 ## 7. 工作日誌（新的寫在最上面）
+
+### 2026-10-17｜Claude Opus 5.5
+- 做了什麼：**P4 自選股與警示完成並上線**（`/watchlist`）。
+  1. 使用者選定通知方式：網頁內提示＋ntfy＋Telegram
+  2. 自選股存 SQLite（預設 5 檔，加入／移除／排序）；報價牆盤中即時、盤後顯示收盤
+  3. 警示重寫（舊 `alert_engine.py` 的 pct_move 誤用漲跌金額、ma20_break 未實作）：盤中 price_above／price_below／pct_move 由永豐推播即時判斷；收盤 ma20_break／ma20_reclaim／外資連續買賣超 N 天；同一規則每天最多通知一次
+  4. 自選股與盤中警示代號寫入 Redis `quote:pinned`，行情服務改為依此常駐訂閱
+  5. 通知：網頁內提示（任何頁面右下角）、自架 ntfy 容器（`binwiederhier/ntfy:v2.17.0`，只綁 Tailscale 8601；upstream 設 ntfy.sh 供 iPhone 即時推播，只轉送訊息 ID）、Telegram（`deploy/set-telegram.sh` 讓使用者自行輸入 token、自動找聊天 ID）；httpx log 降為 WARNING 避免 token 進 log
+  6. 修正：自選股報價牆最後兩根 K 棒順序對調（顯示成前一天）；`ALERTS`／`SCANNER` 偽代號不再登記給行情服務；收到警示時立即更新觸發紀錄
+- 改了哪些檔：`backend/app/store.py`、`services/alerts.py`、`notify.py`、`alert_runner.py`、`api_watchlist.py`、`main.py`、`ws.py`、`quote/service.py`、`tests/test_alerts.py`、`test_ws.py`、`conftest.py`、`frontend/src/pages/WatchlistPage.*`、`components/AlertToast.*`、`lib/watchlistOps.ts`、`lib/api.ts`、`deploy/compose.yml`（ntfy、轉發 8601）、`deploy/set-telegram.sh`、`deploy/.env.example`
+- 怎麼驗證：後端 pytest 59 passed、前端 vitest 26 passed；**端到端實測**（週六無真實推播，改向行情頻道送標為今日的模擬報價）：用頁面表單建立規則 → 觸發並寫入紀錄 → ntfy 收到推播（點擊連到個股頁）→ 網頁右下角跳出提示 → 第二筆報價不重複通知；自選股報價與市場總覽數字一致；測完已刪除測試規則與紀錄（ntfy 快取的 2 則測試通知 72 小時後自動清除）
+- 沒做完／新發現：Telegram 未設定（需使用者先建立機器人）；手機尚未安裝 ntfy；真實盤中觸發待 10/19 開盤驗證；收盤規則依賴 FinMind 當晚更新時間
 
 ### 2026-10-17｜Claude Opus 5.5
 - 做了什麼：**P3 個股頁完成並上線**（`/stock/{代號}`，盤中終端機版與盤後報告版）。

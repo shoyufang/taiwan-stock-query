@@ -237,6 +237,6 @@ https://github.com/twjackysu/TWSEMCPServer（MIT 授權，可參考程式）。�
 | **P1 市場總覽（盤後）** ✅ 2026-10-17 | worker 預先計算；`/api/market/overview`；設計稿 B 實作；資料日期契約 | 首次顯示 < 2 秒；數字抽查一致 |
 | **P2 即時行情** | 查證 R1、R2；quote 服務；WebSocket；市場總覽盤中版（設計稿 A）；斷線降級 | 盤中實測逐筆延遲 < 1 秒；拔掉 quote 服務時畫面降級不空白 |
 | **P3 個股頁** ✅ 2026-10-17（K 線來源決定：FinMind 歷史＋永豐即時，預設不還原可切換；快取用 SQLite volume 而非共用 PostgreSQL） | 先決定 R4；K 線、籌碼、基本面、盤後報告摘要句 | 2330 等三檔數字與第二來源一致 |
-| **P4 自選股＋警示** | 自選股存 PostgreSQL；即時報價牆；警示（沿用 `alert_engine.py`） | 警示觸發實測 |
+| **P4 自選股＋警示** ✅ 2026-10-17（存 SQLite；警示重寫；通知：網頁內、自架 ntfy、Telegram） | 自選股存 PostgreSQL；即時報價牆；警示（沿用 `alert_engine.py`） | 警示觸發實測 |
 | **P5 其餘頁面** | 選股（抽出 `screener.py` 純函式）、全球市場、行事曆、AI 助理、投資組合 | 舊站功能清單逐項對照完成 |
 | **P6 切換** | 舊站停用；`daily_job` 評估搬到 worker；文件更新 | 使用者確認可以停用舊站 |
