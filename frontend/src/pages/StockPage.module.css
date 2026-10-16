@@ -1,0 +1,524 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.notice {
+  margin: 0;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+
+.skel {
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+
+/* 搜尋 */
+.search {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.searchInput {
+  flex: 1 1 260px;
+  max-width: 420px;
+  padding: 9px 12px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  min-height: 40px;
+}
+
+.searchBtn {
+  min-height: 40px;
+  padding: 0 18px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* 盤中：報價列 */
+.quoteBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 28px;
+  padding: 14px 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+
+.title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.name {
+  font-size: 22px;
+  margin: 0;
+}
+
+.tag {
+  font-size: 11px;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  padding: 2px 6px;
+  border-radius: 2px;
+}
+
+.priceBox {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+
+.price {
+  font-size: clamp(26px, 3vw, 34px);
+  font-weight: 700;
+}
+
+.badge {
+  font-size: 11px;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  padding: 1px 6px;
+  border-radius: 2px;
+}
+
+.kv {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+}
+
+.kv b {
+  font-weight: 500;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.mainGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 2.2fr) minmax(0, 1fr);
+  gap: 12px;
+}
+
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.tri {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  min-width: 0;
+}
+
+.cardHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.cardTitle {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  margin: 0;
+}
+
+.cardBody {
+  padding: 12px 14px;
+}
+
+/* 圖表工具列 */
+.chartTools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin-bottom: 10px;
+}
+
+.seg {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.segBtn {
+  border: 0;
+  background: transparent;
+  color: var(--text-2);
+  padding: 6px 12px;
+  min-height: 32px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.segBtn[aria-pressed='true'] {
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 700;
+}
+
+.toggle {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 13px;
+  color: var(--text-2);
+  min-height: 32px;
+}
+
+.legend {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+  font-family: var(--font-num);
+}
+
+/* 表格 */
+.tableBox {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.table th {
+  font-weight: 500;
+  font-size: 11px;
+  color: var(--muted);
+  text-align: right;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.table td {
+  padding: 6px 0;
+  text-align: right;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.table th:first-child,
+.table td:first-child {
+  text-align: left;
+}
+
+.table td + td,
+.table th + th {
+  padding-left: 10px;
+}
+
+/* 法人柱狀 */
+.bars {
+  position: relative;
+  display: flex;
+  gap: 3px;
+  height: 130px;
+}
+
+.zero {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  border-top: 1px solid var(--muted);
+}
+
+.barCol {
+  position: relative;
+  flex: 1 1 0;
+}
+
+.barUp,
+.barDown {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-radius: 1px;
+}
+
+.barUp {
+  background: var(--up);
+}
+
+.barDown {
+  background: var(--down);
+}
+
+.axis {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 6px;
+}
+
+.tri3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+}
+
+/* 營收柱狀 */
+.revBars {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 170px;
+  padding-bottom: 18px;
+  position: relative;
+}
+
+.revCol {
+  position: relative;
+  flex: 1 1 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.revBar,
+.revLast {
+  border-radius: 1px;
+}
+
+.revBar {
+  background: var(--border);
+}
+
+.revLast {
+  background: var(--accent);
+}
+
+.revLabel {
+  position: absolute;
+  bottom: -18px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 10px;
+  color: var(--muted);
+  font-family: var(--font-num);
+}
+
+/* 本益比位置 */
+.peNow {
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.unit {
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.peTrack {
+  position: relative;
+  height: 8px;
+  margin: 26px 0 8px;
+  background: var(--surface-2);
+}
+
+.peFill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: var(--accent);
+}
+
+.peMedian {
+  position: absolute;
+  top: -5px;
+  bottom: -5px;
+  width: 1px;
+  background: var(--text);
+}
+
+.peScale {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--muted);
+  height: 32px;
+}
+
+.peScale span:last-child {
+  text-align: right;
+}
+
+.peMid {
+  position: absolute;
+  transform: translateX(-50%);
+  text-align: center;
+}
+
+.footnote {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 8px 0 0;
+  line-height: 1.6;
+}
+
+/* 盤後：報告 */
+.report {
+  max-width: 1200px;
+  width: 100%;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+}
+
+.kicker {
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.headline {
+  font-family: var(--font-display);
+  font-size: clamp(26px, 3.6vw, 40px);
+  line-height: 1.3;
+  font-weight: 900;
+  margin: 12px 0 14px;
+}
+
+.lead {
+  font-size: 18px;
+  line-height: 1.8;
+  color: var(--text-2);
+  margin: 0;
+  max-width: 860px;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--border);
+}
+
+.stat {
+  padding: 18px 20px 18px 0;
+  margin-right: 20px;
+  border-right: 1px solid var(--border);
+  min-width: 0;
+}
+
+.stat:last-child {
+  border-right: 0;
+  margin-right: 0;
+}
+
+.statValue {
+  font-size: clamp(20px, 2.2vw, 30px);
+  font-weight: 500;
+  margin-top: 6px;
+  white-space: nowrap;
+}
+
+.statSub {
+  margin-top: 4px;
+  font-size: 14px;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.h2 {
+  font-family: var(--font-display);
+  font-size: 22px;
+  margin: 0 0 8px;
+}
+
+.summary {
+  font-size: 16px;
+  line-height: 1.8;
+  color: var(--text-2);
+  margin: 0 0 14px;
+}
+
+.cols2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 48px;
+}
+
+@media (max-width: 1100px) {
+  .mainGrid,
+  .tri,
+  .cols2 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .stat:nth-child(2) {
+    border-right: 0;
+    margin-right: 0;
+  }
+}
+
+@media (max-width: 520px) {
+  .stats {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .stat {
+    border-right: 0;
+    margin-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .lead {
+    font-size: 16px;
+  }
+}

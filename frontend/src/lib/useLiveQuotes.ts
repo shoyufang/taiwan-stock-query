@@ -6,6 +6,7 @@ export interface LiveStock {
   code: string
   time: string
   close: number
+  open: number | null
   change: number
   change_pct: number
   high: number

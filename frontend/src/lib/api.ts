@@ -42,6 +42,80 @@ export interface Overview {
   sources: string[]
 }
 
+export interface StockProfile {
+  code: string
+  name: string
+  industry: string
+  market: string
+}
+
+export interface StockPage {
+  asof: string
+  generated_at: string
+  profile: StockProfile
+  quote: {
+    close: number
+    open: number
+    high: number
+    low: number
+    prev_close: number
+    change: number
+    change_pct: number
+    volume: number
+    value: number
+    week52_high: number
+    week52_low: number
+  }
+  report: { headline: string; lead: string; sections: Partial<Record<'institutional' | 'margin' | 'revenue' | 'valuation', string>> }
+  institutional: { date: string; foreign: number; trust: number; dealer: number }[]
+  margin: { date: string; margin_balance: number; margin_change: number; short_balance: number }[]
+  revenue: { year: number; month: number; revenue: number; yoy: number | null; mom: number | null }[]
+  valuation: {
+    current: number
+    min: number
+    max: number
+    median: number
+    pct_rank: number
+    days: number
+    start: string
+    end: string
+    pbr: number | null
+    dividend_yield: number | null
+  } | null
+  sources: string[]
+}
+
+export interface Bar {
+  date: string
+  open: number
+  high: number
+  low: number
+  close: number
+  volume: number
+  value: number
+}
+
+export class NotFoundError extends Error {}
+
+export async function fetchStock(code: string): Promise<StockPage> {
+  const res = await fetch(`/api/stock/${encodeURIComponent(code)}`)
+  if (res.status === 404) throw new NotFoundError(code)
+  if (!res.ok) throw new Error(`API ${res.status}`)
+  return res.json()
+}
+
+export async function fetchKbar(code: string, adjusted: boolean, years: number): Promise<Bar[]> {
+  const res = await fetch(`/api/stock/${encodeURIComponent(code)}/kbar?adjusted=${adjusted}&years=${years}`)
+  if (!res.ok) throw new Error(`API ${res.status}`)
+  return (await res.json()).bars
+}
+
+export async function searchStocks(q: string): Promise<StockProfile[]> {
+  const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`)
+  if (!res.ok) return []
+  return (await res.json()).results
+}
+
 export class NotReadyError extends Error {}
 
 export async function fetchOverview(): Promise<Overview> {

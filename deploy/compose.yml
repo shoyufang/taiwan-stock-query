@@ -22,6 +22,10 @@ services:
       REDIS_URL: redis://redis:6379/0
       APP_VERSION: ${APP_VERSION:-dev}
       TZ: Asia/Taipei
+      STORE_PATH: /data/twstock.db
+      FINMIND_TOKEN: ${FINMIND_TOKEN:-}
+    volumes:
+      - twstock-data:/data
     depends_on:
       redis:
         condition: service_healthy
@@ -90,3 +94,6 @@ services:
     depends_on:
       - web
     restart: unless-stopped
+
+volumes:
+  twstock-data:

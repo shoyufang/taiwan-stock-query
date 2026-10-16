@@ -5,6 +5,7 @@ import { useMarketMode } from './lib/useMarketMode'
 import { ComingSoon } from './pages/ComingSoon'
 import { Home } from './pages/Home'
 import { Overview } from './pages/Overview'
+import { StockPage } from './pages/StockPage'
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, refetchOnWindowFocus: true } },
@@ -18,7 +19,7 @@ export function App() {
         <Routes>
           <Route element={<AppShell market={market} />}>
             <Route index element={<Overview mode={market.mode} />} />
-            <Route path="stock/:code" element={<ComingSoon title="個股" phase="P3" />} />
+            <Route path="stock/:code" element={<StockPage mode={market.mode} />} />
             <Route path="watchlist" element={<ComingSoon title="自選股" phase="P4" />} />
             <Route path="screener" element={<ComingSoon title="選股" phase="P5" />} />
             <Route path="global" element={<ComingSoon title="全球市場" phase="P5" />} />

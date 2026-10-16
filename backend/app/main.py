@@ -9,7 +9,10 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
 from app import cache
+from app.api_stock import router as stock_router
 from app.settings import load_settings
+from app.sources import finmind
+from app.store import Store
 from app.ws import router as ws_router
 
 
@@ -18,14 +21,18 @@ async def lifespan(app: FastAPI):
     settings = load_settings()
     app.state.settings = settings
     app.state.redis = cache.make_client(settings.redis_url)
+    app.state.store = Store(settings.store_path)
+    app.state.finmind = finmind.make_client(settings.finmind_token)
     try:
         yield
     finally:
         await app.state.redis.aclose()
+        await app.state.finmind.aclose()
 
 
 app = FastAPI(title="台股看盤 API", lifespan=lifespan, docs_url="/api/docs", openapi_url="/api/openapi.json")
 app.include_router(ws_router)
+app.include_router(stock_router)
 
 
 WORKER_STALE_SEC = 30 * 60
