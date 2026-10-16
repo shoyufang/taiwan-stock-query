@@ -40,9 +40,9 @@ export function useMarketMode(): MarketModeState {
   const mode = resolveMode(now, override)
   const active = override && new Date(override.until).getTime() > now.getTime() ? override : null
 
-  useEffect(() => {
-    document.documentElement.dataset.mode = mode
-  }, [mode])
+  // 在渲染當下就設定（冪等）：子元件的 effect 先於父元件執行，
+  // 若放在 effect 裡，K 線圖等讀取設計 token 的元件會拿到切換前的顏色
+  if (document.documentElement.dataset.mode !== mode) document.documentElement.dataset.mode = mode
 
   const setMode = useCallback((next: Mode) => {
     const current = new Date()
