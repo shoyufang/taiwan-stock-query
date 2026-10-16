@@ -17,5 +17,7 @@ while read -r old new ref; do
   fi
   APP_VERSION=$(git --git-dir="$GIT_DIR" rev-parse --short "$new") \
     docker compose -f deploy/compose.yml up -d --build --remove-orphans
+  docker network connect twstock_default uptime-kuma 2>/dev/null || true
   echo "=== [twstock] 部署完成 ==="
 done
+

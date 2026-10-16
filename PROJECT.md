@@ -91,7 +91,7 @@
 - [x] ~~**前端改版（P0～P6）**~~：見第 3 節，P0～P5 與 P6a～P6e 全數完成上線（2026-10-17）；剩 2026-10-19（一）P2 開盤實測，以及下次開 NAS 時停用 `sinopac-web` 容器與舊 cron
 - [x] ~~新後端 `backend/app/services/overview.py` 與舊站 `datasources/twse_client.py` 各有一份 T86 欄位對照~~：舊站已封存至 `legacy/`（2026-10-17）
 - [x] ~~home server 開機時序~~：改用 `tailnet-proxy` 容器等 Tailscale IP 出現再轉發，不需改主機設定（2026-10-16）
-- [ ] 在 Uptime Kuma 新增監控 `http://100.100.245.93:8600/api/health`（需使用者登入 Uptime Kuma 設定）
+- [ ] 在 Uptime Kuma（`http://100.100.245.93:3001`）建立管理員帳號後，新增 HTTP(s) - JSON 查詢監控：URL 填 `http://twstock-web-1/api/health`、JSON 查詢填 `$.status`、預期值填 `ok`（已將 `uptime-kuma` 容器加入 `twstock_default` 內網並寫入 `post-receive.sh`，解決 Docker 橋接網路無法直連主機 Tailscale IP 的問題）
 - [ ] 建議把 repo 搬離 Google 雲端硬碟（例如 `C:\dev\`）：2026-10-16 已出現 `.git` 孤立索引檔警告、venv 建置卡住，都是同步軟體干擾的徵兆
 - [x] ~~K 線路由待決策~~（2026-10-17 使用者決定：日 K 歷史全用 FinMind、當日與分時用永豐推播、預設不還原可切換；富途留待 P5）
 - [x] ~~上櫃股與櫃買指數比較、修正櫃買指數卡~~：已串接櫃買中心 OpenAPI `tpex_index`，市場總覽與上櫃個股頁報告均已納入（2026-10-17）
@@ -131,16 +131,17 @@
 ## 7. 工作日誌（新的寫在最上面）
 
 ### 2026-10-17｜Antigravity (Gemini)
-- 做了什麼：**全專案深度檢查測試與 6 項細節優化完成並部署上線**。
+- 做了什麼：**全專案深度檢查測試、6 項細節優化與 Uptime Kuma 內網連通完成並部署上線**。
   1. **櫃買指數（TPEx）官方串接與上櫃個股比較**：串接櫃買中心 OpenAPI `tpex_index`，市場總覽「加權指數」卡片同步顯示同日櫃買指數收盤與漲跌幅；上櫃個股頁報告（如 6488 環球晶）自動與同日櫃買指數比較強弱
   2. **集保大戶／散戶股權分散表**：串接集保結算所公開資料 `getOD.ashx?id=1-5`（worker 每 12 小時快取至 Redis `tdcc:latest`，涵蓋上市＋上櫃），彙整 `>400 張大戶`、`>1,000 張千張大戶`、`50–400 張中實戶`、`≤50 張散戶` 持股比例與總股東人數，於個股頁盤中與盤後模式呈現視覺化結構橫條與摘要
   3. **投資行事曆跨日法說會 `end_date` 修正**：`calendar.conference_events` 為跨日法說會補上 `end_date`，前後端皆以 `end_date` 判斷活動是否已結束，解決進行中的跨日法說會被隱藏或被 AI 助理誤判為已過期的問題
   4. **AI 助理補齊 P6 四大站內工具**：`backend/app/ai/tools.py` 新增 `site_stock_fundamentals`（季損益／資產負債／股利／PER 分位／同業）、`site_screener`（技術訊號＋產業＋台灣 50 多因子篩選）、`site_attention`（處置股與注意股）、`site_us_stocks`（美股權值 50 與財報日曆）
   5. **前端路由 `React.lazy` Code-Splitting**：`App.tsx` 將非首頁路由改為動態載入，主包體積由 `562 kB` 降至 `319.9 kB`（gzip `100.8 kB`），消除 Vite `> 500 kB` 打包警告
   6. **後端測試 Pytest 10 警告清除**：修正 `tests/test_overview.py` 的 class-scoped fixture 寫法並補齊上述新功能的單元測試
-- 改了哪些檔：`backend/app/sources/tpex.py`、`backend/app/services/overview.py`、`backend/app/services/stock.py`、`backend/app/services/stock_loader.py`、`backend/app/services/calendar.py`、`backend/app/worker.py`、`backend/app/ai/tools.py`、`backend/tests/test_overview.py`、`backend/tests/test_stock.py`、`backend/tests/test_calendar.py`、`backend/tests/test_ai.py`、`frontend/src/App.tsx`、`frontend/src/lib/api.ts`、`frontend/src/lib/calendar.ts`、`frontend/src/lib/calendar.test.ts`、`frontend/src/pages/Overview.tsx`、`frontend/src/pages/StockPage.tsx`、`frontend/src/pages/StockPage.module.css`、`PROJECT.md`
-- 怎麼驗證：後端 pytest 89 passed、ruff 通過；前端 typecheck、vitest 45 passed、build 零警告通過；部署至 home server 後實測線上 API（`/api/market/overview` 含 `tpex`、`/api/stock/2330` 與上櫃 `/api/stock/6488` 含 `shareholding` 與櫃買比較、`/api/calendar` 含跨日 `end_date`）全數 200 OK
-- 沒做完／新發現：程式碼層面待辦已全數清空；僅剩外部環境操作（2026-10-19 盤中實測永豐推播、下次開 NAS 停舊容器、Uptime Kuma 監控設定）
+  7. **Uptime Kuma 監控網路連通修正**：實測發現 `uptime-kuma` 容器（位於 `frontend` 橋接網路）若直接請求主機 Tailscale IP `100.100.245.93:8600` 會被 Tailscale 的 `ts-input` 防偽規則攔截逾時；已將 `uptime-kuma` 掛入 `twstock_default` 網路並寫入 `deploy/post-receive.sh`，實測容器內 `curl http://twstock-web-1/api/health` 秒回 200 OK（同時保持 `twstock` 與 `cloudflare-tunnel` 隔離）。另查 `uptime-kuma`（`http://100.100.245.93:3001`）尚未建立初始管理員帳號（`user` 表為空），待使用者首次登入設定帳密後填入 `http://twstock-web-1/api/health` 即可
+- 改了哪些檔：`backend/app/sources/tpex.py`、`backend/app/services/overview.py`、`backend/app/services/stock.py`、`backend/app/services/stock_loader.py`、`backend/app/services/calendar.py`、`backend/app/worker.py`、`backend/app/ai/tools.py`、`backend/tests/test_overview.py`、`backend/tests/test_stock.py`、`backend/tests/test_calendar.py`、`backend/tests/test_ai.py`、`frontend/src/App.tsx`、`frontend/src/lib/api.ts`、`frontend/src/lib/calendar.ts`、`frontend/src/lib/calendar.test.ts`、`frontend/src/pages/Overview.tsx`、`frontend/src/pages/StockPage.tsx`、`frontend/src/pages/StockPage.module.css`、`deploy/post-receive.sh`、`PROJECT.md`
+- 怎麼驗證：後端 pytest 89 passed、ruff 通過；前端 typecheck、vitest 45 passed、build 零警告通過；部署至 home server 後實測線上 API 與 `docker exec uptime-kuma curl -s http://twstock-web-1/api/health` 全數 200 OK
+- 沒做完／新發現：程式碼層面待辦已全數清空；僅剩外部環境操作（2026-10-19 盤中實測永豐推播、下次開 NAS 停舊容器、使用者首次登入 Uptime Kuma 建立管理員帳號）
 
 
 ### 2026-10-17｜Antigravity (Gemini)
