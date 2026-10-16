@@ -1,0 +1,5 @@
+fastapi>=0.115,<1
+uvicorn[standard]>=0.32,<1
+redis>=5.2,<7
+# Windows 與精簡 Linux 映像沒有系統時區資料庫，ZoneInfo("Asia/Taipei") 需要它
+tzdata>=2024.1

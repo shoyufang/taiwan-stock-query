@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>台股看盤</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=JetBrains+Mono:wght@400;500;700&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@500;700;900&display=swap"
+    />
+    <script>
+      // 首次繪製前先套模式，避免深淺色閃爍（與 src/lib/marketMode.ts 規則一致）
+      try {
+        var o = JSON.parse(localStorage.getItem('twstock.modeOverride') || 'null')
+        var t = new Date(Date.now() + 8 * 3600000)
+        var m = t.getUTCHours() * 60 + t.getUTCMinutes(), d = t.getUTCDay()
+        var auto = d >= 1 && d <= 5 && m >= 510 && m < 825 ? 'live' : 'close'
+        document.documentElement.dataset.mode = o && new Date(o.until) > new Date() ? o.mode : auto
+      } catch (e) {
+        document.documentElement.dataset.mode = 'close'
+      }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

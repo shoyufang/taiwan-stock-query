@@ -22,6 +22,12 @@ env/
 !package.json
 !disposition_cache.json
 !.claude/launch.json
+# 新網站前端的設定檔不是個人設定，要進版控
+!frontend/package-lock.json
+!frontend/tsconfig.json
+
+# Node
+node_modules/
 
 # SQLite 緩存
 *.db

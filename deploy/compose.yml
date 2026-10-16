@@ -1,0 +1,43 @@
+# 新網站（B 方案）部署設定。部署於 home server，見 docs/plans/FRONTEND_REWRITE_ARCH_2026-10.md
+# 用法：docker compose -f deploy/compose.yml up -d --build
+# 需要 deploy/.env（不進 git，欄位見 deploy/.env.example）。
+name: twstock
+
+services:
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  api:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      APP_VERSION: ${APP_VERSION:-dev}
+      TZ: Asia/Taipei
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3).status == 200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  web:
+    build:
+      context: ../frontend
+    # 只綁 Tailscale IP（BIND_IP 寫在 deploy/.env）；未設定時只綁本機，絕不綁 0.0.0.0
+    ports:
+      - "${BIND_IP:-127.0.0.1}:8600:80"
+    depends_on:
+      - api
+    restart: unless-stopped

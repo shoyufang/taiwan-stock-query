@@ -1,0 +1,5 @@
+# Linux 端執行的腳本與設定一律 LF（Windows 端 autocrlf 不得轉成 CRLF）
+*.sh text eol=lf
+Dockerfile text eol=lf
+*.conf text eol=lf
+*.yml text eol=lf
