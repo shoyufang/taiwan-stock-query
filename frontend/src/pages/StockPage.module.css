@@ -82,6 +82,16 @@
   border-radius: 2px;
 }
 
+.reportTags {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.reportTags:empty {
+  display: none;
+}
+
 .alertTag {
   color: var(--accent);
   border-color: var(--accent);

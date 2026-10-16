@@ -161,6 +161,9 @@ function ReportLayout({ d }: { d: Data }) {
         <div className={styles.kicker}>
           個股報告 · {d.profile.code} {d.profile.name} · {d.profile.industry} · {fmtDateLong(d.asof)}
         </div>
+        <div className={styles.reportTags}>
+          <AttentionTags code={d.profile.code} />
+        </div>
         <h1 className={styles.headline}>{d.report.headline}</h1>
         <p className={styles.lead}>{d.report.lead}</p>
       </header>
