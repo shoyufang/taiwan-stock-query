@@ -68,6 +68,23 @@
   font-size: 15px;
 }
 
+.sep {
+  color: var(--muted);
+  font-size: 20px;
+}
+
+.breadth {
+  display: flex;
+  gap: 2px;
+  height: 6px;
+  margin: 4px 0 2px;
+  overflow: hidden;
+}
+
+.breadthFlat {
+  background: var(--border);
+}
+
 .statSub {
   display: flex;
   flex-direction: column;

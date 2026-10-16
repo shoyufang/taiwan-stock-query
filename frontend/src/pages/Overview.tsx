@@ -49,10 +49,19 @@ function OverviewBody({ d, mode }: { d: Data; mode: Mode }) {
         <Stat label="成交金額" value={fmtYi(d.turnover_twd)} unit="億元">
           <span className={styles.muted}>上市全部證券</span>
         </Stat>
-        <Stat label="漲 / 平 / 跌" value="">
-          <span className="num">
-            <span className="up">{fmtInt(d.breadth.up)}</span> / {fmtInt(d.breadth.flat)} / <span className="down">{fmtInt(d.breadth.down)}</span>
-          </span>
+        <Stat
+          label="漲 / 平 / 跌"
+          value={
+            <>
+              <span className="up">{fmtInt(d.breadth.up)}</span>
+              <span className={styles.sep}> / </span>
+              {fmtInt(d.breadth.flat)}
+              <span className={styles.sep}> / </span>
+              <span className="down">{fmtInt(d.breadth.down)}</span>
+            </>
+          }
+        >
+          <BreadthBar b={d.breadth} />
           <span className={styles.muted}>
             上市股票；漲停 {d.breadth.up_limit}、跌停 {d.breadth.down_limit}
           </span>
@@ -129,7 +138,17 @@ function OverviewBody({ d, mode }: { d: Data; mode: Mode }) {
   )
 }
 
-function Stat({ label, value, unit, dir, children }: { label: string; value: string; unit?: string; dir?: string; children?: ReactNode }) {
+function BreadthBar({ b }: { b: Data['breadth'] }) {
+  return (
+    <div className={styles.breadth} aria-hidden="true">
+      <div className={styles.barUp} style={{ flex: b.up }} />
+      <div className={styles.breadthFlat} style={{ flex: b.flat }} />
+      <div className={styles.barDown} style={{ flex: b.down }} />
+    </div>
+  )
+}
+
+function Stat({ label, value, unit, dir, children }: { label: string; value: ReactNode; unit?: string; dir?: string; children?: ReactNode }) {
   return (
     <div className={styles.stat}>
       <div className={styles.kicker}>{label}</div>
