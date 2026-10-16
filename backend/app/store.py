@@ -111,6 +111,12 @@ class Store:
                               (rule_id, code, type_, message, at))
             return True
 
+    def add_event(self, code: str, type_: str, message: str, at: str) -> None:
+        """不屬於使用者規則的系統通知（例如處置股），rule_id 留空。"""
+        with self._lock, self.conn:
+            self.conn.execute("INSERT INTO alert_events (rule_id, code, type, message, at) VALUES (NULL,?,?,?,?)",
+                              (code, type_, message, at))
+
     def list_events(self, limit: int = 50) -> list[dict]:
         with self._lock:
             rows = self.conn.execute(

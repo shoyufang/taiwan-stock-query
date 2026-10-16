@@ -120,6 +120,15 @@ async def market_overview():
     return JSONResponse(json.loads(raw), headers={"Cache-Control": "no-cache"})
 
 
+@app.get("/api/market/attention")
+async def market_attention():
+    """處置股與注意股（上市＋上櫃普通股）。worker 每 10 分鐘更新。"""
+    raw = await app.state.redis.get("attention:latest")
+    if not raw:
+        return JSONResponse({"status": "preparing"}, status_code=503)
+    return JSONResponse(json.loads(raw), headers={"Cache-Control": "no-cache"})
+
+
 @app.get("/api/calendar")
 async def calendar():
     """投資行事曆：除權息、法說會、法定公布期限（worker 每 6 小時更新）。"""

@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { AttentionPanel } from '../components/AttentionPanel'
 import type { ReactNode } from 'react'
 import { IndexChart } from '../components/IndexChart'
 import { LivePanel } from '../components/LivePanel'
@@ -100,6 +101,8 @@ function OverviewBody({ d, mode }: { d: Data; mode: Mode }) {
           <QuoteTable rows={d.losers} />
         </section>
       </div>
+
+      <AttentionPanel />
 
       <section aria-labelledby="intl-h" className={styles.section}>
         <h2 id="intl-h" className={styles.h2}>國際市場</h2>

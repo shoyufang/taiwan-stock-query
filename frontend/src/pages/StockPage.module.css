@@ -82,6 +82,12 @@
   border-radius: 2px;
 }
 
+.alertTag {
+  color: var(--accent);
+  border-color: var(--accent);
+  cursor: help;
+}
+
 .priceBox {
   display: flex;
   align-items: baseline;

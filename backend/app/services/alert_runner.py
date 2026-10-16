@@ -1,7 +1,7 @@
 """警示執行（在 API 程序內的背景工作）。
 
 - intraday_loop：訂閱 Redis 上的個股推播（q:*），即時評估盤中規則
-- close_loop：平日 14:30 後每 15 分鐘評估收盤規則（日 K、外資連續買賣超）
+- close_loop：平日 14:30 後每 15 分鐘評估收盤規則（日 K、外資連續買賣超），並通知新處置股、自選股被列注意
 - sync_pinned：把自選股與有盤中警示的代號寫進 quote:pinned，讓行情服務常駐訂閱
 """
 
@@ -14,6 +14,7 @@ from datetime import datetime, time as dtime
 from zoneinfo import ZoneInfo
 
 from app.services import alerts as al
+from app.services import attention_notify
 from app.services import notify
 from app.services import stock as st
 from app.services import stock_loader as loader
@@ -133,6 +134,10 @@ async def close_loop(app) -> None:
                 await evaluate_close(app, now)
             except Exception:
                 log.exception("收盤警示評估失敗")
+            try:
+                await attention_notify.run_once(app, now, DEFAULT_WATCHLIST)
+            except Exception:
+                log.exception("處置／注意股通知失敗")
         await asyncio.sleep(900)
 
 

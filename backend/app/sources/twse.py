@@ -51,3 +51,13 @@ async def fmtqik(client: httpx.AsyncClient, month_first_day: date) -> dict:
 async def twt48u(client: httpx.AsyncClient) -> dict:
     """除權除息預告表（上市；即將除權息的股票與 ETF）。"""
     return await _get(client, "/exRight/TWT48U")
+
+
+async def punish(client: httpx.AsyncClient, start: date, end: date) -> dict:
+    """公布處置有價證券（依公布日期區間）。"""
+    return await _get(client, "/announcement/punish", startDate=_ymd(start), endDate=_ymd(end))
+
+
+async def notice(client: httpx.AsyncClient, d: date) -> dict:
+    """公布注意有價證券（單日）。"""
+    return await _get(client, "/announcement/notice", querytype="1", startDate=_ymd(d), endDate=_ymd(d))

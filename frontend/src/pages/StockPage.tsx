@@ -8,6 +8,7 @@ import { liveToBar, taipeiToday } from '../lib/indicators'
 import type { Mode } from '../lib/marketMode'
 import { useLiveQuotes, type LiveStock } from '../lib/useLiveQuotes'
 import styles from './StockPage.module.css'
+import { periodText, statusOf, useAttention } from '../lib/attention'
 
 const RANGES = [
   { years: 1, label: '1 年' },
@@ -104,6 +105,7 @@ function LiveLayout({ d, live, liveBar }: { d: Data; live?: LiveStock; liveBar?:
           <span className={`${styles.muted} num`}>{d.profile.code}</span>
           <span className={styles.tag}>{d.profile.industry}</span>
           <span className={styles.tag}>{d.profile.market}</span>
+          <AttentionTags code={d.profile.code} />
         </div>
         <div className={styles.priceBox}>
           <span className={`${styles.price} num ${direction(change)}`}>{fmtPrice(price)}</span>
@@ -475,5 +477,24 @@ function Footer({ d }: { d: Data }) {
     <p className={styles.footnote}>
       資料：{d.sources.join('、')}；盤中報價：永豐金。紅色為上漲、綠色為下跌。資料日期 {d.asof}。本頁不構成投資建議。
     </p>
+  )
+}
+
+function AttentionTags({ code }: { code: string }) {
+  const { data } = useAttention()
+  const { disposition, notice } = statusOf(data, code)
+  return (
+    <>
+      {disposition && (
+        <span className={`${styles.tag} ${styles.alertTag}`} title={`${disposition.reason}${disposition.match ? `，${disposition.match}` : ''}`}>
+          處置 {periodText(disposition)}
+        </span>
+      )}
+      {notice && (
+        <span className={`${styles.tag} ${styles.alertTag}`} title={notice.reason}>
+          注意股
+        </span>
+      )}
+    </>
   )
 }

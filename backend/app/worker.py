@@ -15,11 +15,12 @@ import httpx
 
 from app import cache
 from app.services import overview as ov
+from app.services import attention as att
 from app.services import calendar as cal
 from app.services import global_mkt
 from app.services import screener as sc
 from app.settings import load_settings
-from app.sources import mops, twse, yahoo
+from app.sources import mops, tpex, twse, yahoo
 
 log = logging.getLogger("worker")
 TZ = ZoneInfo("Asia/Taipei")
@@ -30,6 +31,7 @@ KEY_OVERVIEW = "overview:latest"
 KEY_SCREENER = "screener:base"
 KEY_GLOBAL = "global:latest"
 KEY_CALENDAR = "calendar:latest"
+KEY_ATTENTION = "attention:latest"
 CALENDAR_EVERY = timedelta(hours=6)  # MOPS 有防爬限制，不要頻繁抓
 SCREENER_DAYS = 10
 KEY_STATUS = "overview:status"
@@ -162,9 +164,25 @@ async def refresh_overview(rds) -> dict:
     except Exception:
         log.exception("全球市場更新失敗（市場總覽不受影響）")
     try:
+        await refresh_attention(rds, asof, now)
+    except Exception:
+        log.exception("處置／注意股更新失敗（市場總覽不受影響）")
+    try:
         await refresh_calendar(rds, now)
     except Exception:
         log.exception("行事曆更新失敗（市場總覽不受影響）")
+    return data
+
+
+async def refresh_attention(rds, asof: date, now: datetime) -> dict:
+    async with twse.make_client() as client:
+        punish = await twse.punish(client, asof - timedelta(days=30), asof)
+        notice = await twse.notice(client, asof)
+    async with httpx.AsyncClient(timeout=httpx.Timeout(20.0)) as client:
+        tp_disposal, tp_warning = await tpex.disposal(client), await tpex.warning(client)
+    data = att.build(asof, now.date(), att.twse_disposition(punish) + att.tpex_disposition(tp_disposal),
+                     att.twse_notice(notice) + att.tpex_notice(tp_warning, asof), now.isoformat(timespec="seconds"))
+    await rds.set(KEY_ATTENTION, json.dumps(data, ensure_ascii=False))
     return data
 
 
