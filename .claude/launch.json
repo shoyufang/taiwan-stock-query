@@ -3,8 +3,8 @@
   "configurations": [
     {
       "name": "streamlit-app",
-      "runtimeExecutable": "streamlit",
-      "runtimeArgs": ["run", "app.py", "--server.port", "8501"],
+      "runtimeExecutable": "py",
+      "runtimeArgs": ["-3.13", "-m", "streamlit", "run", "app.py", "--server.port", "8501"],
       "port": 8501
     }
   ]
