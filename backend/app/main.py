@@ -95,6 +95,15 @@ async def health():
     return JSONResponse(body, status_code=200 if healthy else 503)
 
 
+@app.get("/api/screener/base")
+async def screener_base():
+    """選股總表（worker 預先計算）。"""
+    raw = await app.state.redis.get("screener:base")
+    if not raw:
+        return JSONResponse({"status": "preparing"}, status_code=503)
+    return JSONResponse(json.loads(raw), headers={"Cache-Control": "no-cache"})
+
+
 @app.get("/api/market/overview")
 async def market_overview():
     """市場總覽（盤後）。由 worker 預先計算存在 Redis，這裡只讀取。"""

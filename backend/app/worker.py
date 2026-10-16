@@ -7,11 +7,13 @@
 import asyncio
 import json
 import logging
+import os
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from app import cache
 from app.services import overview as ov
+from app.services import screener as sc
 from app.settings import load_settings
 from app.sources import twse, yahoo
 
@@ -21,6 +23,8 @@ INTERVAL_SEC = 600
 SERIES_MONTHS = 6
 
 KEY_OVERVIEW = "overview:latest"
+KEY_SCREENER = "screener:base"
+SCREENER_DAYS = 10
 KEY_STATUS = "overview:status"
 KEY_FMTQIK = "twse:fmtqik:{ym}"
 
@@ -96,11 +100,52 @@ async def international(asof: date) -> list[dict]:
     return out
 
 
+async def t86_history(client, rds, dates: list[str], asof_raw: dict) -> list[dict]:
+    """最近幾個交易日的 T86（由舊到新，最後一筆為 asof）。過去日期不會再變，快取 30 天。"""
+    out = []
+    for d in dates[:-1]:
+        key = f"twse:t86:{d}"
+        cached = await rds.get(key)
+        if cached:
+            out.append(json.loads(cached))
+            continue
+        raw = await twse.t86(client, date.fromisoformat(d))
+        if raw.get("stat") == "OK" and raw.get("data"):
+            await rds.set(key, json.dumps(raw, ensure_ascii=False), ex=30 * 86400)
+            out.append(raw)
+    out.append(asof_raw)
+    return out
+
+
+async def industry_map(rds) -> dict[str, str]:
+    cached = await rds.get("finmind:industry")
+    if cached:
+        return json.loads(cached)
+    from app.services.stock import pick_profile
+    from app.sources import finmind
+    async with finmind.make_client(os.environ.get("FINMIND_TOKEN", "")) as fm:
+        info = await finmind.fetch(fm, "TaiwanStockInfo")
+    codes = {r["stock_id"] for r in info}
+    mapping = {c: p["industry"] for c in codes if (p := pick_profile(info, c))}
+    await rds.set("finmind:industry", json.dumps(mapping, ensure_ascii=False), ex=86400)
+    return mapping
+
+
 async def refresh_overview(rds) -> dict:
     now = datetime.now(TZ)
     async with twse.make_client() as client:
         asof, mi, t = await find_asof(client, now.date())
         series = await index_series(client, rds, asof)
+        # 選股總表：沿用同一天的 MI_INDEX 與 T86，加上本益比與最近 10 個交易日的法人
+        try:
+            days = [p["date"] for p in series if p["date"] <= asof.isoformat()][-SCREENER_DAYS:]
+            t86_days = await t86_history(client, rds, days, t)
+            bw = await twse.bwibbu(client, asof)
+            base = sc.build_base(asof.isoformat(), mi, t86_days, bw, await industry_map(rds),
+                                 now.isoformat(timespec="seconds"))
+            await rds.set(KEY_SCREENER, json.dumps(base, ensure_ascii=False))
+        except Exception:
+            log.exception("選股總表更新失敗（市場總覽不受影響）")
     intl = await international(asof)
     data = ov.build_overview(asof, mi, t, series, intl, now.isoformat(timespec="seconds"))
     await rds.set(KEY_OVERVIEW, json.dumps(data, ensure_ascii=False))

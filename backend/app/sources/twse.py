@@ -38,6 +38,11 @@ async def t86(client: httpx.AsyncClient, d: date) -> dict:
     return await _get(client, "/fund/T86", date=_ymd(d), selectType="ALL")
 
 
+async def bwibbu(client: httpx.AsyncClient, d: date) -> dict:
+    """單日全市場本益比、殖利率、股價淨值比。"""
+    return await _get(client, "/afterTrading/BWIBBU_d", date=_ymd(d), selectType="ALL")
+
+
 async def fmtqik(client: httpx.AsyncClient, month_first_day: date) -> dict:
     """單月每日市場成交資訊（含加權指數收盤）。"""
     return await _get(client, "/afterTrading/FMTQIK", date=_ymd(month_first_day))
