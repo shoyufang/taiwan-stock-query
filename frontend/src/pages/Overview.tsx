@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 import { IndexChart } from '../components/IndexChart'
+import { LivePanel } from '../components/LivePanel'
 import { fetchOverview, NotReadyError, type ForeignNet, type Overview as Data, type Quote } from '../lib/api'
 import { arrow, direction, fmtDateLong, fmtFixed, fmtInt, fmtMonthDay, fmtPct, fmtPrice, fmtSigned, fmtWanLots, fmtYi } from '../lib/format'
 import type { Mode } from '../lib/marketMode'
@@ -28,11 +29,7 @@ export function Overview({ mode }: { mode: Mode }) {
 function OverviewBody({ d, mode }: { d: Data; mode: Mode }) {
   return (
     <article className={styles.page}>
-      {mode === 'live' && (
-        <p className={styles.notice} role="note">
-          盤中即時行情將於 P2 上線；以下為 {fmtMonthDay(d.asof)} 收盤資料。
-        </p>
-      )}
+      {mode === 'live' && <LivePanel closeDate={fmtMonthDay(d.asof)} />}
 
       <header className={styles.lead}>
         <div className={styles.kicker}>盤後總覽 · {fmtDateLong(d.asof)}</div>

@@ -46,6 +46,24 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # 即時行情（全站唯一的永豐金連線，只在交易時段登入）。金鑰在 deploy/.env：
+  # SHIOAJI_API_KEY、SHIOAJI_SECRET_KEY、SHIOAJI_SIMULATION（true／false）
+  quote:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile.quote
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      TZ: Asia/Taipei
+      SHIOAJI_API_KEY: ${SHIOAJI_API_KEY:-}
+      SHIOAJI_SECRET_KEY: ${SHIOAJI_SECRET_KEY:-}
+      SHIOAJI_SIMULATION: ${SHIOAJI_SIMULATION:-true}
+      QUOTE_FORCE_SESSION: ${QUOTE_FORCE_SESSION:-0}
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
   web:
     build:
       context: ../frontend

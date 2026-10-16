@@ -1,0 +1,19 @@
+# 即時行情服務（含 Shioaji）。與 API 分開映像，避免 API 跟著載入券商 SDK。
+FROM python:3.13-slim
+
+ENV PYTHONUTF8=1 \
+    LANG=C.UTF-8 \
+    TZ=Asia/Taipei \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+RUN useradd --create-home --uid 10001 app
+WORKDIR /srv/backend
+
+COPY backend/requirements.txt backend/requirements-quote.txt ./
+RUN pip install --no-cache-dir -r requirements-quote.txt
+
+COPY backend/app ./app
+
+USER app
+CMD ["python", "-m", "app.quote.service"]

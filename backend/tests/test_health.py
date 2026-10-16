@@ -48,7 +48,7 @@ def test_health_ok_when_redis_up(client_factory):
     assert r.status_code == 200
     body = r.json()
     assert body["status"] == "ok"
-    assert body["components"] == {"api": "ok", "redis": "ok", "worker": "starting"}
+    assert body["components"] == {"api": "ok", "redis": "ok", "worker": "starting", "quote": "starting"}
     assert body["time"].endswith("+08:00")
 
 
