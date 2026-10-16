@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { useLiveQuotes, type LiveAlert } from '../lib/useLiveQuotes'
@@ -9,12 +10,15 @@ export function AlertToast() {
   const latest = data.ALERTS as LiveAlert | undefined
   const [shown, setShown] = useState<LiveAlert[]>([])
 
+  const qc = useQueryClient()
   useEffect(() => {
     if (!latest) return
+    qc.invalidateQueries({ queryKey: ['alert-events'] })
+    qc.invalidateQueries({ queryKey: ['alerts'] })
     setShown((prev) => (prev.some((p) => p.at === latest.at && p.title === latest.title) ? prev : [latest, ...prev].slice(0, 3)))
     const t = window.setTimeout(() => setShown((prev) => prev.filter((p) => p !== latest)), 20_000)
     return () => window.clearTimeout(t)
-  }, [latest])
+  }, [latest, qc])
 
   if (!shown.length) return null
   return (

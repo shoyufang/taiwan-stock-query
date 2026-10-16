@@ -20,6 +20,9 @@ def test_ws_sends_last_then_relays_live():
             assert json.loads(ws.receive_text()) == {"code": "2330", "close": 2420}
             assert sync_rds.zscore("quote:interest", "2330") is not None
             assert sync_rds.zscore("quote:interest", "bad code!") is None
+            ws.send_text(json.dumps({"op": "subscribe", "codes": ["ALERTS", "SCANNER"]}))
+            time.sleep(0.2)
+            assert sync_rds.zscore("quote:interest", "ALERTS") is None  # 不是股票，不交給行情服務
 
             time.sleep(0.3)
             sync_rds.publish("q:2330", json.dumps({"code": "2330", "close": 2425}))

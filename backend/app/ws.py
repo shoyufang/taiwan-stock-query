@@ -19,15 +19,20 @@ MAX_CODES = 60
 INTEREST_REFRESH_SEC = 60
 
 
+PSEUDO_CODES = {"SCANNER", "ALERTS"}  # 不是股票，不交給行情服務訂閱
+
+
 async def _touch_interest(rds, codes: set[str]) -> None:
-    real = [c for c in codes if c != "SCANNER"]
+    real = [c for c in codes if c not in PSEUDO_CODES]
     if real:
         now = time.time()
         await rds.zadd("quote:interest", {c: now for c in real})
 
 
 async def _send_last(ws: WebSocket, rds, codes: list[str]) -> None:
-    keys = ["q:scanner" if c == "SCANNER" else f"q:last:{c}" for c in codes]
+    keys = ["q:scanner" if c == "SCANNER" else f"q:last:{c}" for c in codes if c != "ALERTS"]
+    if not keys:
+        return
     for data in await rds.mget(keys):
         if data:
             await ws.send_text(data)
