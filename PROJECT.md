@@ -39,7 +39,7 @@
 |---|---|
 | 正式網站 | Streamlit 版運作中（NAS `sinopac-web` 容器，NAS 關機中）。功能可用但**市場總覽載入超過 1.5 分鐘**，視覺不夠專業 |
 | 每日排程 | 舊排程已停擺（GitHub Actions 停用、NAS 關機）；新站由 `worker` 與 `api` 收盤迴圈接手 |
-| 前端改版 | **已決定放棄 Streamlit，改走 B 方案（前後端分離）**。home server `http://100.100.245.93:8600`（僅 Tailscale）。**P0～P5、P6a、P6b、P6c 皆已上線**；P2 待 10/19 開盤實測；下一步 P6d 技術掃描與多因子選股 |
+| 前端改版 | **已決定放棄 Streamlit，改走 B 方案（前後端分離）**。home server `http://100.100.245.93:8600`（僅 Tailscale）。**P0～P5、P6a、P6b、P6c、P6d 皆已上線**（舊站四項補齊功能全數完成）；P2 待 10/19 開盤實測；下一步 P6e 搬移 `legacy/`、更新 CI／文件、停用舊站 |
 | 資料路由層 | `datasources/router.py` 已有法人／估值／融資融券三個主題函式；新站改由 `backend/app/sources/` 與 `services/` 實作 |
 | 本機環境 | 固定使用 **Python 3.13**（`py -3.13`）。系統預設 3.14 沒裝套件，不要用 |
 | Git | 工作分支 `local`，發布分支 `main` |
@@ -76,7 +76,7 @@
 6. ~~P3 個股頁~~（2026-10-17 完成）
 7. ~~P4 自選股與警示~~（2026-10-17 完成；Telegram 待使用者建立機器人後執行 `deploy/set-telegram.sh`；手機 ntfy 待使用者安裝 App 訂閱 `http://100.100.245.93:8601` 主題 `twstock`）
 8. P5 其餘頁面：~~選股~~、~~全球市場~~、~~行事曆~~、~~投資組合~~（2026-10-17 完成）；~~AI 助理~~（2026-10-17 實測通過，模型 agnes-2.5-pro-alpha）→ P5 全部完成
-9. **P6 切換**（使用者決定補四項後停用舊站、不寫 Notion、舊碼搬 legacy/）：~~P6a 處置／注意股＋通知~~（2026-10-17）→ ~~P6b 個股基本面~~（2026-10-17）→ ~~P6c 美股選股＋財報日曆~~（2026-10-17）→ P6d 技術掃描與多因子選股 → P6e 搬 legacy、CI、文件、開 NAS 停舊站
+9. **P6 切換**（使用者決定補四項後停用舊站、不寫 Notion、舊碼搬 legacy/）：~~P6a 處置／注意股＋通知~~（2026-10-17）→ ~~P6b 個股基本面~~（2026-10-17）→ ~~P6c 美股選股＋財報日曆~~（2026-10-17）→ ~~P6d 技術掃描與多因子選股~~（2026-10-17）→ P6e 搬 legacy、CI、文件、開 NAS 停舊站
 5. **P2 即時行情：程式已部署、金鑰已設定、休市自我檢查全部通過**。剩 2026-10-19（一）開盤實測：推播延遲 < 1 秒、指數漲跌家數是否含漲跌停（與證交所收盤統計比對）、成交量差異（見已知問題）。自我檢查指令：`cd ~/apps/twstock && docker compose -f deploy/compose.yml run --rm --no-deps -T quote python -m app.quote.selftest`；重設金鑰：`ssh -t home "bash ~/apps/twstock/deploy/set-shioaji-keys.sh"`
 
 **新網站開發須知**（P0 起適用）
@@ -88,7 +88,7 @@
 
 ## 4. 待辦（依優先順序）
 
-- [ ] **前端改版**：見第 3 節（P0～P5、P6a、P6b、P6c ✅，下一步 P6d）
+- [ ] **前端改版**：見第 3 節（P0～P5、P6a、P6b、P6c、P6d ✅，下一步 P6e）
 - [ ] 新後端 `backend/app/services/overview.py` 與舊站 `datasources/twse_client.py` 各有一份 T86 欄位對照（新後端為避免載入 shioaji/FinMind 而獨立實作）。P6 舊站停用時刪舊的那份
 - [x] ~~home server 開機時序~~：改用 `tailnet-proxy` 容器等 Tailscale IP 出現再轉發，不需改主機設定（2026-10-16）
 - [ ] 在 Uptime Kuma 新增監控 `http://100.100.245.93:8600/api/health`（需使用者登入 Uptime Kuma 設定）
@@ -130,6 +130,14 @@
 ---
 
 ## 7. 工作日誌（新的寫在最上面）
+
+### 2026-10-17｜Antigravity (Gemini)
+- 做了什麼：**P6d 技術掃描與多因子選股完成並部署上線**（整合至 `/screener` 選股頁，取代舊站 `screener.py` 與 `tabs/technical_scanner.py`）。
+  1. 後端：`worker` 將最近 60 個交易日的證交所 `MI_INDEX` 普通股 OHLCV 精簡快取於 Redis（`twse:ohlcv:{d}`，TTL 90 天，首次由近到遠分批回補並容錯防 307 限流，常態每 10 分鐘 0 額外請求），並串接證交所 OpenAPI `t187ap05_L` 一次取得全市場最新月營收年增率（`rev_yoy`）；純 Python 計算全市場 1,081 檔上市普通股的 MA5/10/20/60、RSI(14)、KD(9,3)、MACD(12,26,9)、布林通道(20,2)、量比與 16 項技術訊號標籤（含台灣 50 成分股標記 `in_tw50` 與三大法人合計買賣超），預先寫入 `screener:base`
+  2. 前端：`/screener` 新增「全市場／台灣 50 權值股」範圍切換、即時四階段「多因子篩選漏斗」（母體 → 1. 技術面 → 2. 籌碼面 → 3. 估值與財報）、四大類 16 項技術指標掃描按鈕（即時顯示目前股票池符合檔數，支援 OR／AND 切換）、籌碼快捷條件（支援 OR／AND 切換）與月營收年增率門檻，瀏覽器端切換條件毫秒級即時回應，表格新增技術訊號標籤、量比、RSI(14)、K/D、營收 YoY% 欄位與排序
+- 改了哪些檔：`backend/app/sources/twse.py`、`backend/app/services/screener.py`、`backend/app/worker.py`、`backend/tests/test_screener.py`、`frontend/src/lib/screener.ts`、`frontend/src/lib/screener.test.ts`、`frontend/src/pages/ScreenerPage.tsx`、`frontend/src/pages/ScreenerPage.module.css`、`PROJECT.md`
+- 怎麼驗證：後端 pytest 86 passed、ruff 通過；前端 typecheck、vitest 44 passed、build 通過；線上 `http://100.100.245.93:8600/api/screener/base` 回 1,081 檔普通股且 `tech_days=60`（2330 台積電 `in_tw50=True`、2026-09 營收 YoY +54.65%、RSI 37.5、MA5 2476 / MA20 2491 / MA60 2421.17、量比 1.61x、觸發 `kd_oversold` 與 `ma5_death_ma20`）
+- 沒做完／新發現：證交所 `MI_INDEX` 連續無間隔請求超過 ~40 次會回 `307 Temporary Redirect` 限流，已改為近到遠分批（單輪最多 25 天、間隔 0.6s）與單日 try/except 容錯，實測 60 個交易日已全數快取完成。下一步 P6e（搬移 `legacy/`、更新 CI 與文件）
 
 ### 2026-10-17｜Antigravity (Gemini)
 - 做了什麼：**P6c 美股選股＋財報日曆完成並部署上線**（整合至 `/global` 全球市場頁）。
