@@ -71,9 +71,18 @@ class TestPieces:
         assert adj[1]["close"] == 1250.0   # 除息當天之後不動
 
     def test_search(self):
-        info = load("info")
+        info = load("info") + [
+            {"industry_category": "所有證券", "stock_id": "711145", "stock_name": "環球晶國票9B購02", "type": "tpex", "date": "2026-10-17"},
+        ]
         assert st.search(info, "2330")[0]["code"] == "2330"
         assert st.search(info, "台積")[0]["name"] == "台積電"
+        assert [r["code"] for r in st.search(info, "環球晶")] == ["6488"]  # 權證不列入
+
+    def test_otc_not_compared_with_taiex(self, data):
+        otc = {**data["profile"], "market": "上櫃"}
+        r = st.build_report(otc, data["bars"][-1], data["bars"][-2]["close"], data["inst"], data["margin"],
+                            data["revenue"], data["pe"], 0.30)
+        assert "加權指數" not in r["lead"]
 
 
 class TestReport:

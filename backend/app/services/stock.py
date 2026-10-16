@@ -24,24 +24,45 @@ def pick_profile(info_rows: list[dict], code: str) -> dict | None:
             "market": {"twse": "上市", "tpex": "上櫃", "emerging": "興櫃"}.get(r.get("type"), r.get("type"))}
 
 
+def is_searchable(r: dict) -> bool:
+    """排除權證（6 位純數字代號）與指數等非個股項目。"""
+    code = r["stock_id"]
+    if len(code) == 6 and code.isdigit():
+        return False
+    return r.get("industry_category") not in ("所有證券", "大盤", "Index")
+
+
 def search(info_rows: list[dict], q: str, limit: int = 10) -> list[dict]:
-    q = q.strip()
+    q = q.strip().upper()
     if not q:
         return []
-    seen, out = set(), []
-    for exact in (True, False):
-        for r in info_rows:
-            code, name = r["stock_id"], r["stock_name"].strip()
-            if code in seen:
-                continue
-            hit = (code == q or name == q) if exact else (code.startswith(q) or q in name)
-            if hit:
-                seen.add(code)
-                p = pick_profile(info_rows, code)
-                if p:
-                    out.append(p)
-            if len(out) >= limit:
-                return out
+    candidates = [r for r in info_rows if is_searchable(r)]
+
+    def rank(r: dict) -> tuple[int, int] | None:
+        code, name = r["stock_id"], r["stock_name"].strip().upper()
+        if code == q or name == q:
+            tier = 0
+        elif code.startswith(q):
+            tier = 1
+        elif name.startswith(q):
+            tier = 2
+        elif q in name:
+            tier = 3
+        else:
+            return None
+        return tier, 0 if len(code) == 4 and not code.startswith("0") else 1  # 一般股票優先於 ETF 等
+
+    scored = sorted(((rk, r["stock_id"]) for r in candidates if (rk := rank(r)) is not None))
+    out, seen = [], set()
+    for _, code in scored:
+        if code in seen:
+            continue
+        seen.add(code)
+        p = pick_profile(info_rows, code)
+        if p:
+            out.append(p)
+        if len(out) >= limit:
+            break
     return out
 
 
@@ -169,7 +190,8 @@ def build_report(profile: dict, last: dict, prev_close: float, inst: list[dict],
         headline = f"{name}收 {_price(last['close'])} 元，{_dir(pct)} {abs(pct):.2f}%" if pct else f"{name}收 {_price(last['close'])} 元，平盤"
 
     lead = [f"{name}{_dir(pct)} {abs(pct):.2f}%" if pct else f"{name}平盤"]
-    if taiex_pct is not None:
+    # 只有上市股票拿來跟加權指數比；上櫃應比櫃買指數（尚未接入），興櫃不比
+    if taiex_pct is not None and profile.get("market") == "上市":
         rel = "強於大盤" if pct > taiex_pct else "弱於大盤" if pct < taiex_pct else "與大盤同步"
         lead[0] += f"，同日加權指數{_dir(taiex_pct)} {abs(taiex_pct):.2f}%，{rel}"
     lead[0] += "。"
