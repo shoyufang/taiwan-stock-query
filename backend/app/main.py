@@ -114,3 +114,12 @@ async def market_overview():
         status = await app.state.redis.get("overview:status")
         return JSONResponse({"status": "preparing", "detail": json.loads(status) if status else None}, status_code=503)
     return JSONResponse(json.loads(raw), headers={"Cache-Control": "no-cache"})
+
+
+@app.get("/api/calendar")
+async def calendar():
+    """投資行事曆：除權息、法說會、法定公布期限（worker 每 6 小時更新）。"""
+    raw = await app.state.redis.get("calendar:latest")
+    if not raw:
+        return JSONResponse({"status": "preparing"}, status_code=503)
+    return JSONResponse(json.loads(raw), headers={"Cache-Control": "no-cache"})

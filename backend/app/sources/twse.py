@@ -46,3 +46,8 @@ async def bwibbu(client: httpx.AsyncClient, d: date) -> dict:
 async def fmtqik(client: httpx.AsyncClient, month_first_day: date) -> dict:
     """單月每日市場成交資訊（含加權指數收盤）。"""
     return await _get(client, "/afterTrading/FMTQIK", date=_ymd(month_first_day))
+
+
+async def twt48u(client: httpx.AsyncClient) -> dict:
+    """除權除息預告表（上市；即將除權息的股票與 ETF）。"""
+    return await _get(client, "/exRight/TWT48U")

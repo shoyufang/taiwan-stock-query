@@ -25,6 +25,7 @@ env/
 # 新網站前端的設定檔不是個人設定，要進版控
 !frontend/package-lock.json
 !frontend/tsconfig.json
+!backend/tests/fixtures/*.json
 
 # Node
 node_modules/

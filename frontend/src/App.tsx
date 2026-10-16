@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter, Route, Routes } from 'react-router'
 import { AppShell } from './components/AppShell'
 import { useMarketMode } from './lib/useMarketMode'
+import { CalendarPage } from './pages/CalendarPage'
 import { ComingSoon } from './pages/ComingSoon'
 import { Home } from './pages/Home'
 import { Overview } from './pages/Overview'
@@ -26,7 +27,7 @@ export function App() {
             <Route path="watchlist" element={<WatchlistPage mode={market.mode} />} />
             <Route path="screener" element={<ScreenerPage />} />
             <Route path="global" element={<GlobalPage mode={market.mode} />} />
-            <Route path="calendar" element={<ComingSoon title="行事曆" phase="P5" />} />
+            <Route path="calendar" element={<CalendarPage />} />
             <Route path="ai" element={<ComingSoon title="AI 助理" phase="P5" />} />
             <Route path="status" element={<Home mode={market.mode} />} />
             <Route path="*" element={<ComingSoon title="找不到頁面" phase="—" />} />
