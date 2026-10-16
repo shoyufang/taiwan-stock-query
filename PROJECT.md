@@ -75,7 +75,7 @@
 4. ~~P1 市場總覽（盤後）~~（2026-10-17 完成）
 6. ~~P3 個股頁~~（2026-10-17 完成）
 7. ~~P4 自選股與警示~~（2026-10-17 完成；Telegram 待使用者建立機器人後執行 `deploy/set-telegram.sh`；手機 ntfy 待使用者安裝 App 訂閱 `http://100.100.245.93:8601` 主題 `twstock`）
-8. P5 其餘頁面：~~選股~~、~~全球市場~~、~~行事曆~~、~~投資組合~~（2026-10-17 完成）；剩 AI 助理（Agnes＋自架 TWStockMCPServer）
+8. P5 其餘頁面：~~選股~~、~~全球市場~~、~~行事曆~~、~~投資組合~~（2026-10-17 完成）；AI 助理程式已部署，**待使用者執行 `deploy/set-agnes.sh` 設定金鑰後實測** → 之後 P6 切換
 5. **P2 即時行情：程式已部署、金鑰已設定、休市自我檢查全部通過**。剩 2026-10-19（一）開盤實測：推播延遲 < 1 秒、指數漲跌家數是否含漲跌停（與證交所收盤統計比對）、成交量差異（見已知問題）。自我檢查指令：`cd ~/apps/twstock && docker compose -f deploy/compose.yml run --rm --no-deps -T quote python -m app.quote.selftest`；重設金鑰：`ssh -t home "bash ~/apps/twstock/deploy/set-shioaji-keys.sh"`
 
 **新網站開發須知**（P0 起適用）
@@ -129,6 +129,16 @@
 ---
 
 ## 7. 工作日誌（新的寫在最上面）
+
+### 2026-10-17｜Claude Opus 5.5
+- 做了什麼：**P5e AI 助理程式完成並部署，待使用者設定 Agnes 金鑰**（`/ai`）。
+  1. 供應商 Agnes（OpenAI 相容，預設 `https://apihub.agnes-ai.com/v1`）；金鑰與模型由使用者執行 `ssh -t home "bash ~/apps/twstock/deploy/set-agnes.sh"` 自行輸入（畫面不顯示，腳本會列出帳號可用模型讓使用者選），存在伺服器 `deploy/.env` 的 `AGNES_API_KEY`／`AGNES_MODEL`
+  2. 資料工具：compose 新增 `twse-mcp`（自架 TWStockMCPServer，MIT，鎖映像 digest，只在內網）；後端自寫最小 MCP 客戶端（Streamable HTTP）。176 個工具只開放 32 個精選（個股基本面、價格技術、籌碼、上櫃、大盤總經、事件、ETF），另加 5 個本站工具（市場總覽、個股、自選股、投資組合、行事曆）
+  3. 對話：工具呼叫迴圈最多 6 輪；MCP 連不上時只用本站工具並告知；瀏覽器送來的 system 訊息會被丟棄；系統提示要求數字只能來自工具、註明日期來源、不給買賣指令
+  4. `/api/ai/chat` 以 SSE 串流「查了哪些資料」與答案；nginx 對 `/api/ai/` 關閉緩衝；前端 AI 頁延遲載入（Markdown 套件不進主程式包）
+- 改了哪些檔：`backend/app/ai/`（新：`mcp_client.py`、`tools.py`、`agent.py`）、`api_ai.py`（新）、`main.py`、`tests/test_ai.py`、`deploy/compose.yml`、`deploy/.env.example`、`deploy/set-agnes.sh`（新）、`frontend/nginx.conf`、`package.json`（react-markdown、remark-gfm）、`src/lib/aiChat.*`、`src/pages/AiPage.*`、`App.tsx`
+- 怎麼驗證：後端 pytest 73 passed（假 MCP＋假模型跑完整工具迴圈、白名單、MCP 斷線降級、未設定回 503）、ruff 通過；前端 vitest 40 passed、build 通過；部署後在 api 容器內實連 twse-mcp：tools/list 176 個、白名單 32 個全部存在、`get_company_profile 2330` 回正確資料；`/api/ai/status` 回 configured=false，`/ai` 頁顯示設定指令
+- 沒做完／新發現：**尚未用真實 Agnes 模型對話**（等使用者設定金鑰後實測：工具呼叫是否正常、回答數字是否與網站一致）；主程式包 544 kB（K 線圖套件），之後可再拆
 
 ### 2026-10-17｜Claude Opus 5.5
 - 做了什麼：**P5d 投資組合完成並上線**（`/portfolio`，選單在「全球市場」後）。
