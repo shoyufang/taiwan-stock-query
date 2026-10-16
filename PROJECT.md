@@ -73,7 +73,7 @@
 2. ~~定技術架構，寫成 `docs/plans/` 規格~~（2026-10-16 草案完成，待使用者確認）
 3. ~~依架構文件 P0（地基）開工~~（2026-10-16 完成）
 4. ~~P1 市場總覽（盤後）~~（2026-10-17 完成）
-5. **P2 即時行情：程式已部署，等兩件事才能驗收**——(a) 使用者把永豐金金鑰寫進 home server `~/apps/twstock/deploy/.env`（`SHIOAJI_API_KEY`、`SHIOAJI_SECRET_KEY`、`SHIOAJI_SIMULATION=true`），寫完執行 `cd ~/apps/twstock && docker compose -f deploy/compose.yml up -d quote` 讓服務讀到；(b) 2026-10-19（一）開盤實測模擬環境推送的是否為真實行情、延遲、指數漲跌家數是否含漲跌停（與證交所收盤統計比對）
+5. **P2 即時行情：程式已部署、金鑰已設定、休市自我檢查全部通過**。剩 2026-10-19（一）開盤實測：推播延遲 < 1 秒、指數漲跌家數是否含漲跌停（與證交所收盤統計比對）、成交量差異（見已知問題）。自我檢查指令：`cd ~/apps/twstock && docker compose -f deploy/compose.yml run --rm --no-deps -T quote python -m app.quote.selftest`；重設金鑰：`ssh -t home "bash ~/apps/twstock/deploy/set-shioaji-keys.sh"`
 
 **新網站開發須知**（P0 起適用）
 - 程式碼：`backend/`（FastAPI）、`frontend/`（React）、`deploy/`（compose、hook）
@@ -106,6 +106,8 @@
 | TWSE 全市場行情（STOCK_DAY_ALL）更新比指數、法人慢一天 | 舊站同一頁混用不同日期的數字 | 新站已解決（改用可指定日期的 rwd MI_INDEX，整頁同一日）；舊站不修 |
 | 市場總覽首次載入超過 1.5 分鐘 | 體驗差 | 新站已解決（資料 0.19 秒內顯示）；舊站不修 |
 | 台指期卡片顯示「—」 | 資料缺漏 | 未查 |
+| **舊站升級 shioaji 會壞**：`datasources/shioaji_client.py` 用了 `login(fetch_contract=...)`，1.7.8 已移除此參數；舊站 `requirements.txt` 允許裝到最新版 | NAS 下次重建舊站映像時永豐金功能失效 | 未修（新站已鎖 `shioaji==1.7.8`）；舊站若要重建，先把 requirements 鎖在 `shioaji==1.7.2` |
+| 永豐金模擬環境快照的總量與官方不同：2330 於 10/16 快照 33,389 張，證交所 43,046 張（價格完全一致） | 量相關數字可能偏低 | 待 10/19 開盤實測，推測快照未計收盤集合競價 |
 
 ---
 
@@ -122,6 +124,17 @@
 ---
 
 ## 7. 工作日誌（新的寫在最上面）
+
+### 2026-10-17｜Claude Opus 5.5
+- 做了什麼：P2 金鑰設定與休市實測。
+  1. 使用者要求代寫金鑰；依規則不代填金鑰，改寫 `deploy/set-shioaji-keys.sh`（使用者自行貼上、畫面不顯示、自動 `chmod 600` 並重啟 quote），由我在使用者終端機開好 SSH 分頁讓使用者輸入。設定完成，`.env` 權限 600
+  2. 新增 `app/quote/selftest.py`（登入→合約→訂閱→用量→登出，快照與排行各一次）
+  3. 實測抓到 **shioaji 1.7.8 的 `login()` 已無 `fetch_contract` 參數**，改為 `subscribe_trade=False` 並鎖定 `shioaji==1.7.8`；同時發現舊站有同樣問題（列入已知問題）
+  4. **事故**：SDK 預設會印出連線事件原文，其中含使用者的身分證字號，第一次自我檢查時出現在 Claude 的工具輸出（對話紀錄）中。已改為自訂事件回呼只記錄代碼、自我檢查只保留訂閱頻道資訊；之後以伺服器端遮蔽＋計數驗證未遮蔽輸出中身分證格式字串為 0 行
+  5. 排行回傳的名稱尾端有補空白，已去除
+- 改了哪些檔：`backend/app/quote/service.py`、`normalize.py`、`selftest.py`（新增）、`backend/requirements-quote.txt`、`deploy/set-shioaji-keys.sh`（新增）
+- 怎麼驗證：home server 上自我檢查全部通過（登入 0.5 秒、連線數 1、流量 0.1/500 MB、IX0001 與 2330 訂閱皆回 200）；**模擬環境資料為真實行情**——2330 快照收 2,420、跌 20 與證交所 10/16 一致，成交金額排行前三（台積電、南亞、聯發科）收盤價皆一致；後端 pytest 34 passed
+- 沒做完／新發現：快照總量與官方差 22%（列入已知問題）；即時推播延遲與漲跌家數定義待 10/19 開盤驗證
 
 ### 2026-10-17｜Claude Opus 5.5
 - 做了什麼：**P2 即時行情：程式完成並部署，待金鑰與開盤實測**。
