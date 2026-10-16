@@ -29,6 +29,10 @@ services:
       NTFY_TOPIC: twstock
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+      AGNES_API_KEY: ${AGNES_API_KEY:-}
+      AGNES_MODEL: ${AGNES_MODEL:-}
+      AGNES_BASE_URL: ${AGNES_BASE_URL:-}
+      MCP_URL: http://twse-mcp:8000/mcp
     volumes:
       - twstock-data:/data
     depends_on:
@@ -71,6 +75,14 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+    restart: unless-stopped
+
+  # AI 助理的資料工具：自架 TWStockMCPServer（MIT，github.com/twjackysu/TWSEMCPServer）。
+  # 只在 compose 內網供 api 使用，不對外開 port。鎖定映像 digest，升版時更新這裡。
+  twse-mcp:
+    image: ghcr.io/twjackysu/twsemcpserver@sha256:c9bb900fffd381432ff261c166285102e63728d48a018f2a341e61a58c587b20
+    environment:
+      TZ: Asia/Taipei
     restart: unless-stopped
 
   web:

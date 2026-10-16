@@ -1,4 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { lazy, Suspense } from 'react'
 import { BrowserRouter, Route, Routes } from 'react-router'
 import { AppShell } from './components/AppShell'
 import { useMarketMode } from './lib/useMarketMode'
@@ -11,6 +12,9 @@ import { PortfolioPage } from './pages/PortfolioPage'
 import { ScreenerPage } from './pages/ScreenerPage'
 import { StockPage } from './pages/StockPage'
 import { WatchlistPage } from './pages/WatchlistPage'
+
+// AI 頁含 Markdown 套件，分開打包、進頁才載入
+const AiPage = lazy(() => import('./pages/AiPage').then((m) => ({ default: m.AiPage })))
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, refetchOnWindowFocus: true } },
@@ -30,7 +34,7 @@ export function App() {
             <Route path="global" element={<GlobalPage mode={market.mode} />} />
             <Route path="portfolio" element={<PortfolioPage mode={market.mode} />} />
             <Route path="calendar" element={<CalendarPage />} />
-            <Route path="ai" element={<ComingSoon title="AI 助理" phase="P5" />} />
+            <Route path="ai" element={<Suspense fallback={null}><AiPage /></Suspense>} />
             <Route path="status" element={<Home mode={market.mode} />} />
             <Route path="*" element={<ComingSoon title="找不到頁面" phase="—" />} />
           </Route>

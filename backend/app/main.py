@@ -16,6 +16,7 @@ from fastapi.responses import JSONResponse
 from app import cache
 from app.api_global import router as global_router
 from app.api_portfolio import router as portfolio_router
+from app.api_ai import router as ai_router
 from app.api_stock import router as stock_router
 from app.api_watchlist import router as watchlist_router
 from app.services import alert_runner
@@ -52,6 +53,7 @@ app.include_router(stock_router)
 app.include_router(watchlist_router)
 app.include_router(global_router)
 app.include_router(portfolio_router)
+app.include_router(ai_router)
 
 
 WORKER_STALE_SEC = 30 * 60
