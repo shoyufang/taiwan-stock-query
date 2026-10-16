@@ -31,7 +31,9 @@ def main() -> int:
         print(f"[資訊] 連線數 {u.connections}｜今日流量 {u.bytes / 1048576:.1f} MB / 上限 {u.limit_bytes / 1048576:.0f} MB")
 
         events = []
-        api.set_event_callback(lambda resp_code, event_code, info, event: events.append((resp_code, event_code, info)))
+        # info 可能含身分證字號：只保留訂閱頻道（QUO/... 開頭）的 info
+        api.set_event_callback(lambda resp_code, event_code, info, event: events.append(
+            (resp_code, event_code, info if str(info).startswith("QUO/") else "")))
         for code in ("IX0001", "2330"):
             c = api.contracts.get(code)
             if c is None:

@@ -177,6 +177,11 @@ class QuoteService:
         self.rds.set("quote:status", json.dumps(status, ensure_ascii=False))
 
 
+def _quiet_event(resp_code, event_code, info, event) -> None:
+    """SDK 事件只記錄代碼與事件名稱；info 可能含身分證字號，不寫進 log。"""
+    log.info("shioaji 事件 %s/%s %s", resp_code, event_code, event)
+
+
 def shioaji_factory():
     import shioaji as sj
     key, secret = os.environ.get("SHIOAJI_API_KEY", ""), os.environ.get("SHIOAJI_SECRET_KEY", "")
@@ -184,6 +189,8 @@ def shioaji_factory():
         raise RuntimeError("未設定 SHIOAJI_API_KEY／SHIOAJI_SECRET_KEY（home server 的 deploy/.env）")
     simulation = os.environ.get("SHIOAJI_SIMULATION", "true").lower() != "false"
     api = sj.Shioaji(simulation=simulation)
+    # SDK 預設會把連線事件原文印出，其中含身分證字號；改成只記錄代碼，不記錄內容
+    api.set_event_callback(_quiet_event)
     # 1.7.8 起 login() 沒有 fetch_contract 參數；只看行情，不訂閱交易回報
     api.login(api_key=key, secret_key=secret, subscribe_trade=False)
     if api.contracts.get(INDEX_CODE) is None:

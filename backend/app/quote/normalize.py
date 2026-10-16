@@ -88,8 +88,8 @@ def from_scanner(items) -> list[dict]:
         close = _f(s.close)
         change = _f(s.change_price) or 0.0
         out.append({
-            "code": s.code,
-            "name": s.name,
+            "code": s.code.strip(),
+            "name": s.name.strip(),  # 排行回傳的名稱尾端有補空白
             "close": close,
             "change": change,
             "change_pct": _pct(change, close),
