@@ -19,6 +19,7 @@ from app.services import attention as att
 from app.services import calendar as cal
 from app.services import global_mkt
 from app.services import screener as sc
+from app.services import us_stocks
 from app.settings import load_settings
 from app.sources import mops, tpex, twse, yahoo
 
@@ -30,9 +31,11 @@ SERIES_MONTHS = 6
 KEY_OVERVIEW = "overview:latest"
 KEY_SCREENER = "screener:base"
 KEY_GLOBAL = "global:latest"
+KEY_US = "us:latest"
 KEY_CALENDAR = "calendar:latest"
 KEY_ATTENTION = "attention:latest"
 CALENDAR_EVERY = timedelta(hours=6)  # MOPS 有防爬限制，不要頻繁抓
+US_EVERY = timedelta(minutes=30)
 SCREENER_DAYS = 10
 KEY_STATUS = "overview:status"
 KEY_FMTQIK = "twse:fmtqik:{ym}"
@@ -164,6 +167,10 @@ async def refresh_overview(rds) -> dict:
     except Exception:
         log.exception("全球市場更新失敗（市場總覽不受影響）")
     try:
+        await refresh_us(rds, now)
+    except Exception:
+        log.exception("美股選股與財報日曆更新失敗（市場總覽不受影響）")
+    try:
         await refresh_attention(rds, asof, now)
     except Exception:
         log.exception("處置／注意股更新失敗（市場總覽不受影響）")
@@ -171,6 +178,19 @@ async def refresh_overview(rds) -> dict:
         await refresh_calendar(rds, now)
     except Exception:
         log.exception("行事曆更新失敗（市場總覽不受影響）")
+    return data
+
+
+async def refresh_us(rds, now: datetime, force: bool = False) -> dict | None:
+    old = await rds.get(KEY_US)
+    if old and not force:
+        prev = json.loads(old)
+        if now - datetime.fromisoformat(prev["generated_at"]) < US_EVERY:
+            return None
+    data = await us_stocks.fetch_and_build(now.date(), now.isoformat(timespec="seconds"))
+    if data["rows"]:
+        await rds.set(KEY_US, json.dumps(data, ensure_ascii=False))
+        log.info("美股選股與財報日曆已更新：%d 檔", len(data["rows"]))
     return data
 
 

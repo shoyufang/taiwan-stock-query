@@ -6,10 +6,23 @@ from zoneinfo import ZoneInfo
 import httpx
 
 URL = "https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
+CRUMB_COOKIE_URL = "https://fc.yahoo.com"
+CRUMB_URL = "https://query2.finance.yahoo.com/v1/test/getcrumb"
+QUOTE_URL = "https://query2.finance.yahoo.com/v7/finance/quote"
 
 
 def make_client() -> httpx.AsyncClient:
     return httpx.AsyncClient(timeout=httpx.Timeout(20.0), headers={"User-Agent": "Mozilla/5.0"})
+
+
+async def quotes(client: httpx.AsyncClient, symbols: list[str]) -> list[dict]:
+    """Yahoo v7 批次報價（含本益比、市值、52 週高低、財報日、華爾街評等）。"""
+    await client.get(CRUMB_COOKIE_URL, follow_redirects=True)
+    cr = await client.get(CRUMB_URL, follow_redirects=True)
+    cr.raise_for_status()
+    r = await client.get(QUOTE_URL, params={"symbols": ",".join(symbols), "crumb": cr.text.strip()})
+    r.raise_for_status()
+    return r.json().get("quoteResponse", {}).get("result") or []
 
 
 async def daily_bars(client: httpx.AsyncClient, symbol: str, range_: str = "1mo") -> dict:

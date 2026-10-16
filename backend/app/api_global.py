@@ -1,18 +1,22 @@
-"""全球市場 API：/api/global（預先計算）、/api/global/kbar（港美股等個股日 K，Yahoo）。"""
+"""全球市場 API：/api/global、/api/global/us（美股選股＋財報日曆）、/api/global/kbar（港美股等個股日 K，Yahoo）。"""
 
 from __future__ import annotations
 
 import asyncio
 import json
 import re
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import httpx
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 
+from app.services import us_stocks
 from app.sources import yahoo
 
 router = APIRouter()
+TZ = ZoneInfo("Asia/Taipei")
 SYMBOL_RE = re.compile(r"^[A-Za-z0-9.^=\-]{1,15}$")
 RANGES = {"6mo", "1y", "2y", "5y", "max"}
 
@@ -23,6 +27,22 @@ async def global_overview(request: Request):
     if not raw:
         return JSONResponse({"status": "preparing"}, status_code=503)
     return JSONResponse(json.loads(raw), headers={"Cache-Control": "no-cache"})
+
+
+@router.get("/api/global/us")
+async def global_us(request: Request):
+    rds = request.app.state.redis
+    raw = await rds.get("us:latest")
+    if raw:
+        return JSONResponse(json.loads(raw), headers={"Cache-Control": "no-cache"})
+    now = datetime.now(TZ)
+    try:
+        data = await us_stocks.fetch_and_build(now.date(), now.isoformat(timespec="seconds"))
+    except Exception as e:
+        raise HTTPException(502, f"Yahoo 美股資料暫時無法使用：{e}")
+    if data["rows"]:
+        await rds.set("us:latest", json.dumps(data, ensure_ascii=False))
+    return JSONResponse(data, headers={"Cache-Control": "no-cache"})
 
 
 @router.get("/api/global/kbar")
