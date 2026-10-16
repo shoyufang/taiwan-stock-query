@@ -75,7 +75,7 @@
 4. ~~P1 市場總覽（盤後）~~（2026-10-17 完成）
 6. ~~P3 個股頁~~（2026-10-17 完成）
 7. ~~P4 自選股與警示~~（2026-10-17 完成；Telegram 待使用者建立機器人後執行 `deploy/set-telegram.sh`；手機 ntfy 待使用者安裝 App 訂閱 `http://100.100.245.93:8601` 主題 `twstock`）
-8. P5 其餘頁面：~~選股~~、~~全球市場~~、~~行事曆~~（2026-10-17 完成）；剩投資組合（手動輸入持股）、AI 助理（Agnes＋自架 TWStockMCPServer）
+8. P5 其餘頁面：~~選股~~、~~全球市場~~、~~行事曆~~、~~投資組合~~（2026-10-17 完成）；剩 AI 助理（Agnes＋自架 TWStockMCPServer）
 5. **P2 即時行情：程式已部署、金鑰已設定、休市自我檢查全部通過**。剩 2026-10-19（一）開盤實測：推播延遲 < 1 秒、指數漲跌家數是否含漲跌停（與證交所收盤統計比對）、成交量差異（見已知問題）。自我檢查指令：`cd ~/apps/twstock && docker compose -f deploy/compose.yml run --rm --no-deps -T quote python -m app.quote.selftest`；重設金鑰：`ssh -t home "bash ~/apps/twstock/deploy/set-shioaji-keys.sh"`
 
 **新網站開發須知**（P0 起適用）
@@ -129,6 +129,16 @@
 ---
 
 ## 7. 工作日誌（新的寫在最上面）
+
+### 2026-10-17｜Claude Opus 5.5
+- 做了什麼：**P5d 投資組合完成並上線**（`/portfolio`，選單在「全球市場」後）。
+  1. 手動輸入持股（使用者決定，不接券商帳務）：每筆一次買進（代號、股數、每股成本、選填日期與備註），可編輯、刪除；存 SQLite `holdings` 表（volume 保留）
+  2. 同代號多筆合併為一個部位（加權平均成本）；價格盤中用永豐即時成交、否則用最近收盤；顯示市值、未實現損益、報酬率、今日損益、占比
+  3. 「扣除賣出費稅後」：手續費 0.1425%（未計折扣）＋證交稅（股票 0.3%、ETF 0.1%、債券 ETF 停徵至 2026 年底）
+  4. 前端 `json()` 改為能顯示 FastAPI 422 欄位驗證錯誤（原本會顯示 [object Object]）
+- 改了哪些檔：`backend/app/api_portfolio.py`（新）、`store.py`、`main.py`、`tests/test_portfolio.py`、`frontend/src/lib/portfolio.ts`（新）、`portfolio.test.ts`、`lib/api.ts`、`pages/PortfolioPage.*`、`App.tsx`、`components/AppShell.tsx`
+- 怎麼驗證：後端 pytest 70 passed、ruff 通過；前端 vitest 37 passed、typecheck、build 通過；部署後用瀏覽器實際填表新增 2330 1,000 股成本 1,100 → 市值 2,420,000、損益 +1,320,000、費稅 3,449＋7,260 與手算一致；編輯為 2,000 股正確更新；測試紀錄已刪除，`/api/portfolio` 回空
+- 沒做完／新發現：未計股利與已實現損益（賣出紀錄）；盤中即時價待 10/19 開盤實測
 
 ### 2026-10-17｜Claude Opus 5.5
 - 做了什麼：**P5c 投資行事曆完成並上線**（`/calendar`）。
