@@ -103,6 +103,9 @@ deploy/
   .env.example         # 只放欄位名稱，不放值
 ```
 - **沿用**：`datasources/`、`datasources/router.py`、`stock_pools.py`、`calendar_engine.py`、`sector_map.py`、`chip_analysis.py`、`ai_engine.py`。
+- **2026-10-17 修訂（P1 實作時）**：`datasources/` 套件的 `__init__.py` 會連帶載入 shioaji、FinMind，
+  新後端的證交所與 Yahoo 抓取改在 `backend/app/sources/` 獨立實作（輕量、可指定日期）。
+  需要永豐金或 FinMind 的功能（P2、P3）再評估是直接 import 對應模組或同樣獨立實作。
 - **不能直接用**（綁 Streamlit 快取）：`query_wrapper.py`、`caching.py`、`screener.py`。新後端不 import 它們；選股邏輯要從 `screener.py` 抽出純函式（P5 處理）。
 - `config.py` 的 `get_secret()` 會嘗試讀 Streamlit secrets；新後端一律用 `backend/app/settings.py` 讀環境變數，啟動時檢查必要變數並明確報錯。
 
@@ -210,7 +213,7 @@ home server 只剩 43 GB。逐筆**只保留在 redis 當日記憶體**，盤後
 | 期 | 內容 | 完成條件 |
 |---|---|---|
 | **P0 地基** ✅ 2026-10-16 | `backend/`、`frontend/`、`deploy/` 骨架；compose（web、api、redis）；`/api/health`；home server 部署 hook；CI 擴充；設計 token | Tailscale 下打開 `:8600` 看到空殼頁，健康檢查綠燈 |
-| **P1 市場總覽（盤後）** | worker 預先計算；`/api/market/overview`；設計稿 B 實作；資料日期契約 | 首次顯示 < 2 秒；數字抽查一致 |
+| **P1 市場總覽（盤後）** ✅ 2026-10-17 | worker 預先計算；`/api/market/overview`；設計稿 B 實作；資料日期契約 | 首次顯示 < 2 秒；數字抽查一致 |
 | **P2 即時行情** | 查證 R1、R2；quote 服務；WebSocket；市場總覽盤中版（設計稿 A）；斷線降級 | 盤中實測逐筆延遲 < 1 秒；拔掉 quote 服務時畫面降級不空白 |
 | **P3 個股頁** | 先決定 R4；K 線、籌碼、基本面、盤後報告摘要句 | 2330 等三檔數字與第二來源一致 |
 | **P4 自選股＋警示** | 自選股存 PostgreSQL；即時報價牆；警示（沿用 `alert_engine.py`） | 警示觸發實測 |
