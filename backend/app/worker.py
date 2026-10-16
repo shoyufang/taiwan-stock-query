@@ -132,21 +132,30 @@ async def t86_history(client, rds, dates: list[str], asof_raw: dict) -> list[dic
 
 async def ohlcv_history(client, rds, dates: list[str], asof_mi: dict) -> list[dict[str, dict]]:
     """最近 60 個交易日的普通股精簡 OHLCV（由舊到新，最後一筆為 asof）。過去日期快取 90 天。"""
-    out = []
+    by_date: dict[str, dict[str, dict]] = {}
+    missing: list[str] = []
     for d in dates[:-1]:
-        key = f"twse:ohlcv:{d}"
-        cached = await rds.get(key)
+        cached = await rds.get(f"twse:ohlcv:{d}")
         if cached:
-            out.append(json.loads(cached))
-            continue
-        raw = await twse.mi_index(client, date.fromisoformat(d))
-        if ov.has_trading_data(raw):
-            parsed = sc.parse_mi_ohlcv(raw)
-            await rds.set(key, json.dumps(parsed, separators=(",", ":")), ex=90 * 86400)
-            out.append(parsed)
-        await asyncio.sleep(0.2)
+            by_date[d] = json.loads(cached)
+        else:
+            missing.append(d)
+    # 由近到遠補抓尚未快取的日期（單輪最多補 25 天、間隔 0.6s，避免觸發證交所 307 限流）
+    for d in reversed(missing[-25:]):
+        try:
+            raw = await twse.mi_index(client, date.fromisoformat(d))
+            if ov.has_trading_data(raw):
+                parsed = sc.parse_mi_ohlcv(raw)
+                await rds.set(f"twse:ohlcv:{d}", json.dumps(parsed, separators=(",", ":")), ex=90 * 86400)
+                by_date[d] = parsed
+            await asyncio.sleep(0.6)
+        except Exception as e:
+            log.warning("回補 %s OHLCV 暫停（下一輪續補）：%s", d, e)
+            break
+    out = [by_date[d] for d in dates[:-1] if d in by_date]
     out.append(sc.parse_mi_ohlcv(asof_mi))
     return out
+
 
 
 async def monthly_rev_map(client, rds) -> dict[str, dict]:
