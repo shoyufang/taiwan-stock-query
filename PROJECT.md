@@ -83,7 +83,7 @@
 ## 4. 待辦（依優先順序）
 
 - [ ] **前端改版**：見第 3 節（P0 ✅ 2026-10-16，下一步 P1）
-- [ ] **home server 開機時序（需使用者執行，涉及系統設定）**：Docker 未設定在 Tailscale 之後啟動，重開機時網站可能綁不到 Tailscale IP 而起不來。修法見 2026-10-16 P0 日誌
+- [x] ~~home server 開機時序~~：改用 `tailnet-proxy` 容器等 Tailscale IP 出現再轉發，不需改主機設定（2026-10-16）
 - [ ] 在 Uptime Kuma 新增監控 `http://100.100.245.93:8600/api/health`（需使用者登入 Uptime Kuma 設定）
 - [ ] 建議把 repo 搬離 Google 雲端硬碟（例如 `C:\dev\`）：2026-10-16 已出現 `.git` 孤立索引檔警告、venv 建置卡住，都是同步軟體干擾的徵兆
 - [ ] **K 線路由 `get_kbar()` 待決策**：Shioaji 只有 2020 年起資料、FinMind 從 1994 年起，歷史 K 線用哪個日期切換？富途港股要不要併入統一入口？（使用者交代：下次碰 router 時要先提醒他決定）
@@ -119,6 +119,12 @@
 ---
 
 ## 7. 工作日誌（新的寫在最上面）
+
+### 2026-10-16｜Claude Opus 5.5
+- 做了什麼：解決 home server 開機時序風險。原本 web 容器直接綁 Tailscale IP，Docker 若比 tailscaled 先啟動就綁不到、網站起不來。改成 web 只綁 127.0.0.1:8600，另加 `tailnet-proxy`（socat，host 網路）輪詢等待 `BIND_IP` 出現在網卡上才監聽並轉發。沒有採用 P0 日誌提議的 `sysctl net.ipv4.ip_nonlocal_bind`，因為那是主機系統設定。
+- 改了哪些檔：`deploy/compose.yml`
+- 怎麼驗證：以不存在的 IP 單獨啟動轉發容器，確認持續等待、不崩潰；部署後 `/api/health` 經 Tailscale 回 200（版本 `55b6a83`）；伺服器上 8600 只監聽 100.100.245.93 與 127.0.0.1，區網 IP 連線被拒
+- 沒做完／新發現：真正重開機的情境未實測（會中斷目前經 Tailscale 的連線），下次 home server 重開機後確認網站自動恢復即可
 
 ### 2026-10-16｜Claude Opus 5.5
 - 做了什麼：**P0 地基完成並部署到 home server**。後端 FastAPI（`/api/health`，Redis 異常回 503）、前端 React 19＋Vite 8＋TypeScript 7＋React Router 8（盤中／盤後依台北時間自動切換、手動切換存到下一個切換點、首次繪製前套用模式避免閃爍）、設計 token、頁面骨架；compose（web／api／redis）只綁 Tailscale IP；home server 建 `~/git/twstock.git` 與部署 hook、`~/apps/twstock/deploy/.env`；CI 新增 backend、frontend 兩個 job。
