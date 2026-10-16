@@ -33,16 +33,16 @@
 
 ---
 
-## 2. 目前狀態（最後更新：2026-10-16）
+## 2. 目前狀態（最後更新：2026-10-17）
 
 | 項目 | 狀態 |
 |---|---|
-| 正式網站 | Streamlit 版運作中（NAS `sinopac-web` 容器）。功能可用但**市場總覽載入超過 1.5 分鐘**，視覺不夠專業 |
-| 每日排程 | 運作中。2026-07-09 修好三大法人資料源（原端點已失效 50 天） |
-| 前端改版 | **已決定放棄 Streamlit，改走 B 方案（前後端分離）**。home server `http://100.100.245.93:8600`（僅 Tailscale）。**P0 地基、P1 市場總覽（盤後）已上線**，其餘頁面仍為骨架。下一步 P2 即時行情，見第 3 節 |
-| 資料路由層 | `datasources/router.py` 已有法人／估值／融資融券三個主題函式；K 線路由未做（待決策） |
+| 正式網站 | Streamlit 版運作中（NAS `sinopac-web` 容器，NAS 關機中）。功能可用但**市場總覽載入超過 1.5 分鐘**，視覺不夠專業 |
+| 每日排程 | 舊排程已停擺（GitHub Actions 停用、NAS 關機）；新站由 `worker` 與 `api` 收盤迴圈接手 |
+| 前端改版 | **已決定放棄 Streamlit，改走 B 方案（前後端分離）**。home server `http://100.100.245.93:8600`（僅 Tailscale）。**P0～P5、P6a、P6b 皆已上線**；P2 待 10/19 開盤實測；下一步 P6c 美股選股＋財報日曆 |
+| 資料路由層 | `datasources/router.py` 已有法人／估值／融資融券三個主題函式；新站改由 `backend/app/sources/` 與 `services/` 實作 |
 | 本機環境 | 固定使用 **Python 3.13**（`py -3.13`）。系統預設 3.14 沒裝套件，不要用 |
-| Git | 工作分支 `local`，發布分支 `main`。2026-10-16 的改動（Python 3.13 啟動設定、PROJECT.md 與指標檔）**尚未 commit**（見工作日誌） |
+| Git | 工作分支 `local`，發布分支 `main` |
 
 ---
 
@@ -76,7 +76,7 @@
 6. ~~P3 個股頁~~（2026-10-17 完成）
 7. ~~P4 自選股與警示~~（2026-10-17 完成；Telegram 待使用者建立機器人後執行 `deploy/set-telegram.sh`；手機 ntfy 待使用者安裝 App 訂閱 `http://100.100.245.93:8601` 主題 `twstock`）
 8. P5 其餘頁面：~~選股~~、~~全球市場~~、~~行事曆~~、~~投資組合~~（2026-10-17 完成）；~~AI 助理~~（2026-10-17 實測通過，模型 agnes-2.5-pro-alpha）→ P5 全部完成
-9. **P6 切換**（使用者決定補四項後停用舊站、不寫 Notion、舊碼搬 legacy/）：~~P6a 處置／注意股＋通知~~（2026-10-17）→ P6b 個股基本面 → P6c 美股選股＋財報日曆 → P6d 技術掃描與多因子選股 → P6e 搬 legacy、CI、文件、開 NAS 停舊站
+9. **P6 切換**（使用者決定補四項後停用舊站、不寫 Notion、舊碼搬 legacy/）：~~P6a 處置／注意股＋通知~~（2026-10-17）→ ~~P6b 個股基本面~~（2026-10-17）→ P6c 美股選股＋財報日曆 → P6d 技術掃描與多因子選股 → P6e 搬 legacy、CI、文件、開 NAS 停舊站
 5. **P2 即時行情：程式已部署、金鑰已設定、休市自我檢查全部通過**。剩 2026-10-19（一）開盤實測：推播延遲 < 1 秒、指數漲跌家數是否含漲跌停（與證交所收盤統計比對）、成交量差異（見已知問題）。自我檢查指令：`cd ~/apps/twstock && docker compose -f deploy/compose.yml run --rm --no-deps -T quote python -m app.quote.selftest`；重設金鑰：`ssh -t home "bash ~/apps/twstock/deploy/set-shioaji-keys.sh"`
 
 **新網站開發須知**（P0 起適用）
@@ -88,7 +88,7 @@
 
 ## 4. 待辦（依優先順序）
 
-- [ ] **前端改版**：見第 3 節（P0 ✅ 2026-10-16、P1 ✅ 2026-10-17，下一步 P2）
+- [ ] **前端改版**：見第 3 節（P0～P5、P6a、P6b ✅，下一步 P6c）
 - [ ] 新後端 `backend/app/services/overview.py` 與舊站 `datasources/twse_client.py` 各有一份 T86 欄位對照（新後端為避免載入 shioaji/FinMind 而獨立實作）。P6 舊站停用時刪舊的那份
 - [x] ~~home server 開機時序~~：改用 `tailnet-proxy` 容器等 Tailscale IP 出現再轉發，不需改主機設定（2026-10-16）
 - [ ] 在 Uptime Kuma 新增監控 `http://100.100.245.93:8600/api/health`（需使用者登入 Uptime Kuma 設定）
@@ -130,6 +130,14 @@
 ---
 
 ## 7. 工作日誌（新的寫在最上面）
+
+### 2026-10-17｜Antigravity (Gemini)
+- 做了什麼：**P6b 個股基本面完成並部署上線**。
+  1. 後端：實作 `stock_loader.load_fundamentals`（FinMind 損益表、資產負債表、股利政策快取 12 小時；本益比沿用 `finmind:TaiwanStockPER:{code}` 快取鍵；同業比較讀取 Redis `screener:base`）與路由 `/api/stock/{code}/fundamentals`
+  2. 前端：新增 `FundamentalsPanel`（個股頁盤中與盤後模式皆預設收合，點擊展開才請求 `/api/stock/{code}/fundamentals`），顯示單季損益與三率（含近四季合計 EPS）、SVG 本益比河流圖（P10/P25/P50/P75/P90 倍數帶與收盤價）、資產負債結構、歷年股利政策（依所屬年度合併季配息與配發率）、同業比較表
+- 改了哪些檔：`backend/app/services/stock_loader.py`、`backend/app/api_stock.py`、`backend/tests/test_fundamentals.py`、`frontend/src/lib/fundamentals.ts`（新）、`frontend/src/components/FundamentalsPanel.tsx`（新）、`frontend/src/components/FundamentalsPanel.module.css`（新）、`frontend/src/pages/StockPage.tsx`、`PROJECT.md`
+- 怎麼驗證：後端 pytest 81 passed、ruff 通過；前端 typecheck、vitest 40 passed、build 通過；部署至 home server 後實測 `http://100.100.245.93:8600/api/stock/2330/fundamentals` 回 200（近四季 EPS 86.28、2026Q2 EPS 27.25、本益比 28.05、半導體業同業 92 檔中位數本益比 28.05）
+- 沒做完／新發現：下一步 P6c（美股選股＋財報日曆）
 
 ### 2026-10-17｜Claude Opus 5.5
 - 做了什麼：**P6b 個股基本面進行中（未部署）**。完成純函式 `backend/app/services/fundamentals.py`：季損益（毛利率／營益率／淨利率／營收年增、近四季 EPS）、資產負債（負債比、流動比、每股淨值）、股利依所屬年度彙總與配發率、本益比河流圖（隱含 EPS × 歷史本益比 10/25/50/75/90 百分位）、同業比較（選股總表同產業）。已確認 FinMind 損益表為單季數字（2330 2026Q2 營收＝4～6 月營收合計）；金融業無毛利欄位
