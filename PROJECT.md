@@ -39,7 +39,7 @@
 |---|---|
 | 正式網站 | Streamlit 版運作中（NAS `sinopac-web` 容器，NAS 關機中）。功能可用但**市場總覽載入超過 1.5 分鐘**，視覺不夠專業 |
 | 每日排程 | 舊排程已停擺（GitHub Actions 停用、NAS 關機）；新站由 `worker` 與 `api` 收盤迴圈接手 |
-| 前端改版 | **已決定放棄 Streamlit，改走 B 方案（前後端分離）**。home server `http://100.100.245.93:8600`（僅 Tailscale）。**P0～P5、P6a、P6b 皆已上線**；P2 待 10/19 開盤實測；下一步 P6c 美股選股＋財報日曆 |
+| 前端改版 | **已決定放棄 Streamlit，改走 B 方案（前後端分離）**。home server `http://100.100.245.93:8600`（僅 Tailscale）。**P0～P5、P6a、P6b、P6c 皆已上線**；P2 待 10/19 開盤實測；下一步 P6d 技術掃描與多因子選股 |
 | 資料路由層 | `datasources/router.py` 已有法人／估值／融資融券三個主題函式；新站改由 `backend/app/sources/` 與 `services/` 實作 |
 | 本機環境 | 固定使用 **Python 3.13**（`py -3.13`）。系統預設 3.14 沒裝套件，不要用 |
 | Git | 工作分支 `local`，發布分支 `main` |
@@ -76,7 +76,7 @@
 6. ~~P3 個股頁~~（2026-10-17 完成）
 7. ~~P4 自選股與警示~~（2026-10-17 完成；Telegram 待使用者建立機器人後執行 `deploy/set-telegram.sh`；手機 ntfy 待使用者安裝 App 訂閱 `http://100.100.245.93:8601` 主題 `twstock`）
 8. P5 其餘頁面：~~選股~~、~~全球市場~~、~~行事曆~~、~~投資組合~~（2026-10-17 完成）；~~AI 助理~~（2026-10-17 實測通過，模型 agnes-2.5-pro-alpha）→ P5 全部完成
-9. **P6 切換**（使用者決定補四項後停用舊站、不寫 Notion、舊碼搬 legacy/）：~~P6a 處置／注意股＋通知~~（2026-10-17）→ ~~P6b 個股基本面~~（2026-10-17）→ P6c 美股選股＋財報日曆 → P6d 技術掃描與多因子選股 → P6e 搬 legacy、CI、文件、開 NAS 停舊站
+9. **P6 切換**（使用者決定補四項後停用舊站、不寫 Notion、舊碼搬 legacy/）：~~P6a 處置／注意股＋通知~~（2026-10-17）→ ~~P6b 個股基本面~~（2026-10-17）→ ~~P6c 美股選股＋財報日曆~~（2026-10-17）→ P6d 技術掃描與多因子選股 → P6e 搬 legacy、CI、文件、開 NAS 停舊站
 5. **P2 即時行情：程式已部署、金鑰已設定、休市自我檢查全部通過**。剩 2026-10-19（一）開盤實測：推播延遲 < 1 秒、指數漲跌家數是否含漲跌停（與證交所收盤統計比對）、成交量差異（見已知問題）。自我檢查指令：`cd ~/apps/twstock && docker compose -f deploy/compose.yml run --rm --no-deps -T quote python -m app.quote.selftest`；重設金鑰：`ssh -t home "bash ~/apps/twstock/deploy/set-shioaji-keys.sh"`
 
 **新網站開發須知**（P0 起適用）
@@ -88,7 +88,7 @@
 
 ## 4. 待辦（依優先順序）
 
-- [ ] **前端改版**：見第 3 節（P0～P5、P6a、P6b ✅，下一步 P6c）
+- [ ] **前端改版**：見第 3 節（P0～P5、P6a、P6b、P6c ✅，下一步 P6d）
 - [ ] 新後端 `backend/app/services/overview.py` 與舊站 `datasources/twse_client.py` 各有一份 T86 欄位對照（新後端為避免載入 shioaji/FinMind 而獨立實作）。P6 舊站停用時刪舊的那份
 - [x] ~~home server 開機時序~~：改用 `tailnet-proxy` 容器等 Tailscale IP 出現再轉發，不需改主機設定（2026-10-16）
 - [ ] 在 Uptime Kuma 新增監控 `http://100.100.245.93:8600/api/health`（需使用者登入 Uptime Kuma 設定）
@@ -130,6 +130,14 @@
 ---
 
 ## 7. 工作日誌（新的寫在最上面）
+
+### 2026-10-17｜Antigravity (Gemini)
+- 做了什麼：**P6c 美股選股＋財報日曆完成並部署上線**（整合至 `/global` 全球市場頁）。
+  1. 後端：`yahoo.quotes` 以 Yahoo Finance v7 批次端點（含 cookie/crumb）一次請求取得全數 50 檔美股權值股（M7、半導體、軟體、消費、金融、生技、能源工業）的收盤價、市值、本益比、前瞻本益比、殖利率、52 週高低拉回幅度、均線位置、預估 EPS、財報公布日（美東）與華爾街評等分數（耗時 ~1 秒，取代舊站逐檔呼叫 100 次 `yfinance`）；worker 每 30 分鐘更新 Redis `us:latest`，新增 `/api/global/us`
+  2. 前端：全球市場頁（`/global`）新增「美股權值 50 多因子選股」（7 組快選策略＋板塊、市值、本益比、前瞻 PE、殖利率、年線篩選與欄位排序）與「美股財報日曆與華爾街共識」（可切換近期財報／全部 50 檔），點擊任一美股直接連動頁面上方日 K 線圖
+- 改了哪些檔：`backend/app/sources/yahoo.py`、`backend/app/services/us_stocks.py`（新）、`backend/app/worker.py`、`backend/app/api_global.py`、`backend/tests/test_global.py`、`backend/tests/fixtures/yahoo_us_quotes.json`（新）、`frontend/src/lib/usStocks.ts`（新）、`frontend/src/lib/usStocks.test.ts`（新）、`frontend/src/pages/GlobalPage.tsx`、`frontend/src/pages/GlobalPage.module.css`、`PROJECT.md`
+- 怎麼驗證：後端 pytest 82 passed、ruff 通過；前端 typecheck、vitest 42 passed、build 通過；線上 `http://100.100.245.93:8600/api/global/us` 回 50 檔美股與 49 筆近期財報（NVDA 市值 5,170.6B、財報日 2026-11-17、評等 1.3 強力買進；AAPL 收 343.46、財報日 2026-11-02）
+- 沒做完／新發現：下一步 P6d（技術掃描與多因子選股）
 
 ### 2026-10-17｜Antigravity (Gemini)
 - 做了什麼：**P6b 個股基本面完成並部署上線**。
