@@ -184,7 +184,10 @@ def shioaji_factory():
         raise RuntimeError("未設定 SHIOAJI_API_KEY／SHIOAJI_SECRET_KEY（home server 的 deploy/.env）")
     simulation = os.environ.get("SHIOAJI_SIMULATION", "true").lower() != "false"
     api = sj.Shioaji(simulation=simulation)
-    api.login(api_key=key, secret_key=secret, fetch_contract=True)
+    # 1.7.8 起 login() 沒有 fetch_contract 參數；只看行情，不訂閱交易回報
+    api.login(api_key=key, secret_key=secret, subscribe_trade=False)
+    if api.contracts.get(INDEX_CODE) is None:
+        api.fetch_contracts()
     return api
 
 
