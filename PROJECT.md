@@ -131,6 +131,13 @@
 ## 7. 工作日誌（新的寫在最上面）
 
 ### 2026-10-17｜Claude Opus 5.5
+- 做了什麼：**推送到 GitHub**（使用者要求；`origin` 為公開倉庫）。依 CLAUDE.md 流程 `local` → `main`（`--no-ff`）→ `git push origin main`；**未推 NAS remote**（舊站部署管道已停用）。GitHub 上原有 2 筆舊排程資料提交（7/7、7/8）在合併時自動歸入 `legacy/data/`。推送前掃描新增內容無金鑰（範例檔皆空值）；首次公開 home server 的 Tailscale 位址與主機名（僅 tailnet 內可連）。之後 `local` 快轉到 `main` 並部署 home server
+- GitHub CI 首次失敗：P6e 新增的 `ruff check` 步驟，但 `backend/requirements-dev.txt` 沒有 ruff（exit 127）→ 補上 `ruff>=0.17,<0.18`
+- 改了哪些檔：`backend/requirements-dev.txt`、`PROJECT.md`；合併提交 `2a31e3e`
+- 怎麼驗證：`git push origin main` 成功（`4b20f51..2a31e3e`）；合併結果與 `local` 只差 `legacy/data/` 舊資料檔；CI 修正後結果見下一次推送
+- 沒做完／新發現：Google Drive 又留下 `.git/ORIG_HEAD.lock` 殘留，造成第一次合併「stash failed」，確認無 git 程序後刪除
+
+### 2026-10-17｜Claude Opus 5.5
 - 做了什麼：**舊站正式停用（NAS 端收尾）**。使用者開機 NAS 並自行輸入 sudo 密碼執行：
   1. 查證 NAS 上**已無 `sinopac-web` 容器**（現有容器：PortainerCE、postgresql、jcic-opendata、KavitaD、Ubooquity、CalibreWeb），舊網站 8502 無回應，不需再停
   2. 舊每日排程 `run_daily.sh` 其實每個平日 20:00 仍在執行，但每次失敗（git `dubious ownership`＋缺 `FinMind` 套件），未產出資料；已備份 root crontab 至 `/volume1/docker/sinopac/crontab.bak-20261017` 後把該行註解（恢復：拿掉行首 `#`）
