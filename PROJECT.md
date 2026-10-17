@@ -82,7 +82,8 @@
 **新網站開發須知**（P0 起適用）
 - 程式碼：`backend/`（FastAPI）、`frontend/`（React）、`deploy/`（compose、hook）、`legacy/`（舊版封存）
 - 部署：`git push home local:main` → home server 自動建置並重啟（hook 原始檔 `deploy/post-receive.sh`，伺服器上 `deploy/.env` 不進 git）
-- 本機測試：後端 venv 在 `C:\Users\shoyu\.venvs\twstock-backend`；前端在 `C:\Users\shoyu\dev\twstock-fe` 鏡像執行 npm（**不要在雲端硬碟資料夾裡建 venv 或 node_modules**，數萬個小檔會拖慢並被同步）
+- **repo 位置：`C:\dev\taiwan-stock-query`**（2026-10-18 從 `G:\我的雲端硬碟\Claude專區\永豐金API` 搬出；舊資料夾不再使用）
+- 本機測試：後端 venv 在 `C:\Users\shoyu\.venvs\twstock-backend`；前端直接在 `frontend/` 執行 `npm ci`、`npm test`、`npm run build`
 
 ---
 
@@ -92,7 +93,7 @@
 - [x] ~~新後端 `backend/app/services/overview.py` 與舊站 `datasources/twse_client.py` 各有一份 T86 欄位對照~~：舊站已封存至 `legacy/`（2026-10-17）
 - [x] ~~home server 開機時序~~：改用 `tailnet-proxy` 容器等 Tailscale IP 出現再轉發，不需改主機設定（2026-10-16）
 - [x] ~~在 Uptime Kuma（`http://100.100.245.93:3001`）新增監控~~：已建立「台股看盤網站 (twstock)」監控（URL `http://twstock-web-1/api/health`、JSON 查詢 `status` == `ok`），並將 `uptime-kuma` 掛入 `twstock_default` 內網與 `post-receive.sh`，實測 `200 - OK`（7 ms，100% 綠燈）（2026-10-17）
-- [ ] 建議把 repo 搬離 Google 雲端硬碟（例如 `C:\dev\`）：2026-10-16 已出現 `.git` 孤立索引檔警告、venv 建置卡住，都是同步軟體干擾的徵兆
+- [x] ~~建議把 repo 搬離 Google 雲端硬碟~~：已搬到 `C:\dev\taiwan-stock-query`（2026-10-18）
 - [x] ~~K 線路由待決策~~（2026-10-17 使用者決定：日 K 歷史全用 FinMind、當日與分時用永豐推播、預設不還原可切換；富途留待 P5）
 - [x] ~~上櫃股與櫃買指數比較、修正櫃買指數卡~~：已串接櫃買中心 OpenAPI `tpex_index`，市場總覽與上櫃個股頁報告均已納入（2026-10-17）
 - [x] ~~個股頁籌碼區加「集保大戶／散戶持股比例」~~：已串接集保結算所公開資料 `getOD.ashx?id=1-5`（散戶 ≤50 張、中實戶 50–400 張、大戶 >400 張與千張大戶），個股頁盤中與盤後模式皆已顯示（2026-10-17）
@@ -129,6 +130,12 @@
 ---
 
 ## 7. 工作日誌（新的寫在最上面）
+
+### 2026-10-18｜Claude Opus 5.5
+- 做了什麼：**repo 搬到 `C:\dev\taiwan-stock-query`**（使用者要求）。在新位置重新 clone（不直接複製，避開舊 `.git` 裡 Drive 留下的孤立 pack 索引與殘留鎖檔），補回全部 5 個本機分支、三個遠端（origin／home／nas）與分支追蹤設定，複製 `.claude/settings.local.json`；舊資料夾原封不動保留
+- 改了哪些檔：`README.md`（前端改為直接在 `frontend/` 跑 npm，移除鏡像目錄步驟）、`PROJECT.md`
+- 怎麼驗證：新位置 `git fsck` 無警告、`git log` 與舊位置同為 `42809f6`、`git status` 乾淨；前端 `npm ci`／typecheck／vitest 45 passed／build 通過；後端 pytest 全部通過、ruff 通過
+- 沒做完／新發現：舊資料夾 `G:\我的雲端硬碟\Claude專區\永豐金API` 待使用者確認後再刪；Claude Code 的專案記憶依路徑分開，已複製到新路徑對應的記憶資料夾；之後請在 `C:\dev\taiwan-stock-query` 開新 session
 
 ### 2026-10-17｜Claude Opus 5.5
 - 做了什麼：**推送到 GitHub**（使用者要求；`origin` 為公開倉庫）。依 CLAUDE.md 流程 `local` → `main`（`--no-ff`）→ `git push origin main`；**未推 NAS remote**（舊站部署管道已停用）。GitHub 上原有 2 筆舊排程資料提交（7/7、7/8）在合併時自動歸入 `legacy/data/`。推送前掃描新增內容無金鑰（範例檔皆空值）；首次公開 home server 的 Tailscale 位址與主機名（僅 tailnet 內可連）。之後 `local` 快轉到 `main` 並部署 home server

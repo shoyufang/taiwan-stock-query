@@ -32,13 +32,16 @@ C:\Users\shoyu\.venvs\twstock-backend\Scripts\ruff.exe check backend/app backend
 C:\Users\shoyu\.venvs\twstock-backend\Scripts\pytest.exe backend/tests -q
 ```
 
-### 前端（Node 24，於非雲端硬碟鏡像目錄執行）
+### 前端（Node 24）
 ```powershell
-robocopy frontend\src C:\Users\shoyu\dev\twstock-fe\src /MIR
-npm --prefix C:\Users\shoyu\dev\twstock-fe run typecheck
-npm --prefix C:\Users\shoyu\dev\twstock-fe test -- --run
-npm --prefix C:\Users\shoyu\dev\twstock-fe run build
+cd frontend
+npm ci
+npm run typecheck
+npm test
+npm run build
 ```
+
+> repo 位置：`C:\dev\taiwan-stock-query`（2026-10-18 起）。不要放回 Google 雲端硬碟等同步資料夾：同步軟體會碰壞 `.git`、拖慢 `node_modules`。
 
 ## 部署（Home Server）
 
