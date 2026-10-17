@@ -1,0 +1,277 @@
+.page {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+}
+
+.notice {
+  margin: 0;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: 14px;
+}
+
+.kicker {
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.headline {
+  font-family: var(--font-display);
+  font-size: clamp(28px, 4vw, 42px);
+  line-height: 1.3;
+  font-weight: 900;
+  margin: 12px 0 14px;
+}
+
+.leadText {
+  font-size: 18px;
+  line-height: 1.8;
+  color: var(--text-2);
+  margin: 0;
+  max-width: 860px;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--border);
+}
+
+.stat {
+  padding: 18px 20px 18px 0;
+  margin-right: 20px;
+  border-right: 1px solid var(--border);
+  min-width: 0;
+}
+
+.stat:last-child {
+  border-right: 0;
+  margin-right: 0;
+}
+
+.statValue {
+  font-size: clamp(22px, 2.2vw, 30px);
+  font-weight: 500;
+  margin-top: 6px;
+  white-space: nowrap;
+}
+
+.unit {
+  font-size: 15px;
+}
+
+.sep {
+  color: var(--muted);
+  font-size: 0.7em;
+}
+
+.breadth {
+  display: flex;
+  gap: 2px;
+  height: 6px;
+  margin: 4px 0 2px;
+  overflow: hidden;
+}
+
+.breadthFlat {
+  background: var(--border);
+}
+
+.statSub {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 4px;
+  font-size: 14px;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.sectionHead {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.h2 {
+  font-family: var(--font-display);
+  font-size: 20px;
+  margin: 0 0 12px;
+}
+
+.sectionHead .h2 {
+  margin: 0;
+}
+
+.h3 {
+  font-family: var(--font-display);
+  font-size: 16px;
+  margin: 26px 0 6px;
+}
+
+.cols3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 40px;
+}
+
+.tableBox {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.table th {
+  font-weight: 500;
+  font-size: 12px;
+  color: var(--muted);
+  text-align: right;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.table td {
+  padding: 8px 0;
+  text-align: right;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.table th:first-child,
+.table td:first-child {
+  text-align: left;
+}
+
+.table td + td,
+.table th + th {
+  padding-left: 12px;
+}
+
+.code {
+  color: var(--muted);
+  font-size: 12px;
+  margin-right: 8px;
+}
+
+.inst {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-top: 4px;
+}
+
+.instRow {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) 96px;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+}
+
+.instRow > span:last-child {
+  text-align: right;
+}
+
+.instTrack {
+  position: relative;
+  height: 8px;
+  background: var(--surface-2);
+}
+
+.instZero {
+  position: absolute;
+  left: 50%;
+  top: -4px;
+  bottom: -4px;
+  width: 1px;
+  background: var(--muted);
+}
+
+.instBar {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+}
+
+.barUp {
+  background: var(--up);
+}
+
+.barDown {
+  background: var(--down);
+}
+
+.footnote {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.skel {
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skel {
+    animation: none;
+  }
+}
+
+@media (max-width: 1000px) {
+  .cols3 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .stat:nth-child(2) {
+    border-right: 0;
+    margin-right: 0;
+  }
+}
+
+@media (max-width: 520px) {
+  .stats {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .stat {
+    border-right: 0;
+    margin-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .leadText {
+    font-size: 16px;
+  }
+}

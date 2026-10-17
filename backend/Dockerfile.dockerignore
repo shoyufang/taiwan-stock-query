@@ -1,0 +1,5 @@
+# 只送 backend/ 進建置內容（之後需要 datasources/ 等再逐一開放）
+*
+!backend/requirements.txt
+!backend/app/**
+**/__pycache__
