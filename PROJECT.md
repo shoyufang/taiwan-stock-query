@@ -91,7 +91,7 @@
 - [x] ~~**前端改版（P0～P6）**~~：見第 3 節，P0～P5 與 P6a～P6e 全數完成上線（2026-10-17）；剩 2026-10-19（一）P2 開盤實測，以及下次開 NAS 時停用 `sinopac-web` 容器與舊 cron
 - [x] ~~新後端 `backend/app/services/overview.py` 與舊站 `datasources/twse_client.py` 各有一份 T86 欄位對照~~：舊站已封存至 `legacy/`（2026-10-17）
 - [x] ~~home server 開機時序~~：改用 `tailnet-proxy` 容器等 Tailscale IP 出現再轉發，不需改主機設定（2026-10-16）
-- [ ] 在 Uptime Kuma（`http://100.100.245.93:3001`）建立管理員帳號後，新增 HTTP(s) - JSON 查詢監控：URL 填 `http://twstock-web-1/api/health`、JSON 查詢填 `$.status`、預期值填 `ok`（已將 `uptime-kuma` 容器加入 `twstock_default` 內網並寫入 `post-receive.sh`，解決 Docker 橋接網路無法直連主機 Tailscale IP 的問題）
+- [x] ~~在 Uptime Kuma（`http://100.100.245.93:3001`）新增監控~~：已建立「台股看盤網站 (twstock)」監控（URL `http://twstock-web-1/api/health`、JSON 查詢 `status` == `ok`），並將 `uptime-kuma` 掛入 `twstock_default` 內網與 `post-receive.sh`，實測 `200 - OK`（7 ms，100% 綠燈）（2026-10-17）
 - [ ] 建議把 repo 搬離 Google 雲端硬碟（例如 `C:\dev\`）：2026-10-16 已出現 `.git` 孤立索引檔警告、venv 建置卡住，都是同步軟體干擾的徵兆
 - [x] ~~K 線路由待決策~~（2026-10-17 使用者決定：日 K 歷史全用 FinMind、當日與分時用永豐推播、預設不還原可切換；富途留待 P5）
 - [x] ~~上櫃股與櫃買指數比較、修正櫃買指數卡~~：已串接櫃買中心 OpenAPI `tpex_index`，市場總覽與上櫃個股頁報告均已納入（2026-10-17）
