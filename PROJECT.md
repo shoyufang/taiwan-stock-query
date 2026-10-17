@@ -37,7 +37,7 @@
 
 | 項目 | 狀態 |
 |---|---|
-| 正式網站 | **新站已全面上線**：home server `http://100.100.245.93:8600`（僅 Tailscale）。舊 NAS Streamlit 網站已退役（NAS 關機中，下次開機時停用 `sinopac-web` 與 cron 即可） |
+| 正式網站 | **新站已全面上線**：home server `http://100.100.245.93:8600`（僅 Tailscale）。舊 NAS Streamlit 網站已退役（2026-10-17 確認 `sinopac-web` 容器已不存在、NAS 舊 cron 已註解停用） |
 | 每日排程 | 新站 `worker` 與 `api` 收盤迴圈全面接手；舊 `daily.yml` 與 `daily_job.py` 已移入 `legacy/` |
 | 前端改版 | **P0～P6（含 P6a～P6e）全數完成並上線**；剩 P2 待 2026-10-19（一）開盤實測即時推播延遲與漲跌家數 |
 | 資料層 | `backend/app/sources/`（TWSE、TPEx、MOPS、FinMind、Yahoo）與 `backend/app/services/` 純函式；舊 `datasources/` 已歸檔至 `legacy/datasources/` |
@@ -76,7 +76,7 @@
 6. ~~P3 個股頁~~（2026-10-17 完成）
 7. ~~P4 自選股與警示~~（2026-10-17 完成；Telegram 待使用者建立機器人後執行 `deploy/set-telegram.sh`；手機 ntfy 待使用者安裝 App 訂閱 `http://100.100.245.93:8601` 主題 `twstock`）
 8. P5 其餘頁面：~~選股~~、~~全球市場~~、~~行事曆~~、~~投資組合~~（2026-10-17 完成）；~~AI 助理~~（2026-10-17 實測通過，模型 agnes-2.5-pro-alpha）→ P5 全部完成
-9. **P6 切換**（使用者決定補四項後停用舊站、不寫 Notion、舊碼搬 legacy/）：~~P6a 處置／注意股＋通知~~（2026-10-17）→ ~~P6b 個股基本面~~（2026-10-17）→ ~~P6c 美股選股＋財報日曆~~（2026-10-17）→ ~~P6d 技術掃描與多因子選股~~（2026-10-17）→ ~~P6e 搬 legacy、CI、文件~~（2026-10-17 完成；NAS 目前關機中，待下次開 NAS 時執行 `sudo docker stop sinopac-web && sudo docker update --restart=no sinopac-web` 並註解 cron 即可）
+9. **P6 切換**（使用者決定補四項後停用舊站、不寫 Notion、舊碼搬 legacy/）：~~P6a 處置／注意股＋通知~~（2026-10-17）→ ~~P6b 個股基本面~~（2026-10-17）→ ~~P6c 美股選股＋財報日曆~~（2026-10-17）→ ~~P6d 技術掃描與多因子選股~~（2026-10-17）→ ~~P6e 搬 legacy、CI、文件~~（2026-10-17 完成；NAS 端已確認無舊容器、舊 cron 已註解停用）
 5. **P2 即時行情：程式已部署、金鑰已設定、休市自我檢查全部通過**。剩 2026-10-19（一）開盤實測：推播延遲 < 1 秒、指數漲跌家數是否含漲跌停（與證交所收盤統計比對）、成交量差異（見已知問題）。自我檢查指令：`cd ~/apps/twstock && docker compose -f deploy/compose.yml run --rm --no-deps -T quote python -m app.quote.selftest`；重設金鑰：`ssh -t home "bash ~/apps/twstock/deploy/set-shioaji-keys.sh"`
 
 **新網站開發須知**（P0 起適用）
@@ -88,7 +88,7 @@
 
 ## 4. 待辦（依優先順序）
 
-- [x] ~~**前端改版（P0～P6）**~~：見第 3 節，P0～P5 與 P6a～P6e 全數完成上線（2026-10-17）；剩 2026-10-19（一）P2 開盤實測，以及下次開 NAS 時停用 `sinopac-web` 容器與舊 cron
+- [x] ~~**前端改版（P0～P6）**~~：見第 3 節，P0～P5 與 P6a～P6e 全數完成上線（2026-10-17）；剩 2026-10-19（一）P2 開盤實測（NAS 舊站與 cron 已於 2026-10-17 停用）
 - [x] ~~新後端 `backend/app/services/overview.py` 與舊站 `datasources/twse_client.py` 各有一份 T86 欄位對照~~：舊站已封存至 `legacy/`（2026-10-17）
 - [x] ~~home server 開機時序~~：改用 `tailnet-proxy` 容器等 Tailscale IP 出現再轉發，不需改主機設定（2026-10-16）
 - [x] ~~在 Uptime Kuma（`http://100.100.245.93:3001`）新增監控~~：已建立「台股看盤網站 (twstock)」監控（URL `http://twstock-web-1/api/health`、JSON 查詢 `status` == `ok`），並將 `uptime-kuma` 掛入 `twstock_default` 內網與 `post-receive.sh`，實測 `200 - OK`（7 ms，100% 綠燈）（2026-10-17）
@@ -129,6 +129,14 @@
 ---
 
 ## 7. 工作日誌（新的寫在最上面）
+
+### 2026-10-17｜Claude Opus 5.5
+- 做了什麼：**舊站正式停用（NAS 端收尾）**。使用者開機 NAS 並自行輸入 sudo 密碼執行：
+  1. 查證 NAS 上**已無 `sinopac-web` 容器**（現有容器：PortainerCE、postgresql、jcic-opendata、KavitaD、Ubooquity、CalibreWeb），舊網站 8502 無回應，不需再停
+  2. 舊每日排程 `run_daily.sh` 其實每個平日 20:00 仍在執行，但每次失敗（git `dubious ownership`＋缺 `FinMind` 套件），未產出資料；已備份 root crontab 至 `/volume1/docker/sinopac/crontab.bak-20261017` 後把該行註解（恢復：拿掉行首 `#`）
+- 改了哪些檔：NAS root crontab（非 repo）、`PROJECT.md`
+- 怎麼驗證：`sudo crontab -l` 顯示 `#0 20 * * 1-5 /bin/sh /volume1/docker/sinopac/run_daily.sh …`；`docker ps -a` 無 sinopac-web；`curl 192.168.0.171:8502` 無回應
+- 沒做完／新發現：NAS 上 `postgresql` 容器是舊 daily_job `PG_URL` 的寫入目標之一（推測），新站不使用，是否保留由使用者決定；NAS 上的 sudo 免密碼只開放 `docker restart sinopac-web`，該容器已不存在，該條 sudoers 規則可由使用者日後移除
 
 ### 2026-10-17｜Antigravity (Gemini)
 - 做了什麼：**全專案深度檢查測試、6 項細節優化與 Uptime Kuma 內網連通完成並部署上線**。
