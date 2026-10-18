@@ -394,4 +394,10 @@
 - 怎麼驗證：tsc 無錯誤；尚未部署、未在瀏覽器實測
 - 沒做完／新發現：待使用者確認後 commit 並 `git push home local:main` 部署
 
+### 2026-10-18｜Claude（XQ MCP）
+- 做了什麼：新增 XQ 全球贏家 DDE 報價 MCP server，讓 Claude 能直接查本機 XQ 報價。DDE 語法 `XQLITE|Quote!2330.TW-Price`；ctypes 呼叫 DDEML，免 pywin32。工具：`xq_quote`、`xq_raw`。
+- 改了哪些檔：`tools/xq_mcp/server.py`（新）；Claude Code user scope 註冊 `xq`，venv 在 `C:\Users\shoyu\.venvs\xq-mcp`（mcp 2.x）
+- 怎麼驗證：stdio 端對端測試取得 2330／2454 報價、6488 名稱；`claude mcp get xq` 顯示 Connected
+- 沒做完／新發現：只限本機、XQ 須開著；加權指數的 XQ 代號未查出（`TSE.TW` 回 `--`）；網站（home server）用不到此資料
+
 > 2026-06 以前的紀錄見 `CLAUDE.md`「代理人互動紀錄」章節。
