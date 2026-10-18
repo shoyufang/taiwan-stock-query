@@ -93,6 +93,7 @@ export function GlobalPage({ mode }: { mode: Mode }) {
           {q.data.groups.map((g) => (
             <section key={g.title} className={styles.card} aria-label={g.title}>
               <h2 className={styles.h2}>{g.title}</h2>
+              <div className={styles.tableBox}>
               <table className={styles.table}>
                 <tbody>
                   {g.items.map((it) => (
@@ -102,12 +103,13 @@ export function GlobalPage({ mode }: { mode: Mode }) {
                       <td className={`num ${direction(it.change_pct)}`}>{arrow(it.change_pct)} {fmtPct(it.change_pct)}</td>
                       <td className={`num ${styles.date}`}>{fmtMonthDay(it.date)}</td>
                       <td className={styles.spark}>
-                        <Sparkline values={it.spark} label={it.name} />
+                        <Sparkline values={it.spark} label={it.name} width={72} />
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+              </div>
             </section>
           ))}
         </div>

@@ -388,4 +388,10 @@
 - 怎麼驗證：CI 綠燈、NAS 部署確認
 - 沒做完／新發現：見該計畫文件
 
+### 2026-10-18｜Claude
+- 做了什麼：修全球市場頁排版——各組表格超出卡片、迷你走勢線被切、頁面出現橫向捲軸。表格外包 `tableBox`（可捲動），走勢線寬 96→72，卡片最小寬 320→360。
+- 改了哪些檔：`frontend/src/pages/GlobalPage.tsx`、`GlobalPage.module.css`
+- 怎麼驗證：tsc 無錯誤；尚未部署、未在瀏覽器實測
+- 沒做完／新發現：待使用者確認後 commit 並 `git push home local:main` 部署
+
 > 2026-06 以前的紀錄見 `CLAUDE.md`「代理人互動紀錄」章節。
