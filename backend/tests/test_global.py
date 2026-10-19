@@ -48,3 +48,34 @@ def test_us_stocks_screener_and_earnings():
     edates = [r["earnings_date"] for r in res["upcoming_earnings"]]
     assert len(edates) >= 3 and edates == sorted(edates)
 
+
+
+def _summary(name):
+    return json.loads((FIX / f"yahoo_quoteSummary_{name}.json").read_text(encoding="utf-8"))
+
+
+def test_global_fundamentals_us_stock():
+    """AAPL 2026-10-20 實抓：比率轉百分比、近四季依季別排序、EPS 對上同一季。"""
+    from app.services import global_fundamentals as gf
+
+    d = gf.build("AAPL", _summary("AAPL"), "2026-10-20T04:00:00+08:00")
+    assert d["has_data"] and d["currency"] == "USD" and d["financial_currency"] == "USD"
+    assert d["valuation"]["trailing_pe"] == 39.33 and d["valuation"]["eps_ttm"] == 8.72
+    assert d["dividend"]["yield_pct"] == 0.31 and d["dividend"]["rate"] == 1.08
+    assert d["profitability"]["gross_margin"] == 48.65 and d["profitability"]["revenue_growth"] == 16.4
+    assert d["analyst"]["rating_label"] == "買進" and d["analyst"]["target_mean"] == 329.38
+    q = d["quarters"]
+    assert [x["quarter"] for x in q] == ["2025Q3", "2025Q4", "2026Q1", "2026Q2"]
+    assert q[-1]["revenue"] == 109417000000 and q[-1]["eps"] == 2.02 and q[-1]["eps_estimate"] == 1.892
+    assert q[-1]["net_margin"] == round(29789000000 / 109417000000 * 100, 2)
+    assert d["profile"]["sector"] == "Technology"
+
+
+def test_global_fundamentals_hk_stock_and_index():
+    from app.services import global_fundamentals as gf
+
+    hk = gf.build("0700.HK", _summary("0700HK"), "t")
+    assert hk["has_data"] and hk["currency"] == "HKD" and hk["analyst"]["rating_label"] == "強力買進"
+    assert hk["quarters"][-1]["quarter"] == "2026Q1" and hk["quarters"][-1]["eps"] == 7.364
+    idx = gf.build("^GSPC", _summary("GSPC"), "t")
+    assert idx["has_data"] is False and idx["quarters"] == [] and idx["valuation"]["trailing_pe"] is None

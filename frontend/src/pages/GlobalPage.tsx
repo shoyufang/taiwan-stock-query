@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useSearchParams } from 'react-router'
+import { GlobalFundamentals } from '../components/GlobalFundamentals'
 import { KChart } from '../components/KChart'
 import { Sparkline } from '../components/Sparkline'
 import type { Bar } from '../lib/api'
@@ -257,6 +258,7 @@ function Lookup({
           </div>
           <KChart bars={bars} mode={mode} height={380} />
           <p className={styles.muted}>沿用台股慣例：紅色為上漲、綠色為下跌。</p>
+          <GlobalFundamentals symbol={k.data.meta.symbol} lastClose={last.close} />
         </>
       )}
     </section>

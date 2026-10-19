@@ -1,0 +1,1012 @@
+{
+ "assetProfile": {
+  "address1": "Tencent Binhai Towers",
+  "address2": "No. 33 Haitian 2nd Road Nanshan District",
+  "city": "Shenzhen",
+  "zip": "518054",
+  "country": "China",
+  "phone": "86 755 8601 3388",
+  "website": "https://www.tencent.com",
+  "industry": "Internet Content & Information",
+  "industryKey": "internet-content-information",
+  "industryDisp": "Internet Content & Information",
+  "sector": "Communication Services",
+  "sectorKey": "communication-services",
+  "sectorDisp": "Communication Services",
+  "longBusinessSummary": "Tencent Holdings Limited, an investment holding company, provides value-added services, marketing services, fintech, and business services in Mainland China and internationally. The company's consumers business includes communications and social services, such as instant messaging and social networks; digital content, including online games, videos, live streaming, news, music, and literature; fintech services, which include mobile payment, wealth management, consumer loans, and securities trading; and various tools comprising network security management, browsing, navigation, application management, email, etc. Its enterprise business comprises marketing solutions, which offer digital tools, including user insight, creative management, placement strategy, and digital assets management; and cloud services, such as cloud computing, big data analytics, artificial intelligence, Internet of Things, and security and other technologies for financial services, education, healthcare, retail, industry, transport, energy, and radio and television industries. The company also invests in, produces, and distributes films and television programs; offers copyrights licensing and merchandise sales and other services; provides internet advertisement services; and offers software development, and information technology and system integration services, as well as develops and operates mobile games. The company was formerly known as Tencent (BVI) Limited and changed its name to Tencent Holdings Limited in February 2004. Tencent Holdings Limited was founded in 1998 and is headquartered in Shenzhen, the People's Republic of China.",
+  "fullTimeEmployees": 115927,
+  "auditRisk": 2,
+  "boardRisk": 7,
+  "compensationRisk": 10,
+  "shareHolderRightsRisk": 5,
+  "overallRisk": 10,
+  "governanceEpochDate": 1790812800,
+  "compensationAsOfEpochDate": 1767139200,
+  "executiveTeam": [],
+  "maxAge": 86400
+ },
+ "summaryDetail": {
+  "maxAge": 1,
+  "priceHint": {
+   "raw": 3,
+   "fmt": "3",
+   "longFmt": "3"
+  },
+  "previousClose": {
+   "raw": 417.8,
+   "fmt": "417.800"
+  },
+  "open": {
+   "raw": 424.0,
+   "fmt": "424.000"
+  },
+  "dayLow": {
+   "raw": 415.8,
+   "fmt": "415.800"
+  },
+  "dayHigh": {
+   "raw": 428.8,
+   "fmt": "428.800"
+  },
+  "regularMarketPreviousClose": {
+   "raw": 417.8,
+   "fmt": "417.800"
+  },
+  "regularMarketOpen": {
+   "raw": 424.0,
+   "fmt": "424.000"
+  },
+  "regularMarketDayLow": {
+   "raw": 415.8,
+   "fmt": "415.800"
+  },
+  "regularMarketDayHigh": {
+   "raw": 428.8,
+   "fmt": "428.800"
+  },
+  "dividendRate": {
+   "raw": 5.3,
+   "fmt": "5.30"
+  },
+  "dividendYield": {
+   "raw": 0.0127,
+   "fmt": "1.27%"
+  },
+  "exDividendDate": {
+   "raw": 1778803200,
+   "fmt": "2026-05-15"
+  },
+  "payoutRatio": {
+   "raw": 0.1875,
+   "fmt": "18.75%"
+  },
+  "fiveYearAvgDividendYield": {
+   "raw": 0.64,
+   "fmt": "0.64"
+  },
+  "beta": {
+   "raw": 0.742,
+   "fmt": "0.74"
+  },
+  "trailingPE": {
+   "raw": 14.706089,
+   "fmt": "14.71"
+  },
+  "forwardPE": {
+   "raw": 11.664149,
+   "fmt": "11.66"
+  },
+  "volume": {
+   "raw": 18752869,
+   "fmt": "18.75M",
+   "longFmt": "18,752,869"
+  },
+  "regularMarketVolume": {
+   "raw": 18752869,
+   "fmt": "18.75M",
+   "longFmt": "18,752,869"
+  },
+  "averageVolume": {
+   "raw": 22398802,
+   "fmt": "22.4M",
+   "longFmt": "22,398,802"
+  },
+  "averageVolume10days": {
+   "raw": 16790064,
+   "fmt": "16.79M",
+   "longFmt": "16,790,064"
+  },
+  "averageDailyVolume10Day": {
+   "raw": 16790064,
+   "fmt": "16.79M",
+   "longFmt": "16,790,064"
+  },
+  "bid": {
+   "raw": 417.6,
+   "fmt": "417.600"
+  },
+  "ask": {
+   "raw": 417.8,
+   "fmt": "417.800"
+  },
+  "bidSize": {
+   "raw": 0,
+   "fmt": null,
+   "longFmt": "0"
+  },
+  "askSize": {
+   "raw": 0,
+   "fmt": null,
+   "longFmt": "0"
+  },
+  "marketCap": {
+   "raw": 3762314018816,
+   "fmt": "3.76T",
+   "longFmt": "3,762,314,018,816"
+  },
+  "nonDilutedMarketCap": {
+   "raw": 3972560581521,
+   "fmt": "3.97T",
+   "longFmt": "3,972,560,581,521"
+  },
+  "yield": {},
+  "ytdReturn": {},
+  "qtdReturn": {},
+  "totalAssets": {},
+  "expireDate": {},
+  "strikePrice": {},
+  "openInterest": {},
+  "fiftyTwoWeekLow": {
+   "raw": 411.0,
+   "fmt": "411.000"
+  },
+  "fiftyTwoWeekHigh": {
+   "raw": 664.0,
+   "fmt": "664.000"
+  },
+  "allTimeHigh": {
+   "raw": 714.89966,
+   "fmt": "714.900"
+  },
+  "allTimeLow": {
+   "raw": 0.622253,
+   "fmt": "0.622"
+  },
+  "fulldayPrice": {
+   "raw": 417.8,
+   "fmt": "417.800"
+  },
+  "fulldayChange": {
+   "raw": 0.0,
+   "fmt": "0.000"
+  },
+  "fulldayChangePercent": {
+   "raw": 0.0,
+   "fmt": "0.00%"
+  },
+  "priceToSalesTrailing12Months": {
+   "raw": 4.7715855,
+   "fmt": "4.77"
+  },
+  "fiftyDayAverage": {
+   "raw": 438.12,
+   "fmt": "438.120"
+  },
+  "twoHundredDayAverage": {
+   "raw": 485.9905,
+   "fmt": "485.991"
+  },
+  "trailingAnnualDividendRate": {
+   "raw": 4.763,
+   "fmt": "4.76"
+  },
+  "trailingAnnualDividendYield": {
+   "raw": 0.011400192,
+   "fmt": "1.14%"
+  },
+  "navPrice": {},
+  "currency": "HKD",
+  "fromCurrency": null,
+  "toCurrency": null,
+  "lastMarket": null,
+  "coinMarketCapLink": null,
+  "volume24Hr": {},
+  "volumeAllCurrencies": {},
+  "circulatingSupply": {},
+  "algorithm": null,
+  "maxSupply": {},
+  "totalSupply": {},
+  "startDate": {},
+  "tradeable": false,
+  "fullyDilutedValue": {},
+  "volume24HrMarketCapPercent": {}
+ },
+ "earnings": {
+  "maxAge": 86400,
+  "earningsChart": {
+   "quarterly": [
+    {
+     "date": "3Q2025",
+     "actual": {
+      "raw": 7.575,
+      "fmt": "7.57"
+     },
+     "estimate": {
+      "raw": 7.03248,
+      "fmt": "7.03"
+     },
+     "fiscalQuarter": "3Q2025",
+     "calendarQuarter": "3Q2025",
+     "difference": "0.54",
+     "surprisePct": "7.71",
+     "periodEndDate": {
+      "raw": 1759190400,
+      "fmt": "2025-09-30"
+     },
+     "reportedDate": {
+      "raw": 1763022600,
+      "fmt": "2025-11-13"
+     }
+    },
+    {
+     "date": "4Q2025",
+     "actual": {
+      "raw": 6.966,
+      "fmt": "7"
+     },
+     "estimate": {
+      "raw": 6.86455,
+      "fmt": "6.9"
+     },
+     "fiscalQuarter": "4Q2025",
+     "calendarQuarter": "4Q2025",
+     "difference": "0.1",
+     "surprisePct": "1.48",
+     "periodEndDate": {
+      "raw": 1767139200,
+      "fmt": "2025-12-31"
+     },
+     "reportedDate": {
+      "raw": 1773822600,
+      "fmt": "2026-03-18"
+     }
+    },
+    {
+     "date": "1Q2026",
+     "actual": {
+      "raw": 7.364,
+      "fmt": "7.36"
+     },
+     "estimate": {
+      "raw": 7.23466,
+      "fmt": "7.23"
+     },
+     "fiscalQuarter": "1Q2026",
+     "calendarQuarter": "1Q2026",
+     "difference": "0.13",
+     "surprisePct": "1.79",
+     "periodEndDate": {
+      "raw": 1774915200,
+      "fmt": "2026-03-31"
+     },
+     "reportedDate": {
+      "raw": 1778661077,
+      "fmt": "2026-05-13"
+     }
+    },
+    {
+     "date": "2Q2026",
+     "actual": {
+      "raw": 7.433,
+      "fmt": "7.4"
+     },
+     "estimate": {
+      "raw": 7.23544,
+      "fmt": "7.2"
+     },
+     "fiscalQuarter": "2Q2026",
+     "calendarQuarter": "2Q2026",
+     "difference": "0.2",
+     "surprisePct": "2.73",
+     "periodEndDate": {
+      "raw": 1782777600,
+      "fmt": "2026-06-30"
+     },
+     "reportedDate": {
+      "raw": 1786523496,
+      "fmt": "2026-08-12"
+     }
+    }
+   ],
+   "currentQuarterEstimate": {
+    "raw": 7.23279,
+    "fmt": "7.23"
+   },
+   "currentQuarterEstimateDate": "3Q",
+   "currentCalendarQuarter": "3Q2026",
+   "currentQuarterEstimateYear": 2026,
+   "currentFiscalQuarter": "3Q2026",
+   "currentPeriodEndDate": {
+    "raw": 1790726400,
+    "fmt": "2026-09-30"
+   },
+   "earningsDate": [
+    {
+     "raw": 1794989400,
+     "fmt": "2026-11-18"
+    }
+   ],
+   "isEarningsDateEstimate": false
+  },
+  "financialsChart": {
+   "yearly": [
+    {
+     "date": 2022,
+     "revenue": {
+      "raw": 554552000000,
+      "fmt": "554.55B",
+      "longFmt": "554,552,000,000"
+     },
+     "earnings": {
+      "raw": 188243000000,
+      "fmt": "188.24B",
+      "longFmt": "188,243,000,000"
+     },
+     "profitMargin": {
+      "raw": 0.3394506,
+      "fmt": "33.95%"
+     }
+    },
+    {
+     "date": 2023,
+     "revenue": {
+      "raw": 609015000000,
+      "fmt": "609.01B",
+      "longFmt": "609,015,000,000"
+     },
+     "earnings": {
+      "raw": 115216000000,
+      "fmt": "115.22B",
+      "longFmt": "115,216,000,000"
+     },
+     "profitMargin": {
+      "raw": 0.18918417,
+      "fmt": "18.92%"
+     }
+    },
+    {
+     "date": 2024,
+     "revenue": {
+      "raw": 660257000000,
+      "fmt": "660.26B",
+      "longFmt": "660,257,000,000"
+     },
+     "earnings": {
+      "raw": 194073000000,
+      "fmt": "194.07B",
+      "longFmt": "194,073,000,000"
+     },
+     "profitMargin": {
+      "raw": 0.29393557,
+      "fmt": "29.39%"
+     }
+    },
+    {
+     "date": 2025,
+     "revenue": {
+      "raw": 751766000000,
+      "fmt": "751.77B",
+      "longFmt": "751,766,000,000"
+     },
+     "earnings": {
+      "raw": 224842000000,
+      "fmt": "224.84B",
+      "longFmt": "224,842,000,000"
+     },
+     "profitMargin": {
+      "raw": 0.29908508,
+      "fmt": "29.91%"
+     }
+    }
+   ],
+   "quarterly": [
+    {
+     "date": "2Q2025",
+     "fiscalQuarter": "2Q2025",
+     "revenue": {
+      "raw": 184504000000,
+      "fmt": "184.5B",
+      "longFmt": "184,504,000,000"
+     },
+     "earnings": {
+      "raw": 55628000000,
+      "fmt": "55.63B",
+      "longFmt": "55,628,000,000"
+     },
+     "profitMargin": {
+      "raw": 0.30150026,
+      "fmt": "30.15%"
+     }
+    },
+    {
+     "date": "3Q2025",
+     "fiscalQuarter": "3Q2025",
+     "revenue": {
+      "raw": 192869000000,
+      "fmt": "192.87B",
+      "longFmt": "192,869,000,000"
+     },
+     "earnings": {
+      "raw": 63133000000,
+      "fmt": "63.13B",
+      "longFmt": "63,133,000,000"
+     },
+     "profitMargin": {
+      "raw": 0.32733616,
+      "fmt": "32.73%"
+     }
+    },
+    {
+     "date": "4Q2025",
+     "fiscalQuarter": "4Q2025",
+     "revenue": {
+      "raw": 194371000000,
+      "fmt": "194.37B",
+      "longFmt": "194,371,000,000"
+     },
+     "earnings": {
+      "raw": 58260000000,
+      "fmt": "58.26B",
+      "longFmt": "58,260,000,000"
+     },
+     "profitMargin": {
+      "raw": 0.29973608,
+      "fmt": "29.97%"
+     }
+    },
+    {
+     "date": "1Q2026",
+     "fiscalQuarter": "1Q2026",
+     "revenue": {
+      "raw": 196458000000,
+      "fmt": "196.46B",
+      "longFmt": "196,458,000,000"
+     },
+     "earnings": {
+      "raw": 58093000000,
+      "fmt": "58.09B",
+      "longFmt": "58,093,000,000"
+     },
+     "profitMargin": {
+      "raw": 0.29570186,
+      "fmt": "29.57%"
+     }
+    }
+   ]
+  },
+  "financialCurrency": "CNY",
+  "defaultMethodology": "nongaap"
+ },
+ "calendarEvents": {
+  "maxAge": 1,
+  "earnings": {
+   "earningsDate": [
+    {
+     "raw": 1794989400,
+     "fmt": "2026-11-18"
+    }
+   ],
+   "earningsCallDate": [
+    {
+     "raw": 1786536000,
+     "fmt": "2026-08-12"
+    }
+   ],
+   "isEarningsDateEstimate": false,
+   "earningsAverage": {
+    "raw": 7.23279,
+    "fmt": "7.23"
+   },
+   "earningsLow": {
+    "raw": 6.61,
+    "fmt": "6.61"
+   },
+   "earningsHigh": {
+    "raw": 7.82,
+    "fmt": "7.82"
+   },
+   "revenueAverage": {
+    "raw": 210330115920,
+    "fmt": "210.33B",
+    "longFmt": "210,330,115,920"
+   },
+   "revenueLow": {
+    "raw": 206627133500,
+    "fmt": "206.63B",
+    "longFmt": "206,627,133,500"
+   },
+   "revenueHigh": {
+    "raw": 213679000000,
+    "fmt": "213.68B",
+    "longFmt": "213,679,000,000"
+   }
+  },
+  "exDividendDate": {
+   "raw": 1778803200,
+   "fmt": "2026-05-15"
+  },
+  "dividendDate": {}
+ },
+ "price": {
+  "maxAge": 1,
+  "preMarketChange": {},
+  "preMarketPrice": {},
+  "preMarketSource": "DELAYED",
+  "postMarketChange": {},
+  "postMarketPrice": {},
+  "regularMarketChangePercent": {
+   "raw": 0.0,
+   "fmt": "0.00%"
+  },
+  "regularMarketChange": {
+   "raw": 0.0,
+   "fmt": "0.000"
+  },
+  "regularMarketTime": 1792138094,
+  "priceHint": {
+   "raw": 3,
+   "fmt": "3",
+   "longFmt": "3"
+  },
+  "regularMarketPrice": {
+   "raw": 417.8,
+   "fmt": "417.800"
+  },
+  "regularMarketDayHigh": {
+   "raw": 428.8,
+   "fmt": "428.800"
+  },
+  "regularMarketDayLow": {
+   "raw": 415.8,
+   "fmt": "415.800"
+  },
+  "regularMarketVolume": {
+   "raw": 18752869,
+   "fmt": "18.75M",
+   "longFmt": "18,752,869.00"
+  },
+  "averageDailyVolume10Day": {
+   "raw": 16790064,
+   "fmt": "16.79M",
+   "longFmt": "16,790,064"
+  },
+  "averageDailyVolume3Month": {
+   "raw": 22398802,
+   "fmt": "22.4M",
+   "longFmt": "22,398,802"
+  },
+  "regularMarketPreviousClose": {
+   "raw": 417.8,
+   "fmt": "417.800"
+  },
+  "regularMarketSource": "DELAYED",
+  "regularMarketOpen": {
+   "raw": 424.0,
+   "fmt": "424.000"
+  },
+  "strikePrice": {},
+  "openInterest": {},
+  "fulldayChangePercent": {
+   "raw": 0.0,
+   "fmt": "0.00%"
+  },
+  "fulldayChange": {
+   "raw": 0.0,
+   "fmt": "0.000"
+  },
+  "fulldayPrice": {
+   "raw": 417.8,
+   "fmt": "417.800"
+  },
+  "exchange": "HKG",
+  "exchangeName": "HKSE",
+  "exchangeDataDelayedBy": 15,
+  "marketState": "PREPRE",
+  "quoteType": "EQUITY",
+  "symbol": "0700.HK",
+  "underlyingSymbol": null,
+  "shortName": "TENCENT",
+  "longName": "Tencent Holdings Limited",
+  "currency": "HKD",
+  "quoteSourceName": "Delayed Quote",
+  "currencySymbol": "HK$",
+  "fromCurrency": null,
+  "toCurrency": null,
+  "lastMarket": null,
+  "volume24Hr": {},
+  "volumeAllCurrencies": {},
+  "circulatingSupply": {},
+  "marketCap": {
+   "raw": 3762314018816,
+   "fmt": "3.76T",
+   "longFmt": "3,762,314,018,816.00"
+  }
+ },
+ "earningsHistory": {
+  "history": [
+   {
+    "maxAge": 1,
+    "epsActual": {
+     "raw": 7.575,
+     "fmt": "7.57"
+    },
+    "epsEstimate": {
+     "raw": 7.03248,
+     "fmt": "7.03"
+    },
+    "epsDifference": {
+     "raw": 0.54,
+     "fmt": "0.54"
+    },
+    "surprisePercent": {
+     "raw": 0.0771,
+     "fmt": "7.71%"
+    },
+    "quarter": {
+     "raw": 1759190400,
+     "fmt": "2025-09-30"
+    },
+    "currency": "CNY",
+    "period": "-4q"
+   },
+   {
+    "maxAge": 1,
+    "epsActual": {
+     "raw": 6.966,
+     "fmt": "6.97"
+    },
+    "epsEstimate": {
+     "raw": 6.86455,
+     "fmt": "6.86"
+    },
+    "epsDifference": {
+     "raw": 0.1,
+     "fmt": "0.1"
+    },
+    "surprisePercent": {
+     "raw": 0.0148,
+     "fmt": "1.48%"
+    },
+    "quarter": {
+     "raw": 1767139200,
+     "fmt": "2025-12-31"
+    },
+    "currency": "CNY",
+    "period": "-3q"
+   },
+   {
+    "maxAge": 1,
+    "epsActual": {
+     "raw": 7.364,
+     "fmt": "7.36"
+    },
+    "epsEstimate": {
+     "raw": 7.23466,
+     "fmt": "7.23"
+    },
+    "epsDifference": {
+     "raw": 0.13,
+     "fmt": "0.13"
+    },
+    "surprisePercent": {
+     "raw": 0.0179,
+     "fmt": "1.79%"
+    },
+    "quarter": {
+     "raw": 1774915200,
+     "fmt": "2026-03-31"
+    },
+    "currency": "CNY",
+    "period": "-2q"
+   },
+   {
+    "maxAge": 1,
+    "epsActual": {
+     "raw": 7.433,
+     "fmt": "7.43"
+    },
+    "epsEstimate": {
+     "raw": 7.23544,
+     "fmt": "7.24"
+    },
+    "epsDifference": {
+     "raw": 0.2,
+     "fmt": "0.2"
+    },
+    "surprisePercent": {
+     "raw": 0.0273,
+     "fmt": "2.73%"
+    },
+    "quarter": {
+     "raw": 1782777600,
+     "fmt": "2026-06-30"
+    },
+    "currency": "CNY",
+    "period": "-1q"
+   }
+  ],
+  "defaultMethodology": "nongaap",
+  "maxAge": 86400
+ },
+ "defaultKeyStatistics": {
+  "maxAge": 1,
+  "priceHint": {
+   "raw": 3,
+   "fmt": "3",
+   "longFmt": "3"
+  },
+  "enterpriseValue": {
+   "raw": 3860625620992,
+   "fmt": "3.86T",
+   "longFmt": "3,860,625,620,992"
+  },
+  "forwardPE": {
+   "raw": 13.68123,
+   "fmt": "13.68"
+  },
+  "profitMargins": {
+   "raw": 0.29868,
+   "fmt": "29.87%"
+  },
+  "floatShares": {
+   "raw": 6211120023,
+   "fmt": "6.21B",
+   "longFmt": "6,211,120,023"
+  },
+  "sharesOutstanding": {
+   "raw": 9005060353,
+   "fmt": "9.01B",
+   "longFmt": "9,005,060,353"
+  },
+  "sharesShort": {},
+  "sharesShortPriorMonth": {},
+  "sharesShortPreviousMonthDate": {},
+  "dateShortInterest": {},
+  "sharesPercentSharesOut": {},
+  "heldPercentInsiders": {
+   "raw": 0.31726998,
+   "fmt": "31.73%"
+  },
+  "heldPercentInstitutions": {
+   "raw": 0.24966,
+   "fmt": "24.97%"
+  },
+  "shortRatio": {},
+  "shortPercentOfFloat": {},
+  "beta": {
+   "raw": 0.742,
+   "fmt": "0.74"
+  },
+  "impliedSharesOutstanding": {
+   "raw": 9005060353,
+   "fmt": "9.01B",
+   "longFmt": "9,005,060,353"
+  },
+  "morningStarOverallRating": {},
+  "morningStarRiskRating": {},
+  "category": null,
+  "bookValue": {
+   "raw": 147.99796,
+   "fmt": "148.00"
+  },
+  "priceToBook": {
+   "raw": 2.8230119,
+   "fmt": "2.82"
+  },
+  "annualReportExpenseRatio": {},
+  "ytdReturn": {},
+  "qtdReturn": {},
+  "beta3Year": {},
+  "totalAssets": {},
+  "yield": {},
+  "fundFamily": null,
+  "fundInceptionDate": {},
+  "legalType": null,
+  "threeYearAverageReturn": {},
+  "fiveYearAverageReturn": {},
+  "priceToSalesTrailing12Months": {},
+  "lastFiscalYearEnd": {
+   "raw": 1767139200,
+   "fmt": "2025-12-31"
+  },
+  "nextFiscalYearEnd": {
+   "raw": 1798675200,
+   "fmt": "2026-12-31"
+  },
+  "mostRecentQuarter": {
+   "raw": 1782777600,
+   "fmt": "2026-06-30"
+  },
+  "earningsQuarterlyGrowth": {
+   "raw": 0.007,
+   "fmt": "0.70%"
+  },
+  "revenueQuarterlyGrowth": {},
+  "netIncomeToCommon": {
+   "raw": 235508006912,
+   "fmt": "235.51B",
+   "longFmt": "235,508,006,912"
+  },
+  "trailingEps": {
+   "raw": 28.41,
+   "fmt": "28.410"
+  },
+  "forwardEps": {
+   "raw": 35.819157,
+   "fmt": "35.82"
+  },
+  "pegRatio": {
+   "raw": 1.28,
+   "fmt": "1.28"
+  },
+  "lastSplitFactor": "5:1",
+  "lastSplitDate": {
+   "raw": 1400112000,
+   "fmt": "2014-05-15"
+  },
+  "enterpriseToRevenue": {
+   "raw": 4.896,
+   "fmt": "4.90"
+  },
+  "enterpriseToEbitda": {
+   "raw": 12.997,
+   "fmt": "13.00"
+  },
+  "52WeekChange": {
+   "raw": -0.33418328,
+   "fmt": "-33.42%"
+  },
+  "SandP52WeekChange": {
+   "raw": 0.13723719,
+   "fmt": "13.72%"
+  },
+  "lastDividendValue": {
+   "raw": 5.3,
+   "fmt": "5.30"
+  },
+  "lastDividendDate": {
+   "raw": 1778803200,
+   "fmt": "2026-05-15"
+  },
+  "lastCapGain": {},
+  "annualHoldingsTurnover": {},
+  "latestFundingDate": {},
+  "latestAmountRaised": {},
+  "latestImpliedValuation": {},
+  "latestShareClass": null,
+  "leadInvestor": null,
+  "fundingToDate": {},
+  "totalFundingRounds": {}
+ },
+ "financialData": {
+  "maxAge": 86400,
+  "currentPrice": {
+   "raw": 417.8,
+   "fmt": "417.80"
+  },
+  "targetHighPrice": {
+   "raw": 889.0449,
+   "fmt": "889.04"
+  },
+  "targetLowPrice": {
+   "raw": 429.89008,
+   "fmt": "429.89"
+  },
+  "targetMeanPrice": {
+   "raw": 659.27594,
+   "fmt": "659.28"
+  },
+  "targetMedianPrice": {
+   "raw": 666.82153,
+   "fmt": "666.82"
+  },
+  "recommendationMean": {
+   "raw": 1.39535,
+   "fmt": "1.40"
+  },
+  "recommendationKey": "strong_buy",
+  "numberOfAnalystOpinions": {
+   "raw": 41,
+   "fmt": "41",
+   "longFmt": "41"
+  },
+  "totalCash": {
+   "raw": 458904010752,
+   "fmt": "458.9B",
+   "longFmt": "458,904,010,752"
+  },
+  "totalCashPerShare": {
+   "raw": 50.978,
+   "fmt": "50.98"
+  },
+  "ebitda": {
+   "raw": 297043001344,
+   "fmt": "297.04B",
+   "longFmt": "297,043,001,344"
+  },
+  "totalDebt": {
+   "raw": 471828004864,
+   "fmt": "471.83B",
+   "longFmt": "471,828,004,864"
+  },
+  "quickRatio": {
+   "raw": 1.07,
+   "fmt": "1.07"
+  },
+  "currentRatio": {
+   "raw": 1.287,
+   "fmt": "1.29"
+  },
+  "totalRevenue": {
+   "raw": 788483014656,
+   "fmt": "788.48B",
+   "longFmt": "788,483,014,656"
+  },
+  "debtToEquity": {
+   "raw": 38.595,
+   "fmt": "38.59%"
+  },
+  "revenuePerShare": {
+   "raw": 87.135,
+   "fmt": "87.14"
+  },
+  "returnOnAssets": {
+   "raw": 0.07867,
+   "fmt": "7.87%"
+  },
+  "returnOnEquity": {
+   "raw": 0.19906001,
+   "fmt": "19.91%"
+  },
+  "grossProfits": {
+   "raw": 447062016000,
+   "fmt": "447.06B",
+   "longFmt": "447,062,016,000"
+  },
+  "freeCashflow": {
+   "raw": 118467747840,
+   "fmt": "118.47B",
+   "longFmt": "118,467,747,840"
+  },
+  "operatingCashflow": {
+   "raw": 305847992320,
+   "fmt": "305.85B",
+   "longFmt": "305,847,992,320"
+  },
+  "earningsGrowth": {
+   "raw": 0.018,
+   "fmt": "1.80%"
+  },
+  "revenueGrowth": {
+   "raw": 0.11,
+   "fmt": "11.00%"
+  },
+  "grossMargins": {
+   "raw": 0.56699,
+   "fmt": "56.70%"
+  },
+  "ebitdaMargins": {
+   "raw": 0.37673,
+   "fmt": "37.67%"
+  },
+  "operatingMargins": {
+   "raw": 0.32852,
+   "fmt": "32.85%"
+  },
+  "profitMargins": {
+   "raw": 0.29868,
+   "fmt": "29.87%"
+  },
+  "financialCurrency": "CNY"
+ }
+}

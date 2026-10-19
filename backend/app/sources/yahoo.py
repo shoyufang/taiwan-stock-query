@@ -25,6 +25,20 @@ async def quotes(client: httpx.AsyncClient, symbols: list[str]) -> list[dict]:
     return r.json().get("quoteResponse", {}).get("result") or []
 
 
+SUMMARY_URL = "https://query2.finance.yahoo.com/v10/finance/quoteSummary/{symbol}"
+SUMMARY_MODULES = "assetProfile,summaryDetail,defaultKeyStatistics,financialData,price,earningsHistory,earnings,calendarEvents"
+
+
+async def quote_summary(client: httpx.AsyncClient, symbol: str) -> dict:
+    """Yahoo v10 quoteSummary（單一代號的公司簡介、估值、獲利、財務、分析師、近四季財報）。指數只回價格類模組。"""
+    await client.get(CRUMB_COOKIE_URL, follow_redirects=True)
+    cr = await client.get(CRUMB_URL, follow_redirects=True)
+    cr.raise_for_status()
+    r = await client.get(SUMMARY_URL.format(symbol=symbol), params={"modules": SUMMARY_MODULES, "crumb": cr.text.strip()})
+    r.raise_for_status()
+    return (r.json().get("quoteSummary", {}).get("result") or [{}])[0]
+
+
 async def daily_bars(client: httpx.AsyncClient, symbol: str, range_: str = "1mo") -> dict:
     r = await client.get(URL.format(symbol=symbol), params={"range": range_, "interval": "1d"})
     r.raise_for_status()
