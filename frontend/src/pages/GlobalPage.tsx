@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
-import { useRef, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useSearchParams } from 'react-router'
 import { KChart } from '../components/KChart'
 import { Sparkline } from '../components/Sparkline'
 import type { Bar } from '../lib/api'
@@ -74,13 +75,26 @@ const EXAMPLES = ['AAPL', 'NVDA', 'TSM', '0700.HK', '9988.HK']
 export function GlobalPage({ mode }: { mode: Mode }) {
   const q = useQuery({ queryKey: ['global'], queryFn: () => getJson<GlobalData>('/api/global'), refetchInterval: 5 * 60_000, retry: 3, retryDelay: 5000 })
   const us = useQuery({ queryKey: ['global-us'], queryFn: () => getJson<UsStocksData>('/api/global/us'), staleTime: 10 * 60_000, retry: 2 })
-  const [symbol, setSymbol] = useState('AAPL')
+  // 代號放網址（?s=AAPL），可分享、可加書籤、上一頁可回到前一檔
+  const [params, setParams] = useSearchParams()
+  const symbol = params.get('s') || 'AAPL'
+  const setSymbol = (s: string) => setParams({ s }, { replace: false })
   const lookupRef = useRef<HTMLElement | null>(null)
 
   const pickSymbol = (sym: string) => {
     setSymbol(sym)
     lookupRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
+
+  // 從網址帶代號進來時捲到查詢區，只捲一次。要等上方表格（q）與下方美股區（us）都載入：
+  // 下方還沒長出來時頁面不夠高，scrollIntoView 會被捲動上限卡住、停在半途
+  const pendingScroll = useRef(params.has('s'))
+  useEffect(() => {
+    if (pendingScroll.current && q.data && us.isFetched) {
+      pendingScroll.current = false
+      lookupRef.current?.scrollIntoView({ block: 'start' })
+    }
+  }, [q.data, us.isFetched])
 
   return (
     <div className={styles.page}>
@@ -98,7 +112,11 @@ export function GlobalPage({ mode }: { mode: Mode }) {
                 <tbody>
                   {g.items.map((it) => (
                     <tr key={it.symbol}>
-                      <th scope="row">{it.name}</th>
+                      <th scope="row">
+                        <button type="button" className={styles.symBtn} onClick={() => pickSymbol(it.symbol)} title={`看 ${it.name} K 線`}>
+                          {it.name}
+                        </button>
+                      </th>
                       <td className="num">{fmtFixed(it.close, it.close < 100 ? 2 : 2)}</td>
                       <td className={`num ${direction(it.change_pct)}`}>{arrow(it.change_pct)} {fmtPct(it.change_pct)}</td>
                       <td className={`num ${styles.date}`}>{fmtMonthDay(it.date)}</td>

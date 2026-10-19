@@ -134,6 +134,13 @@
 
 ## 7. 工作日誌（新的寫在最上面）
 
+### 2026-10-20｜Claude Opus 5.5（全球市場：代號網址＋指數可點）
+- 做了什麼：全球市場頁「港美股查詢」的代號改放網址（`/global?s=AAPL`），可分享、加書籤、上一頁回前一檔；從網址帶代號進來會自動捲到查詢區。指數、期貨、匯率四組表格的名稱改成可點，點了在查詢區看該商品日 K（Yahoo 代號如 `^GSPC`、`GC=F`、`TWD=X` 皆實測有 K 線）。
+- 更正：先前回覆使用者「全球 K 線沒有成交量與均線」是錯的——`GlobalPage` 與個股頁共用 `KChart`，本來就有 MA 與量；本次未動 K 線圖本身。
+- 改了哪些檔：`frontend/src/pages/GlobalPage.tsx`
+- 怎麼驗證：`tsc --noEmit` 無錯誤、vitest 45 passed；本機 vite（暫時 proxy 到線上後端，暫存設定已刪）實測：`?s=TSM` 載入後查詢區在視窗頂端（top 16px）、點「費城半導體」網址變 `?s=%5ESOX` 且顯示 PHLX Semiconductor、`history.back()` 回到 TSM；重新整理後點「道瓊」，console 無錯誤
+- 沒做完／新發現：**尚未 commit／部署**；捲動要等下方美股區載入（頁面不夠高時 `scrollIntoView` 會被捲動上限卡住）；第 2 步（港美股基本面：財報、本益比、股利）未做，Yahoo 能取得哪些欄位待查
+
 ### 2026-10-20｜Claude Sonnet 5.5（ETF 股利）
 - 做了什麼：修好個股頁「基本面 → 歷年股利政策」對 ETF 永遠空白。根因：`TaiwanStockDividend` 的 `year` 欄個股是 `112年第3季`、ETF 只有 `112`（沒有「年」字），`fundamentals._ROC_YEAR` 只認 `(\d{2,3})年`，ETF 全部列被略過（FinMind 其實有 ETF 股利，先前推測「FinMind 沒有」是錯的，已更正）。正則改為 `\s*(\d{2,3})(?!\d)`，兩種格式都吃。
 - 改了哪些檔：`backend/app/services/fundamentals.py`、`backend/tests/test_fundamentals.py`（新增 `test_etf_dividends_year_without_suffix`）
