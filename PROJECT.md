@@ -90,6 +90,9 @@
 ## 4. 待辦（依優先順序）
 
 - [x] ~~**前端改版（P0～P6）**~~：見第 3 節，P0～P5 與 P6a～P6e 全數完成上線（2026-10-17）；剩 2026-10-19（一）P2 開盤實測（NAS 舊站與 cron 已於 2026-10-17 停用）
+- [ ] **`xq_quote` 預設欄位擴充**：目前只取 10 個基本欄位，可考慮加入五檔（`BestBid1–5`／`BestAsk1–5`／`BestBidSize1–5`／`BestAskSize1–5`）、`PriceChangeRatio`、`VolumeRatio`、`InSize`／`OutSize`。改 `tools/xq_mcp/server.py`，欄位清單見第 7 節 2026-10-18 日誌（2026-10-18 新增）
+- [ ] **分點資料程式化取得**：DDE 讀不到，XQ 只有畫面可看（個股「主力進出」）。待評估：XQ 表格是否有匯出、computer-use 讀畫面、FinMind Sponsor 付費版（2026-10-18 新增）
+- [ ] **XQ 與 Shioaji 總量是否漏計收盤集合競價**：兩者 2330 同為 33,389 張，證交所 43,046；10/19 開盤實測，結果同步更新第 5 節對應列（2026-10-18 新增）
 - [x] ~~新後端 `backend/app/services/overview.py` 與舊站 `datasources/twse_client.py` 各有一份 T86 欄位對照~~：舊站已封存至 `legacy/`（2026-10-17）
 - [x] ~~home server 開機時序~~：改用 `tailnet-proxy` 容器等 Tailscale IP 出現再轉發，不需改主機設定（2026-10-16）
 - [x] ~~在 Uptime Kuma（`http://100.100.245.93:3001`）新增監控~~：已建立「台股看盤網站 (twstock)」監控（URL `http://twstock-web-1/api/health`、JSON 查詢 `status` == `ok`），並將 `uptime-kuma` 掛入 `twstock_default` 內網與 `post-receive.sh`，實測 `200 - OK`（7 ms，100% 綠燈）（2026-10-17）
@@ -130,6 +133,33 @@
 ---
 
 ## 7. 工作日誌（新的寫在最上面）
+
+### 2026-10-20｜Claude Sonnet 5.5（ETF 個股頁白屏）
+- 做了什麼：修好個股頁查 ETF（0050、0056）整頁白屏。根因：ETF 無月營收，API 回 `revenue: []`，`RevenueBars` 直接讀 `rows[rows.length-1].year` 而 `last` 為 undefined → React 拋 `Cannot read properties of undefined (reading 'year')`。加空陣列防呆，改顯示「無月營收資料（ETF 不公布營收）」。
+- 改了哪些檔：`frontend/src/pages/StockPage.tsx`（`RevenueBars` 開頭加 `if (!rows.length) return ...`）
+- 怎麼驗證：先在線上站 `/stock/0050` 重現白屏與 console 錯誤；修後以本機 vite（暫時 proxy 到線上後端，已刪暫存設定）開 `/stock/0050`、`/stock/0056`，頁面正常、console 無錯誤；`tsc --noEmit` 無錯誤、vitest 45 passed
+- 沒做完／新發現：**尚未 commit／部署**（線上站仍是舊版，ETF 仍白屏）；ETF 的基本面區塊（股利、損益等）FinMind 無資料，股利待改接證交所 ETF 配息資料；未加此防呆的單元測試（專案前端測試只涵蓋 `lib/`，元件無測試）
+
+### 2026-10-18｜Claude Sonnet 5.5（XQ 欄位與分點調查）
+- 做了什麼：用 `xq_raw` 探索 XQ DDE 可讀欄位，並由使用者截圖確認 XQ 軟體介面的分點資料位置。純調查，未改程式。
+- 改了哪些檔：`PROJECT.md`（本筆）；Claude 專案記憶 `reference_xq_dde.md`（不在 repo 內）
+- 怎麼驗證：2330 收盤後逐一實測；五檔量與 XQ 畫面一致（508/776/958/498/1996、698/394/491/604/525），`BidAskDiff` 2024 ＝ 4736−2712 驗算相符
+- **DDE 可讀（2330 實測有值）**：
+  - 五檔：`BestBid1`–`5`、`BestAsk1`–`5`（價）；`BestBidSize1`–`5`、`BestAskSize1`–`5`（量，張）；`BidAskDiff`（委買總量−委賣總量）
+  - 內外盤：`InSize`、`OutSize`、`InOutRatio`（顯示值是外盤比，32.52%）
+  - 漲跌與量能：`PriceChange`、`PriceChangeRatio`、`Amplitude`、`PreTotalVolume`（昨量）、`VolumeRatio`、`TurnoverRatio`、`AvgPrice`、`Value`（成交金額，元）、`UpLimit`／`DownLimit`
+  - 基本面：`PERatio`、`ROE`、`CashDividend`、`Capital`、`MarketValue`（後兩者單位未驗證，推測為億）
+  - 預設 `xq_quote` 只取 10 個基本欄位，以上需自行用 `fields` 指定
+- **DDE 讀不到**：分點、三大法人買賣超、融資融券餘額（`ShortBalance`=9、`ShortSell`=4 有值但含義未驗證）、均線、52 週高低。名稱是猜的，回 `--` 不等於不存在
+- **XQ 軟體介面有分點，但只在畫面上，無 DDE／匯出管道（匯出功能尚未確認）**：
+  - 個股：「台股個股分析」→ 輸入代號（如 `2330.TW`）→ 下方「主力」頁籤 →「主力進出」，前十大買超／賣超券商（張數），可選期間（預設近一日）
+  - 全市場：選股選單「券商進出表」→「券商分點進出金額排行」（金額，百萬元），可再進「分點明細查詢」（某分點買賣了哪些股）
+  - 分點為收盤後公布，標題日期為最近交易日（實測 10/16）；盤中是否顯示當日未實測
+- 沒做完／新發現：
+  - 永豐金 Shioaji 官方文件導覽無分點 API（只看導覽列，未逐頁細讀）；FinMind 分點為付費版（Sponsor）
+  - 若要程式化取得分點，選項：XQ 表格匯出（待查）、computer-use 讀畫面、FinMind Sponsor
+  - 待辦（未做）：是否把五檔／漲跌幅／量比加進 `xq_quote` 預設欄位（會改 `tools/xq_mcp/server.py`，待使用者決定）
+  - 注意：XQ 的 `TotalVolume` 33,389 與已知問題第 115 列的 Shioaji 快照同為 33,389，證交所為 43,046；XQ 與 Shioaji 數字相同，推測同樣未含收盤集合競價（未驗證，待 10/19 開盤實測）
 
 ### 2026-10-18｜Claude Opus 5.5
 - 做了什麼：**repo 搬到 `C:\dev\taiwan-stock-query`**（使用者要求）。在新位置重新 clone（不直接複製，避開舊 `.git` 裡 Drive 留下的孤立 pack 索引與殘留鎖檔），補回全部 5 個本機分支、三個遠端（origin／home／nas）與分支追蹤設定，複製 `.claude/settings.local.json`；舊資料夾原封不動保留

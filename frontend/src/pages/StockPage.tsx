@@ -424,6 +424,7 @@ function MarginTable({ rows }: { rows: Data['margin'] }) {
 }
 
 function RevenueBars({ rows }: { rows: Data['revenue'] }) {
+  if (!rows.length) return <p className={styles.muted}>無月營收資料（ETF 不公布營收）。</p>
   const max = Math.max(...rows.map((r) => r.revenue), 1)
   const last = rows[rows.length - 1]
   return (
