@@ -41,6 +41,20 @@ def test_balance_and_dividends():
     assert y2025["times"] == 4 and y2025["eps"] is not None and y2025["payout"] is not None
 
 
+def test_etf_dividends_year_without_suffix():
+    """ETF 的 year 欄只有民國年數字（'113'），沒有『年』字；半年配的 0050 一年兩次。"""
+    etf = [
+        {"year": "113", "CashEarningsDistribution": 3.0, "CashExDividendTradingDate": "2024-01-17"},
+        {"year": "113", "CashEarningsDistribution": 1.0, "CashExDividendTradingDate": "2024-07-16"},
+        {"year": "114", "CashEarningsDistribution": 2.7, "CashExDividendTradingDate": "2025-01-17"},
+    ]
+    d = fu.dividend_years(etf)
+    y2024 = next(x for x in d if x["year"] == 2024)
+    assert y2024["cash"] == 4.0 and y2024["times"] == 2 and y2024["ex_dates"] == ["2024-01-17", "2024-07-16"]
+    assert y2024["eps"] is None and y2024["payout"] is None  # ETF 無 EPS
+    assert next(x for x in d if x["year"] == 2025)["cash"] == 2.7
+
+
 def test_pe_river_and_peers():
     bars = st.bars_from_finmind(rows("finmind_TaiwanStockPrice"))
     per = rows("finmind_TaiwanStockPER")

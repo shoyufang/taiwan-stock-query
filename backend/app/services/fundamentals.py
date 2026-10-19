@@ -64,7 +64,7 @@ def balance_quarters(rows: list[dict], n: int = 8) -> list[dict]:
     return out[-n:]
 
 
-_ROC_YEAR = re.compile(r"(\d{2,3})年")
+_ROC_YEAR = re.compile(r"\s*(\d{2,3})(?!\d)")  # 個股「112年第3季」、ETF 只有「112」
 
 
 def dividend_years(rows: list[dict], quarters: list[dict] | None = None, n: int = 10) -> list[dict]:

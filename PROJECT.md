@@ -134,6 +134,12 @@
 
 ## 7. 工作日誌（新的寫在最上面）
 
+### 2026-10-20｜Claude Sonnet 5.5（ETF 股利）
+- 做了什麼：修好個股頁「基本面 → 歷年股利政策」對 ETF 永遠空白。根因：`TaiwanStockDividend` 的 `year` 欄個股是 `112年第3季`、ETF 只有 `112`（沒有「年」字），`fundamentals._ROC_YEAR` 只認 `(\d{2,3})年`，ETF 全部列被略過（FinMind 其實有 ETF 股利，先前推測「FinMind 沒有」是錯的，已更正）。正則改為 `\s*(\d{2,3})(?!\d)`，兩種格式都吃。
+- 改了哪些檔：`backend/app/services/fundamentals.py`、`backend/tests/test_fundamentals.py`（新增 `test_etf_dividends_year_without_suffix`）
+- 怎麼驗證：`pytest backend/tests` 90 passed、ruff 通過；用 FinMind 即時資料跑 0056，`dividend_years` 回 2017–2026 共 10 年（例：2022 年 2.1 元、2024 年 3.63 元）；前端對 `eps`／`payout` 為 null 已顯示「—」，不需改
+- 沒做完／新發現：**尚未部署**，線上站 0056 股利仍空白，部署後需用 `/api/stock/0056/fundamentals` 的 `dividends` 長度驗證；ETF 的損益、資產負債、本益比河流圖、同業比較仍為空（ETF 本來就沒有，前端已有提示）；0056 的 2024 年「5 次」與 2025 年「3 次」來自 FinMind 的所屬年度歸屬，未逐筆對照證交所公告，若要精確再查
+
 ### 2026-10-20｜Claude Sonnet 5.5（ETF 個股頁白屏）
 - 做了什麼：修好個股頁查 ETF（0050、0056）整頁白屏。根因：ETF 無月營收，API 回 `revenue: []`，`RevenueBars` 直接讀 `rows[rows.length-1].year` 而 `last` 為 undefined → React 拋 `Cannot read properties of undefined (reading 'year')`。加空陣列防呆，改顯示「無月營收資料（ETF 不公布營收）」。
 - 改了哪些檔：`frontend/src/pages/StockPage.tsx`（`RevenueBars` 開頭加 `if (!rows.length) return ...`）
