@@ -138,7 +138,8 @@
 - 做了什麼：全球市場「港美股查詢」K 線下方新增「基本面」區：市值、本益比（近四季／預估）、股價淨值比、EPS、殖利率、毛利率／營業利益率／淨利率、ROE、營收年增、負債權益比；分析師共識、目標價（含距現價）、下次財報日、最近除息日；近四季營收／淨利／淨利率／EPS 實際 vs 預估；英文公司簡介（摺疊）。指數、期貨、匯率顯示「沒有公司基本面資料」。新後端端點 `GET /api/global/fundamentals?symbol=`（Yahoo v10 quoteSummary，SQLite 快取 6 小時）。
 - 改了哪些檔：`backend/app/sources/yahoo.py`（`quote_summary`）、`backend/app/services/global_fundamentals.py`（新，純函式）、`backend/app/api_global.py`、`backend/tests/test_global.py`、`backend/tests/fixtures/yahoo_quoteSummary_{AAPL,0700HK,GSPC}.json`（新，2026-10-20 實抓，已移除 `companyOfficers`）、`frontend/src/components/GlobalFundamentals.{tsx,module.css}`（新）、`frontend/src/pages/GlobalPage.tsx`
 - 怎麼驗證：`pytest backend/tests` 92 passed、ruff 通過、`tsc --noEmit` 無錯誤、vitest 45 passed；本機 uvicorn（:8010，無 Redis）實打端點：AAPL／0700.HK／TSM `has_data=true`、`^GSPC` 為 false；本機 vite（新端點走本機、其餘走線上，暫存設定已刪）開 `/global?s=0700.HK`、`?s=AAPL` 基本面區正常、console 無錯誤；`?s=^SOX` 顯示無資料提示；手機寬 375px 無橫向捲軸
-- 沒做完／新發現：**尚未 commit／部署**；報價幣別與財報幣別可能不同（0700.HK：HKD／CNY；TSM：USD／TWD），畫面已並列標示，近四季金額用財報幣別；季別用 Yahoo `financialsChart` 的日曆季（如 `2Q2026`），EPS 依季末月份對上 `earningsHistory`，最早一季可能沒有 EPS；數值皆為 Yahoo 原始資料，未與官方財報逐筆核對
+- 部署與線上驗證：commit `6a348ac`，`git push home local:main` 部署（`/api/health` 回 `version: 6a348ac`）；線上端點 AAPL `has_data=true`（USD／USD、本益比 39.33、2025Q3–2026Q2）、0700.HK `has_data=true`（HKD／CNY、本益比 14.71、2025Q2–2026Q1）、`^GSPC` false；瀏覽器開 `/global?s=AAPL`、`/global?s=0700.HK` 基本面區與近四季表正常顯示（0700.HK 標示「報價幣別 HKD、財報幣別 CNY」），console 無錯誤
+- 沒做完／新發現：報價幣別與財報幣別可能不同（0700.HK：HKD／CNY；TSM：USD／TWD），畫面已並列標示，近四季金額用財報幣別；季別用 Yahoo `financialsChart` 的日曆季（如 `2Q2026`），EPS 依季末月份對上 `earningsHistory`，最早一季可能沒有 EPS；數值皆為 Yahoo 原始資料，未與官方財報逐筆核對
 
 ### 2026-10-20｜Claude Opus 5.5（全球市場：代號網址＋指數可點）
 - 做了什麼：全球市場頁「港美股查詢」的代號改放網址（`/global?s=AAPL`），可分享、加書籤、上一頁回前一檔；從網址帶代號進來會自動捲到查詢區。指數、期貨、匯率四組表格的名稱改成可點，點了在查詢區看該商品日 K（Yahoo 代號如 `^GSPC`、`GC=F`、`TWD=X` 皆實測有 K 線）。
