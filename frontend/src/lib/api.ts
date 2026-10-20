@@ -242,8 +242,35 @@ export interface HoldingIn {
   note: string
 }
 
+export interface PortfolioRisk {
+  status: 'ok' | 'empty' | 'insufficient'
+  generated_at: string
+  assumptions: { window_days: number; annualization_days: number; risk_free_pct: number; var_level_pct: number; rebalancing: string; price_basis: string; benchmark: string }
+  excluded: { code: string; name: string; bars: number; reason: string }[]
+  excluded_jumps: number
+  start?: string
+  end?: string
+  days?: number
+  market_value?: number
+  metrics?: {
+    annual_return_pct: number
+    annual_vol_pct: number
+    sharpe: number | null
+    max_drawdown: { pct: number; peak_date: string; trough_date: string }
+    var_1d_pct: number
+    var_1d_amount: number
+    beta: number | null
+  }
+  holdings?: { code: string; name: string; industry: string | null; shares: number; market_value: number; weight_pct: number; risk_pct: number; vol_pct: number }[]
+  industries?: { industry: string; weight_pct: number }[]
+  top_weight_pct?: number
+  correlation?: { codes: string[]; names: string[]; matrix: (number | null)[][] } | null
+  series?: { date: string; value: number }[]
+}
+
 export const portfolioApi = {
   get: () => fetch('/api/portfolio').then((r) => json<PortfolioData>(r)),
+  risk: () => fetch('/api/portfolio/risk').then((r) => json<PortfolioRisk>(r)),
   add: (h: HoldingIn) => fetch('/api/portfolio', { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(h) }).then((r) => json<{ id: number }>(r)),
   update: (id: number, h: HoldingIn) => fetch(`/api/portfolio/${id}`, { method: 'PUT', headers: JSON_HEADERS, body: JSON.stringify(h) }).then((r) => json<{ ok: boolean }>(r)),
   remove: (id: number) => fetch(`/api/portfolio/${id}`, { method: 'DELETE' }).then((r) => json<{ ok: boolean }>(r)),

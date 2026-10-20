@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState, type FormEvent } from 'react'
 import { Link } from 'react-router'
+import { PortfolioRisk } from '../components/PortfolioRisk'
 import { portfolioApi, searchStocks, type HoldingIn } from '../lib/api'
 import { direction, fmtFixed, fmtInt, fmtMonthDay, fmtPct, fmtPrice, fmtSigned } from '../lib/format'
 import { taipeiToday } from '../lib/indicators'
@@ -31,6 +32,12 @@ export function PortfolioPage({ mode }: { mode: Mode }) {
     return buildPositions(q.data.holdings, q.data.quotes, prices)
   }, [q.data, live, codes])
   const t = totals(positions)
+  // 持股（代號＋股數）變動才重算風險；沒有持股不顯示風險區
+  const riskSignature = useMemo(() => {
+    const agg: Record<string, number> = {}
+    for (const h of q.data?.holdings ?? []) agg[h.code] = (agg[h.code] ?? 0) + h.shares
+    return Object.entries(agg).sort().map(([c, s]) => `${c}:${s}`).join(',')
+  }, [q.data])
   const lastDate = Object.values(q.data?.quotes ?? {}).map((r) => r.date).filter(Boolean).sort().pop()
 
   return (
@@ -104,6 +111,8 @@ export function PortfolioPage({ mode }: { mode: Mode }) {
           </div>
         )}
       </section>
+
+      {riskSignature && <PortfolioRisk signature={riskSignature} />}
 
       <div className={styles.cols}>
         <HoldingForm key={editing?.id ?? 'new'} editing={editing} onDone={() => setEditing(null)} />
