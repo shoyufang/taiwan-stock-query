@@ -262,3 +262,24 @@
   margin-left: 4px;
 }
 
+
+/* 指數／原物料／匯率小卡：名稱欄可換行、欄距收窄，表格塞得進 360px 卡片，走勢線不被切 */
+.groupTable th,
+.groupTable td {
+  padding: 6px 4px;
+}
+
+.groupTable th:first-child {
+  white-space: normal;
+  line-height: 1.3;
+}
+
+@media (max-width: 420px) {
+  .groupTable .spark {
+    width: 56px;
+  }
+
+  .groupTable .spark svg {
+    width: 52px;
+  }
+}

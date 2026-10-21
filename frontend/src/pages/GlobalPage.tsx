@@ -109,7 +109,7 @@ export function GlobalPage({ mode }: { mode: Mode }) {
             <section key={g.title} className={styles.card} aria-label={g.title}>
               <h2 className={styles.h2}>{g.title}</h2>
               <div className={styles.tableBox}>
-              <table className={styles.table}>
+              <table className={`${styles.table} ${styles.groupTable}`}>
                 <tbody>
                   {g.items.map((it) => (
                     <tr key={it.symbol}>
