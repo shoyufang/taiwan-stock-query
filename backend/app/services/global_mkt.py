@@ -14,11 +14,15 @@ from app.sources import yahoo
 log = logging.getLogger("global")
 
 GROUPS = [
-    ("美股", [("^GSPC", "標普 500"), ("^IXIC", "那斯達克"), ("^DJI", "道瓊工業"), ("^SOX", "費城半導體"), ("^VIX", "VIX 恐慌指數")]),
-    ("亞洲", [("^N225", "日經 225"), ("^HSI", "恒生指數"), ("000001.SS", "上證指數"), ("^KS11", "韓國綜合")]),
+    ("美股", [("^GSPC", "標普 500"), ("^IXIC", "那斯達克"), ("^DJI", "道瓊工業"), ("^SOX", "費城半導體"),
+             ("^RUT", "羅素 2000"), ("^VIX", "VIX 恐慌指數")]),
+    ("亞洲", [("^N225", "日經 225"), ("^HSI", "恒生指數"), ("000001.SS", "上證指數"), ("399001.SZ", "深證成指"),
+             ("^KS11", "韓國綜合"), ("^AXJO", "澳洲 ASX 200"), ("^BSESN", "印度 SENSEX"), ("^STI", "新加坡海峽時報")]),
     ("歐洲", [("^GDAXI", "德國 DAX"), ("^FTSE", "英國富時 100")]),
-    ("原物料・匯率・利率", [("CL=F", "WTI 原油"), ("GC=F", "黃金"), ("TWD=X", "美元／台幣"), ("DX-Y.NYB", "美元指數"), ("^TNX", "美國 10 年債殖利率")]),
+    ("原物料・利率", [("CL=F", "WTI 原油"), ("GC=F", "黃金"), ("HG=F", "銅"), ("^TNX", "美國 10 年債殖利率")]),
+    ("匯率", [("TWD=X", "美元／台幣"), ("DX-Y.NYB", "美元指數"), ("JPY=X", "美元／日圓"), ("CNY=X", "美元／人民幣")]),
 ]
+YAHOO_CONCURRENCY = 8  # 代號變多後限制同時連線數，避免被 Yahoo 限流
 
 ADRS = [("TSM", "2330.TW", "台積電", 5), ("UMC", "2303.TW", "聯電", 5), ("ASX", "3711.TW", "日月光投控", 2)]
 
@@ -49,7 +53,13 @@ async def _bars(client, symbol: str, range_: str = "3mo") -> list[dict]:
 async def build(generated_at: str) -> dict:
     async with yahoo.make_client() as client:
         symbols = [s for _, items in GROUPS for s, _ in items] + [a for a, _, _, _ in ADRS] + [t for _, t, _, _ in ADRS]
-        results = await asyncio.gather(*[_bars(client, s) for s in symbols], return_exceptions=True)
+        sem = asyncio.Semaphore(YAHOO_CONCURRENCY)
+
+        async def one(s: str) -> list[dict]:
+            async with sem:
+                return await _bars(client, s)
+
+        results = await asyncio.gather(*[one(s) for s in symbols], return_exceptions=True)
     bars = {}
     for s, r in zip(symbols, results):
         if isinstance(r, Exception):
