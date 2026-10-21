@@ -136,6 +136,12 @@
 
 ## 7. 工作日誌（新的寫在最上面）
 
+### 2026-10-21｜Claude Opus 5.5（全球市場：歐洲加 4 個指數）
+- 做了什麼：歐洲組由 2 個增為 6 個：新增歐洲 STOXX 50（`^STOXX50E`）、法國 CAC 40（`^FCHI`）、荷蘭 AEX（`^AEX`，含 ASML、與台灣半導體連動高）、瑞士 SMI（`^SSMI`），順序 STOXX 50、DAX、富時 100、CAC 40、AEX、SMI。全站 Yahoo 代號 30 → 34 個（含 ADR）
+- 改了哪些檔：`backend/app/services/global_mkt.py`
+- 怎麼驗證：本機跑 `global_mkt.build()` 打 Yahoo：5 組共 28 個商品全部有資料，歐洲 6 個皆 22 點走勢、最新 2026-10-20；pytest 102 passed、ruff 通過。候選另實測可用但未加：STOXX 600、Euronext 100、義大利、西班牙、德國 TecDAX／MDAX、英國富時 250、北歐四國、比利時、奧地利、葡萄牙、愛爾蘭、土耳其；波蘭 WIG20 資料不穩、俄羅斯 MOEX 查無
+- 沒做完／新發現：**尚未 commit／部署**；前端不需改（小卡排版已於 `972da07` 修好，名稱欄可換行）
+
 ### 2026-10-21｜Claude Opus 5.5（全球市場加市場）
 - 做了什麼：全球市場新增 8 個商品：美股加羅素 2000（`^RUT`）；亞洲加深證成指（`399001.SZ`）、澳洲 ASX 200（`^AXJO`）、印度 SENSEX（`^BSESN`）、新加坡海峽時報（`^STI`）；原物料加銅（`HG=F`）；匯率加美元／日圓（`JPY=X`）、美元／人民幣（`CNY=X`）。原「原物料・匯率・利率」拆成「原物料・利率」與「匯率」兩組。Yahoo 同時連線數限 8（`YAHOO_CONCURRENCY`），代號從 22 個增為 30 個（含 ADR）
 - 改了哪些檔：`backend/app/services/global_mkt.py`
